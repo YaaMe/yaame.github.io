@@ -2,6 +2,19 @@ scheme: Gemini
 darkmode: true
 # favicon:
 # custom_logo
+preconnect: true
+mobile_layout_economy: true
+bookmark:
+  enable: false
+  # Customize the color of the bookmark.
+  color: "#222"
+  # If auto, save the reading progress when closing the page or clicking the bookmark-icon.
+  # If manual, only save it by clicking the bookmark-icon.
+  save: auto
 menu:
-  home: /
-  komorebi: /komorebi/
+  Home: /
+  Archives: /archives/
+  Komorebi: /komorebi/
+social:
+  GitHub: https://github.com/yaame || fab fa-github
+  E-Mail: octonaryrobot@gmail.com || fa fa-envelope
