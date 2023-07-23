@@ -1,0 +1,7 @@
+scheme: Gemini
+darkmode: true
+# favicon:
+# custom_logo
+menu:
+  home: /
+  komorebi: /komorebi/

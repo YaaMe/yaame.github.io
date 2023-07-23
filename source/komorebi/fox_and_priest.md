@@ -1,3 +1,13 @@
+---
+title: komorebi
+date: 2023-07-23 22:41:04
+type:
+- categories
+tags:
+- story
+- fox_and_priest
+---
+
 一
 
 林间古道，夕阳尚未降下山头。
