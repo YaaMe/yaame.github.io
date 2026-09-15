@@ -1,0 +1,48 @@
+name: Deploy
+
+# 仓库的 Pages 已是 build_type=workflow（走 GitHub Actions），
+# 无需改设置。自定义域名 blogu.yaa.me 由 Pages 配置持有，
+# public/CNAME 进 artifact 作为双保险。
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# 同一时间只跑一个部署，但不取消进行中的那个
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: make install
+      # frontmatter 补全检查 + 构建 + 内部链接检查，
+      # 和本地 `make check` 是同一条命令
+      - run: make check
+      - uses: actions/configure-pages@v6
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: ./dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v5
