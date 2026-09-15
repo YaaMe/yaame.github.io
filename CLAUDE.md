@@ -79,12 +79,19 @@ git merge --no-ff --gpg-sign -m "[Domain]: ..." <branch>
 git push origin main
 ```
 
-**Never land a branch through GitHub's "Rebase and merge".** It rewrites the
-commits, and the rewritten ones carry no signature: PR #16 went in with nine
-signed commits and left nine unsigned ones on `main`. Of GitHub's three
-buttons only "Create a merge commit" keeps the original commits, and therefore
-their signatures; "Squash and merge" replaces them with a single commit signed
-by GitHub rather than by the author.
+**Never land a branch through GitHub's "Rebase and merge".** PR #16 went in
+with nine signed commits and left nine unsigned ones on `main`.
+
+| How it lands | The branch's commits | Their signatures |
+| --- | --- | --- |
+| Locally, `--no-ff --gpg-sign` | kept | kept, and the merge commit is signed too |
+| "Create a merge commit" | kept | kept; GitHub signs the merge commit itself |
+| "Squash and merge" | replaced by one | lost; the replacement is signed by GitHub |
+| "Rebase and merge" | rewritten | **lost, and nothing signs the rewrites** |
+
+Only the first two leave commits on `main` signed by their author. A commit
+signed by GitHub attests that GitHub performed the merge, not that you wrote
+the code. `git log --format='%h %G? %s'` is how to read this back.
 
 ## URL contract
 
