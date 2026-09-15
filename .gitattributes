@@ -1,0 +1,16 @@
+# 统一行尾：进仓库一律 LF，避免某个文件在别的环境被改成 CRLF 之后
+# 整篇显示为全量 diff（2021-10-18.md 就发生过）。
+* text=auto eol=lf
+
+*.md   text eol=lf
+*.astro text eol=lf
+*.ts   text eol=lf
+*.css  text eol=lf
+*.yml  text eol=lf
+*.json text eol=lf
+
+# 二进制，别碰
+*.jpg  binary
+*.png  binary
+*.webp binary
+*.gz   binary

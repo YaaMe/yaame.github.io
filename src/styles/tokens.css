@@ -1,0 +1,16 @@
+/* 设计令牌。这一层不依赖任何框架，换 Astro 换 Next 都不用动。 */
+:root {
+  color-scheme: light dark;
+
+  --bg:     light-dark(#fdfdfc, #1a1a19);
+  --fg:     light-dark(#2b2b28, #e3e3e0);
+  --muted:  light-dark(#6b6b66, #9a9a95);
+  --rule:   light-dark(#e5e5e1, #333330);
+  --accent: light-dark(#3a5a7a, #8fb4d4);
+
+  --font: system-ui, "PingFang SC", "Noto Sans CJK SC", "Hiragino Sans GB", sans-serif;
+  --size: 17px;
+  --lh: 1.85;          /* 中文要比拉丁高，1.5 太挤 */
+  --measure: 34em;     /* 约 34 个汉字一行 */
+  --gutter: 1.2rem;
+}

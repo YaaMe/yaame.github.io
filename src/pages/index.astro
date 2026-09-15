@@ -1,0 +1,10 @@
+---
+import Base from "../layouts/Base.astro";
+import PostList from "../components/PostList.astro";
+import { allPosts, pages, slice } from "../lib/posts";
+const posts = await allPosts();
+---
+<Base title="Blogu">
+  <PostList posts={slice(posts, 1)} page={1} total={pages(posts.length)} base="/" />
+  <p><a href="/archives/">归档</a> · <a href="/komorebi/">komorebi</a></p>
+</Base>
