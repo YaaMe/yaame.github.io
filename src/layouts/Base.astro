@@ -1,20 +1,51 @@
 ---
 import "../styles/tokens.css";
+import { site, nav, social } from "../site.config";
 interface Props { title: string; description?: string }
 const { title, description } = Astro.props;
 ---
 <!doctype html>
-<html lang="zh-Hans">
+<html lang={site.lang}>
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>{title}</title>
-    {description && <meta name="description" content={description} />}
+    {(description ?? site.description) && <meta name="description" content={description ?? site.description} />}
     <link rel="alternate" type="application/rss+xml" title="Blogu" href="/rss.xml" />
+    <script is:inline>
+      // 必须内联且在首次绘制之前执行，否则刷新时会闪一下浅色。
+      // tokens.css 用 light-dark()，所以只要改 color-scheme 全站就跟着变。
+      try {
+        const t = localStorage.getItem("theme");
+        if (t) document.documentElement.style.colorScheme = t;
+      } catch {}
+    </script>
   </head>
   <body>
-    <header><a href="/">Blogu</a></header>
+    <header>
+      <a class="brand" href="/">{site.title}</a>
+      <nav>
+        {nav.slice(1).map((n) => <a href={n.href}>{n.label}</a>)}
+        <button id="theme" type="button" aria-label="切换明暗">◐</button>
+      </nav>
+    </header>
     <main><slot /></main>
+    <footer>
+      <p>{social.map((s) => <a href={s.href}>{s.label}</a>)}</p>
+      <p class="muted">© {site.author}</p>
+    </footer>
+    <script is:inline>
+      document.getElementById("theme")?.addEventListener("click", () => {
+        const root = document.documentElement;
+        // 没设过就先读系统当前值，保证第一次点击一定是「反向」
+        const now =
+          root.style.colorScheme ||
+          (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+        const next = now === "dark" ? "light" : "dark";
+        root.style.colorScheme = next;
+        try { localStorage.setItem("theme", next); } catch {}
+      });
+    </script>
     <style is:global>
       body {
         background: var(--bg); color: var(--fg);
@@ -22,9 +53,18 @@ const { title, description } = Astro.props;
         text-autospace: normal;        /* 中西混排间距，浏览器代劳 */
         margin: 0;
       }
-      header, main { max-width: var(--measure); margin-inline: auto; padding-inline: var(--gutter); }
+      header, main, footer { max-width: var(--measure); margin-inline: auto; padding-inline: var(--gutter); }
+      header { display: flex; flex-wrap: wrap; gap: 1em 1.4em; align-items: baseline; }
+      header nav { display: flex; gap: 1.2em; align-items: baseline; }
+      #theme { background: none; border: 0; padding: 0; cursor: pointer;
+               color: var(--muted); font-size: 1em; line-height: 1; }
+      #theme:hover { color: var(--fg); }
+      .brand { color: var(--fg); text-decoration: none; font-weight: 600; letter-spacing: .04em; }
+      footer { border-top: 1px solid var(--rule); margin-block-start: 4em; padding-block: 1.5em 3em; font-size: .9em; }
+      footer p { display: flex; gap: 1.2em; margin-block: .4em; }
+      .muted { color: var(--muted); }
       header { padding-block: 2rem 1rem; }
-      header a { color: var(--muted); text-decoration: none; letter-spacing: .08em; }
+      header nav a, footer a { color: var(--muted); text-decoration: none; }
       h1, h2, h3 { line-height: 1.4; text-wrap: balance; }
       p { margin-block: 1.4em; }
       a { color: var(--accent); text-underline-offset: .2em; }

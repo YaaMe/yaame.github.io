@@ -2,14 +2,14 @@
 import { href, type Post } from "../lib/posts";
 interface Props { posts: Post[]; page: number; total: number; base: string }
 const { posts, page, total, base } = Astro.props;
-// base 形如 "/" 或 "/archives/" 或 "/tags/summarize/"
 const pageHref = (n: number) => (n === 1 ? base : `${base}page/${n}/`);
 ---
 <ul>
   {posts.map((p) => (
     <li>
-      <time datetime={p.data.date.iso}>{p.data.date.y}-{p.data.date.mo}-{p.data.date.d}</time>
       <a href={href(p)}>{p.data.title}</a>
+      <time datetime={p.data.date.iso}>{p.data.date.y}-{p.data.date.mo}-{p.data.date.d}</time>
+      {p.data.description && <p>{p.data.description}</p>}
     </li>
   ))}
 </ul>
@@ -22,7 +22,11 @@ const pageHref = (n: number) => (n === 1 ? base : `${base}page/${n}/`);
 )}
 <style>
   ul { list-style: none; padding: 0; }
-  li { display: flex; gap: 1em; align-items: baseline; margin-block: .7em; }
-  time { flex: none; color: var(--muted); font-variant-numeric: tabular-nums; font-size: .9em; }
-  nav { display: flex; gap: 1.5em; align-items: baseline; margin-block-start: 2.5em; color: var(--muted); }
+  li { margin-block: 2em; }
+  li > a { font-size: 1.15em; font-weight: 600; color: var(--fg); text-decoration: none; }
+  li > a:hover { color: var(--accent); }
+  time { display: block; margin-block: .3em; color: var(--muted); font-size: .85em;
+         font-variant-numeric: tabular-nums; }
+  li p { margin: .4em 0 0; color: var(--muted); font-size: .95em; line-height: 1.7; }
+  nav { display: flex; gap: 1.5em; align-items: baseline; margin-block-start: 3em; color: var(--muted); }
 </style>

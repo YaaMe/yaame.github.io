@@ -1,10 +1,94 @@
 ---
 import Base from "../layouts/Base.astro";
-import PostList from "../components/PostList.astro";
-import { allPosts, pages, slice } from "../lib/posts";
+import { allPosts, href, periodYear, chapterCount } from "../lib/posts";
+import { site, hero } from "../site.config";
+
 const posts = await allPosts();
+
+// 小结：按文件名里的年份分组 —— 那是覆盖的时段，不是发布时间。
+// 组内按文件名倒序，和分组同一个键，顺序不会有意外。
+const summaries = new Map<string, typeof posts>();
+for (const p of [...posts].sort((a, b) => b.id.localeCompare(a.id))) {
+  if (!p.data.tags.includes("summaries")) continue;
+  const y = periodYear(p);
+  if (!summaries.has(y)) summaries.set(y, []);
+  summaries.get(y)!.push(p);
+}
+
+// 其余的（单篇随笔）—— 现在只有一篇，先按发布时间倒序列着
+const others = posts.filter((p) => !p.data.tags.includes("summaries"));
+
+// 散文式目录：数字从内容算，不手填 —— 加一篇或一章它自己变
+const sumCount = posts.length - others.length;
+const sumYears = [...summaries.keys()].sort();
+const chapters = await chapterCount();
 ---
-<Base title="Blogu">
-  <PostList posts={slice(posts, 1)} page={1} total={pages(posts.length)} base="/" />
-  <p><a href="/archives/">归档</a> · <a href="/komorebi/">komorebi</a></p>
+<Base title={site.title}>
+  <section class="hero">
+    {hero.greeting && <h1>{hero.greeting}</h1>}
+    {hero.intro && <p class="intro">{hero.intro}</p>}
+    <p class="toc">
+      这里有 <a href="#summaries">{sumCount} 篇小结</a>
+      （{sumYears[0]}–{sumYears.at(-1)}）
+      {others.length > 0 && <>、<a href="#others">{others.length} 篇随笔</a></>}
+      {chapters > 0 && <>，和一部 <a href="/komorebi/">{chapters} 章</a>还在写的小说</>}
+      。
+    </p>
+  </section>
+
+  <section class="block" id="summaries">
+    <h2 class="block-title">小结</h2>
+    {[...summaries].map(([year, items]) => (
+      <div class="year">
+        <h3>{year}</h3>
+        <ul>
+          {items.map((p) => (
+            <li>
+              <a href={href(p)}>{p.data.title}</a>
+              <time datetime={p.data.date.iso}>{p.data.date.y}-{p.data.date.mo}-{p.data.date.d} 发</time>
+              {p.data.description && <p>{p.data.description}</p>}
+            </li>
+          ))}
+        </ul>
+      </div>
+    ))}
+  </section>
+
+  {others.length > 0 && (
+    <section class="block" id="others">
+      <h2 class="block-title">其它</h2>
+      <ul>
+        {others.map((p) => (
+          <li>
+            <a href={href(p)}>{p.data.title}</a>
+            <time datetime={p.data.date.iso}>{p.data.date.y}-{p.data.date.mo}-{p.data.date.d}</time>
+            {p.data.description && <p>{p.data.description}</p>}
+          </li>
+        ))}
+      </ul>
+    </section>
+  )}
+
+  <style>
+    .hero { padding-block: .5em 2em; border-bottom: 1px solid var(--rule); }
+    .hero h1 { margin: 0 0 .4em; font-size: 1.8em; }
+    .intro { margin: 0 0 1.2em; color: var(--muted); }
+    .toc { margin: 0; color: var(--muted); }
+    .toc a { color: var(--fg); text-decoration: none;
+             border-bottom: 1px solid var(--rule); }
+    .toc a:hover { color: var(--accent); border-color: var(--accent); }
+    .block { margin-block: 3em; }
+    .block-title { margin: 0 0 1.2em; font-size: .9em; font-weight: 600;
+                   letter-spacing: .12em; color: var(--muted); }
+    .year { margin-block: 2em; }
+    .year h3 { margin: 0 0 .5em; font-size: 1em; font-weight: 600; color: var(--muted);
+               font-variant-numeric: tabular-nums; letter-spacing: .06em; }
+    ul { list-style: none; padding: 0; margin: 0; border-top: 1px solid var(--rule); }
+    li { padding-block: 1.1em; border-bottom: 1px solid var(--rule); }
+    li > a { font-size: 1.05em; font-weight: 600; color: var(--fg); text-decoration: none; }
+    li > a:hover { color: var(--accent); }
+    time { margin-inline-start: .8em; color: var(--muted); font-size: .85em;
+           font-variant-numeric: tabular-nums; }
+    li p { margin: .35em 0 0; color: var(--muted); font-size: .95em; line-height: 1.7; }
+  </style>
 </Base>
