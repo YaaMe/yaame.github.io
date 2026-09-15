@@ -1,4 +1,8 @@
-import { defineCollection, z } from "astro:content";
+import { defineCollection } from "astro:content";
+// zod comes from the package, not from astro:content — that re-export is
+// deprecated in Astro 7. The version is pinned to the one Astro itself uses,
+// so a schema written here is the schema the content layer runs.
+import { z } from "zod";
 import { glob } from "astro/loaders";
 import { TAG_SLUGS } from "./tags";
 import { site } from "./site.config";
