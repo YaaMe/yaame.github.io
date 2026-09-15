@@ -21,4 +21,4 @@ export const TAGS = {
 
 export type Tag = keyof typeof TAGS;
 export const TAG_SLUGS = Object.keys(TAGS) as [Tag, ...Tag[]];
-export const label = (t: string) => (TAGS as Record<string, string>)[t] ?? t;
+export const label = (t: Tag) => TAGS[t];

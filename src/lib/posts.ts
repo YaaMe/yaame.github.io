@@ -1,4 +1,5 @@
 import { getCollection, render, type CollectionEntry } from "astro:content";
+import type { Tag } from "../tags";
 
 /**
  * The data layer.
@@ -52,8 +53,15 @@ export function periodYear(p: Post): string {
   return m ? m[1] : p.data.date.y;
 }
 
-export async function allTags(): Promise<string[]> {
-  const t = new Set<string>();
+/**
+ * Tags in use, narrowed to the registry rather than widened to `string`.
+ *
+ * content.config.ts already rejects unregistered tags at build time, so every
+ * value here is a `Tag`. Returning `string[]` threw that away and left callers
+ * unable to compare against `p.data.tags` without a cast.
+ */
+export async function allTags(): Promise<Tag[]> {
+  const t = new Set<Tag>();
   for (const p of await allPosts()) p.data.tags.forEach((x) => t.add(x));
   return [...t].sort();
 }
