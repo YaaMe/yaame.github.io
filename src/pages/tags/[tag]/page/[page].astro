@@ -1,0 +1,24 @@
+---
+import Base from "../../../../layouts/Base.astro";
+import PostList from "../../../../components/PostList.astro";
+import { allPosts, allTags, pages, slice } from "../../../../lib/posts";
+
+export async function getStaticPaths() {
+  const posts = await allPosts();
+  const out = [];
+  for (const tag of await allTags()) {
+    const tagged = posts.filter((p) => p.data.tags.includes(tag));
+    const total = pages(tagged.length);
+    for (let n = 2; n <= total; n++) {
+      out.push({ params: { tag, page: String(n) }, props: { tag, tagged, page: n, total } });
+    }
+  }
+  return out;
+}
+
+const { tag, tagged, page, total } = Astro.props;
+---
+<Base title={`标签：${tag} · 第 ${page} 页`}>
+  <h1>标签：{tag}</h1>
+  <PostList posts={slice(tagged, page)} page={page} total={total} base={`/tags/${tag}/`} />
+</Base>

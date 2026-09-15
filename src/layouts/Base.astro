@@ -1,0 +1,40 @@
+---
+import "../styles/tokens.css";
+interface Props { title: string; description?: string }
+const { title, description } = Astro.props;
+---
+<!doctype html>
+<html lang="zh-Hans">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title}</title>
+    {description && <meta name="description" content={description} />}
+    <link rel="alternate" type="application/rss+xml" title="Blogu" href="/rss.xml" />
+  </head>
+  <body>
+    <header><a href="/">Blogu</a></header>
+    <main><slot /></main>
+    <style is:global>
+      body {
+        background: var(--bg); color: var(--fg);
+        font-family: var(--font); font-size: var(--size); line-height: var(--lh);
+        text-autospace: normal;        /* 中西混排间距，浏览器代劳 */
+        margin: 0;
+      }
+      header, main { max-width: var(--measure); margin-inline: auto; padding-inline: var(--gutter); }
+      header { padding-block: 2rem 1rem; }
+      header a { color: var(--muted); text-decoration: none; letter-spacing: .08em; }
+      h1, h2, h3 { line-height: 1.4; text-wrap: balance; }
+      p { margin-block: 1.4em; }
+      a { color: var(--accent); text-underline-offset: .2em; }
+      img { max-width: 100%; height: auto; }
+      blockquote {
+        border-inline-start: 2px solid var(--rule);
+        padding-inline-start: 1em; margin-inline: 0; color: var(--muted);
+      }
+      time { color: var(--muted); font-size: .9em; }
+      hr { border: 0; border-top: 1px solid var(--rule); margin-block: 2.5em; }
+    </style>
+  </body>
+</html>
