@@ -1,5 +1,6 @@
 import { defineCollection, z } from "astro:content";
 import { glob } from "astro/loaders";
+import { TAG_SLUGS } from "./tags";
 
 // 站点的发布时区。frontmatter 里的日期都带 +08:00 标记，
 // 但 URL 里的 /YYYY/MM/DD/ 必须按【这个时区】渲染 ——
@@ -9,10 +10,13 @@ const ymd = new Intl.DateTimeFormat("en-CA", {
   timeZone: TZ, year: "numeric", month: "2-digit", day: "2-digit",
 });
 
+// 标签必须来自 src/tags.ts 的常量池 —— 拼错会让构建失败，
+// 而不是生成一个没人会访问的 /tags/xxx/ 页面。
 const tags = z
   .union([z.string(), z.array(z.string()), z.null()])
   .optional()
-  .transform((t) => (t == null ? [] : Array.isArray(t) ? t : [t]));
+  .transform((t) => (t == null ? [] : Array.isArray(t) ? t : [t]))
+  .pipe(z.array(z.enum(TAG_SLUGS)));
 
 const stamped = z.coerce.date().transform((d) => {
   const [y, mo, day] = ymd.format(d).split("-");

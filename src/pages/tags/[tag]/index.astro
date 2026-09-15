@@ -2,6 +2,7 @@
 import Base from "../../../layouts/Base.astro";
 import PostList from "../../../components/PostList.astro";
 import { allPosts, allTags, pages, slice } from "../../../lib/posts";
+import { label } from "../../../tags";
 
 export async function getStaticPaths() {
   const posts = await allPosts();
@@ -13,7 +14,7 @@ export async function getStaticPaths() {
 
 const { tag, tagged, total } = Astro.props;
 ---
-<Base title={`标签：${tag}`}>
-  <h1>标签：{tag}</h1>
+<Base title={`${label(tag)} · 标签`}>
+  <h1>{label(tag)}</h1>
   <PostList posts={slice(tagged, 1)} page={1} total={total} base={`/tags/${tag}/`} />
 </Base>
