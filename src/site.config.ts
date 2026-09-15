@@ -6,6 +6,13 @@ export const site = {
   lang: "zh-Hans",          // The old Hexo config said "en", which was always wrong
   // TODO: both subtitle and description were empty in the old NexT config
   description: "",
+
+  // The OpenPGP primary key that signs this repository's commits. The full
+  // 40-character fingerprint, not the 16-character key ID: a key ID is a
+  // truncation of this hash, and the one job this value has is to reveal a
+  // substituted key when compared against another channel. Stored unformatted —
+  // grouping it into blocks of four is presentation.
+  fingerprint: "AD14E09899ECA2C40D518CCB279F27B46C4647E3",
 } as const;
 
 /**
