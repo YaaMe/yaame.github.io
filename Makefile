@@ -19,8 +19,11 @@ build: ## 构建到 dist/
 preview: build ## 构建后本地预览产物
 	npx astro preview
 
-check: frontmatter build links ## 全量校验：frontmatter → 构建 → 链接（CI 跑这个）
+check: frontmatter types build links ## 全量校验：frontmatter → 类型 → 构建 → 链接（CI 跑这个）
 	@echo "  ✓ 全部通过"
+
+types: ## 类型检查（astro build 不做这件事）
+	@npx astro check
 
 frontmatter: ## 检查 frontmatter 是否补全（不写文件）
 	@node scripts/frontmatter.mjs --check

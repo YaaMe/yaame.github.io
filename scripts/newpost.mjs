@@ -12,7 +12,7 @@
  *
  * 不写 description —— 正文写完之后跑 `make fix` 补，或者自己写一句更好的。
  */
-import { existsSync, writeFileSync, appendFileSync } from "node:fs";
+import { existsSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { createInterface } from "node:readline/promises";
 import { readFileSync } from "node:fs";
