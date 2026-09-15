@@ -42,8 +42,8 @@ function makeDescription(body, fallback) {
 
 /** 从文件名推断标签。本站的命名约定：YYYY-year 是年结，YYYY-MM 是月结。 */
 function inferTags(slug) {
-  if (/^\d{4}-year$/.test(slug)) return ["summarize", "year"];
-  if (/^\d{4}-\d{2}$/.test(slug)) return ["summarize", "month"];
+  if (/^\d{4}-year$/.test(slug)) return ["summaries", "year"];
+  if (/^\d{4}-\d{2}$/.test(slug)) return ["summaries", "month"];
   return null;   // 认不出来就不猜，交给人
 }
 

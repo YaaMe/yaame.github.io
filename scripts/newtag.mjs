@@ -1,0 +1,31 @@
+#!/usr/bin/env node
+/**
+ * 往标签常量池 src/tags.ts 里加一条。
+ *
+ *   node scripts/newtag.mjs reading 读书
+ *
+ * 池子是唯一真相：不在里面的标签会让构建失败（见 src/content.config.ts）。
+ */
+import { readFileSync, writeFileSync } from "node:fs";
+
+const [slug, label] = process.argv.slice(2);
+const FILE = "src/tags.ts";
+
+if (!slug || !label) {
+  console.error("  用法: make newtag SLUG=<英文标识> LABEL=<显示名>");
+  process.exit(2);
+}
+if (!/^[a-z][a-z0-9_]*$/.test(slug)) {
+  console.error(`  slug "${slug}" 不合法：小写字母开头，只能含小写字母、数字、下划线`);
+  process.exit(2);
+}
+
+const src = readFileSync(FILE, "utf8");
+if (new RegExp(`^\\s{2}${slug}:`, "m").test(src)) {
+  console.error(`  "${slug}" 已在池子里 —— 用 make tags 看现有的`);
+  process.exit(1);
+}
+
+writeFileSync(FILE, src.replace(/\n\} as const;/, `\n  ${slug}: "${label}",\n} as const;`));
+console.log(`  已加入 ${FILE}：${slug} → ${label}`);
+console.log(`  现在可以在 frontmatter 里用它了；make tags 看全部`);
