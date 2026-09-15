@@ -5,8 +5,9 @@ import { site, hero } from "../site.config";
 
 const posts = await allPosts();
 
-// 小结：按文件名里的年份分组 —— 那是覆盖的时段，不是发布时间。
-// 组内按文件名倒序，和分组同一个键，顺序不会有意外。
+// Summaries, grouped by the year in the filename — the period covered, not
+// the publication date. Sorted within a group by the same key, so the order
+// never surprises.
 const summaries = new Map<string, typeof posts>();
 for (const p of [...posts].sort((a, b) => b.id.localeCompare(a.id))) {
   if (!p.data.tags.includes("summaries")) continue;
@@ -15,10 +16,11 @@ for (const p of [...posts].sort((a, b) => b.id.localeCompare(a.id))) {
   summaries.get(y)!.push(p);
 }
 
-// 其余的（单篇随笔）—— 现在只有一篇，先按发布时间倒序列着
+// Everything else. One post for now, newest first.
 const others = posts.filter((p) => !p.data.tags.includes("summaries"));
 
-// 散文式目录：数字从内容算，不手填 —— 加一篇或一章它自己变
+// The counts are derived, never typed in: add a post or a chapter and the
+// sentence below updates itself.
 const sumCount = posts.length - others.length;
 const sumYears = [...summaries.keys()].sort();
 const chapters = await chapterCount();

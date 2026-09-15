@@ -2,16 +2,16 @@ import { defineCollection, z } from "astro:content";
 import { glob } from "astro/loaders";
 import { TAG_SLUGS } from "./tags";
 
-// 站点的发布时区。frontmatter 里的日期都带 +08:00 标记，
-// 但 URL 里的 /YYYY/MM/DD/ 必须按【这个时区】渲染 ——
-// 若按 UTC 渲染，02:22+08:00 这类会退回前一天，破坏对外的链接契约。
+// The site's publishing timezone. Frontmatter dates carry +08:00, but the
+// /YYYY/MM/DD/ segments must be rendered in THIS zone: rendered as UTC,
+// a 02:22+08:00 timestamp falls back a day and breaks the URL contract.
 const TZ = "Asia/Shanghai";
 const ymd = new Intl.DateTimeFormat("en-CA", {
   timeZone: TZ, year: "numeric", month: "2-digit", day: "2-digit",
 });
 
-// 标签必须来自 src/tags.ts 的常量池 —— 拼错会让构建失败，
-// 而不是生成一个没人会访问的 /tags/xxx/ 页面。
+// Tags must come from the registry in src/tags.ts. A typo fails the build
+// rather than producing a /tags/xxx/ page nobody will visit.
 const tags = z
   .union([z.string(), z.array(z.string()), z.null()])
   .optional()
@@ -25,7 +25,7 @@ const stamped = z.coerce.date().transform((d) => {
 
 const base = {
   title: z.string(),
-  // 由 scripts/frontmatter.mjs 补全；手写的不会被覆盖
+  // Filled in by scripts/frontmatter.mjs; hand-written values are never overwritten
   description: z.string().optional(),
   tags,
 };
@@ -37,7 +37,7 @@ export const collections = {
   }),
   komorebi: defineCollection({
     loader: glob({ base: "./src/content/komorebi", pattern: "**/*.md" }),
-    // index.md 还带一个 Hexo 遗留的 type 字段，放行但不使用
+    // index.md still carries a leftover Hexo `type` field: accepted, unused
     schema: z.object({ ...base, date: stamped.optional(), type: z.any().optional() }),
   }),
 };

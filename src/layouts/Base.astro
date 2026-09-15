@@ -13,8 +13,8 @@ const { title, description } = Astro.props;
     {(description ?? site.description) && <meta name="description" content={description ?? site.description} />}
     <link rel="alternate" type="application/rss+xml" title="Blogu" href="/rss.xml" />
     <script is:inline>
-      // 必须内联且在首次绘制之前执行，否则刷新时会闪一下浅色。
-      // tokens.css 用 light-dark()，所以只要改 color-scheme 全站就跟着变。
+      // Must be inline and run before first paint, or a reload flashes light.
+      // tokens.css uses light-dark(), so flipping color-scheme is enough.
       try {
         const t = localStorage.getItem("theme");
         if (t) document.documentElement.style.colorScheme = t;
@@ -37,7 +37,7 @@ const { title, description } = Astro.props;
     <script is:inline>
       document.getElementById("theme")?.addEventListener("click", () => {
         const root = document.documentElement;
-        // 没设过就先读系统当前值，保证第一次点击一定是「反向」
+        // Fall back to the system value so the first click always inverts
         const now =
           root.style.colorScheme ||
           (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
@@ -50,7 +50,7 @@ const { title, description } = Astro.props;
       body {
         background: var(--bg); color: var(--fg);
         font-family: var(--font); font-size: var(--size); line-height: var(--lh);
-        text-autospace: normal;        /* 中西混排间距，浏览器代劳 */
+        text-autospace: normal;        /* CJK-Latin spacing, handled natively */
         margin: 0;
       }
       header, main, footer { max-width: var(--measure); margin-inline: auto; padding-inline: var(--gutter); }

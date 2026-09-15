@@ -1,11 +1,12 @@
 /**
- * 标签常量池 —— 唯一真相。
+ * The tag registry — single source of truth.
  *
- * content.config.ts 用它做构建期校验：不在这里的标签会让构建失败，
- * 而不是默默生成一个新的 /tags/xxx/ 页面。
- * （summarize / summaries 那次拼写漂移就是这么发生的。）
+ * content.config.ts validates against it at build time: a tag that is not
+ * listed here fails the build, rather than quietly producing a /tags/xxx/
+ * page nobody will ever visit. (That is how the summarize/summaries
+ * spelling drift happened.)
  *
- * 新增标签：在这里加一行，然后 make check。
+ * To add a tag: add a line here, then `make check`.
  */
 export const TAGS = {
   summaries: "小结",
@@ -13,7 +14,7 @@ export const TAGS = {
   month: "月结",
   gugu: "咕",
 
-  // komorebi（小说）
+  // komorebi (the novel)
   story: "故事",
   fox_and_priest: "狐狸与道士",
 } as const;

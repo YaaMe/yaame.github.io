@@ -2,3 +2,5 @@ node_modules/
 dist/
 .astro/
 .DS_Store
+komorebi-notes.md
+docs/identity.md
