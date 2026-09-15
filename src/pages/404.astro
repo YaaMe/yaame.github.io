@@ -1,0 +1,19 @@
+---
+import Base from "../layouts/Base.astro";
+import { site, nav } from "../site.config";
+
+// GitHub Pages serves /404.html for any path it cannot resolve, so this page
+// needs no route of its own — Astro emits it whatever `trailingSlash` says.
+---
+
+<Base title={`404 · ${site.title}`}>
+  <h1>404</h1>
+  <p>这里没有东西。可能是链接旧了，也可能是那篇还没写。</p>
+  <nav>
+    {nav.map((item) => <a href={item.href}>{item.label}</a>)}
+  </nav>
+</Base>
+
+<style>
+  nav { display: flex; gap: 1.25rem; margin-top: 2rem; }
+</style>
