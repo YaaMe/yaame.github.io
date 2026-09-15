@@ -26,9 +26,53 @@ const DIR = "src/content/posts";
 const TZ = "+08:00";
 
 const args = process.argv.slice(2);
-const ti = args.indexOf("--title");
-const title = ti >= 0 ? args[ti + 1] : null;
-const spec = args.find((a) => !a.startsWith("--") && a !== title) ?? lastMonth();
+
+const USAGE = [
+  "  用法：node scripts/newpost.mjs [日期] [选项]",
+  "",
+  "    （不带参数）      上一个月的月结",
+  "    2026-09           指定月结",
+  "    2026-year         年结",
+  "    2026-09-15        单篇随笔",
+  "",
+  "    --title <标题>    指定标题，默认用日期",
+  "    --no-interactive  跳过标签选择",
+  "    --pick            强制进入选择器（不依赖 TTY）",
+  "    -h, --help        显示这段",
+].join("\n");
+
+// Parsed explicitly, because the loose version silently ignored anything it did
+// not recognise and then fell through to its default — so a typo, or a --help
+// this script never had, wrote last month's summary instead of complaining.
+let title = null;
+const rest = [];
+for (let i = 0; i < args.length; i++) {
+  const a = args[i];
+  if (a === "-h" || a === "--help") {
+    console.log(USAGE);
+    process.exit(0);
+  } else if (a === "--title") {
+    const v = args[++i];
+    if (v === undefined || v.startsWith("--")) {
+      console.error("  --title 后面要跟一个标题");
+      process.exit(2);
+    }
+    title = v;
+  } else if (a === "--no-interactive" || a === "--pick") {
+    // Read further down, where the picker decides whether to run.
+  } else if (a.startsWith("-")) {
+    console.error(`  未知参数 ${a}\n`);
+    console.error(USAGE);
+    process.exit(2);
+  } else {
+    rest.push(a);
+  }
+}
+if (rest.length > 1) {
+  console.error(`  只接受一个日期参数，收到 ${rest.length} 个：${rest.join(" ")}`);
+  process.exit(2);
+}
+const spec = rest[0] ?? lastMonth();
 
 function lastMonth() {
   const d = new Date();
@@ -44,10 +88,30 @@ function addToPool(slug, zh) {
   writeFileSync(f, src.replace(/\n\} as const;/, `\n  ${slug}: "${zh}",\n} as const;`));
 }
 
+/** A real calendar day, so 2026-02-30 is rejected rather than filed. */
+function isRealDay(y, m, d) {
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  return dt.getUTCFullYear() === y && dt.getUTCMonth() === m - 1 && dt.getUTCDate() === d;
+}
+
+// Month and day are range-checked, not just shape-checked: \d{2} accepted
+// month 99, and the file was written before anything noticed.
 function kindOf(s) {
   if (/^\d{4}-year$/.test(s)) return { kind: "year", tags: ["summaries", "year"] };
-  if (/^\d{4}-\d{2}$/.test(s)) return { kind: "month", tags: ["summaries", "month"] };
-  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return { kind: "post", tags: [] };
+
+  let m = /^(\d{4})-(\d{2})$/.exec(s);
+  if (m) {
+    const mo = Number(m[2]);
+    return mo >= 1 && mo <= 12 ? { kind: "month", tags: ["summaries", "month"] } : null;
+  }
+
+  m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s);
+  if (m) {
+    return isRealDay(Number(m[1]), Number(m[2]), Number(m[3]))
+      ? { kind: "post", tags: [] }
+      : null;
+  }
+
   return null;
 }
 
