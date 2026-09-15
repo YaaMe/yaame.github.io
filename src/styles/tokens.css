@@ -1,4 +1,4 @@
-/* 设计令牌。这一层不依赖任何框架，换 Astro 换 Next 都不用动。 */
+/* Design tokens. Framework-independent: unchanged by a switch of renderer. */
 :root {
   color-scheme: light dark;
 
@@ -10,7 +10,7 @@
 
   --font: system-ui, "PingFang SC", "Noto Sans CJK SC", "Hiragino Sans GB", sans-serif;
   --size: 17px;
-  --lh: 1.85;          /* 中文要比拉丁高，1.5 太挤 */
-  --measure: 34em;     /* 约 34 个汉字一行 */
+  --lh: 1.85;          /* Chinese needs more than Latin; 1.5 is cramped */
+  --measure: 34em;     /* ~34 Han characters per line */
   --gutter: 1.2rem;
 }

@@ -2,6 +2,7 @@
 import { href, type Post } from "../lib/posts";
 interface Props { posts: Post[]; page: number; total: number; base: string }
 const { posts, page, total, base } = Astro.props;
+// `base` is e.g. "/" or "/tags/summaries/"
 const pageHref = (n: number) => (n === 1 ? base : `${base}page/${n}/`);
 ---
 <ul>

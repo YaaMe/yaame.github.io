@@ -1,5 +1,5 @@
-# 统一行尾：进仓库一律 LF，避免某个文件在别的环境被改成 CRLF 之后
-# 整篇显示为全量 diff（2021-10-18.md 就发生过）。
+# Normalise line endings to LF on the way in, so that a file edited on
+# another platform does not come back as a whole-file diff.
 * text=auto eol=lf
 
 *.md   text eol=lf
@@ -9,7 +9,7 @@
 *.yml  text eol=lf
 *.json text eol=lf
 
-# 二进制，别碰
+# Binary — leave alone
 *.jpg  binary
 *.png  binary
 *.webp binary

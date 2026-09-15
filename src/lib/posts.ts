@@ -1,16 +1,17 @@
 import { getCollection, render, type CollectionEntry } from "astro:content";
 
 /**
- * 数据层。
+ * The data layer.
  *
- * 设计层（.astro）只从这里取数据，不直接调 astro:content ——
- * 这样换一套设计（甚至换框架）时，数据的形状和规则不用跟着动。
+ * The design layer (.astro) reads from here and never calls astro:content
+ * directly, so that a redesign — or a change of framework — leaves the shape
+ * of the data and the rules about it untouched.
  */
 
 export type Post = CollectionEntry<"posts">;
 
-// Hexo 默认每页 10 篇。这是对外 URL 契约的一部分：
-// 改了它，/page/2/ 上有哪些文章就变了。
+// Ten per page, as Hexo had it. This is part of the URL contract: change it
+// and the set of posts on /page/2/ changes with it.
 export const PAGE_SIZE = 10;
 
 export async function allPosts(): Promise<Post[]> {
@@ -19,13 +20,14 @@ export async function allPosts(): Promise<Post[]> {
   );
 }
 
-// URL 契约：/posts/{slug}/
+// URL contract: /posts/{slug}/
 //
-// 原先是 Hexo 继承来的 /YYYY/MM/DD/{slug}/。改掉的理由：
-//   - 本站 slug 本身就是日期（2023-year、2022-04），年份在 URL 里出现两次
-//   - 四层路径承载一个文档，中间层不可浏览
-//   - 连载中的内容（komorebi）被钉上一个早已过期的发布日期
-// 旧链接不做跳转 —— 确认过无需保留。
+// Previously /YYYY/MM/DD/{slug}/, inherited from Hexo. Changed because:
+//   - the slugs here are already dates, so the year appeared twice
+//   - four path segments carried one document, and the middle ones were
+//     not browsable
+//   - work still in progress was pinned to a long-stale publication date
+// Old links are not redirected; confirmed as not worth preserving.
 export function href(p: Post) {
   return `/posts/${p.id}/`;
 }
@@ -39,11 +41,11 @@ export function slice(posts: Post[], page: number) {
 }
 
 /**
- * 文章覆盖的年份，取自文件名而非发布日期。
+ * The year a post covers, taken from the filename rather than the date.
  *
- * 本站的年结与月结都是【事后】写的：2025-year 发布于 2026-02，
- * 2023-04 发布于 2023-05。按发布日期分组会让标题和分组对不上。
- * 文件名记的才是这篇覆盖的时段。
+ * The summaries here are written after the fact: 2025-year was published in
+ * 2026-02, 2023-04 in 2023-05. Grouping by publication date would put a post
+ * under a heading its own title contradicts. The filename records the period.
  */
 export function periodYear(p: Post): string {
   const m = /^(\d{4})/.exec(p.id);
@@ -64,21 +66,21 @@ export async function komorebi() {
   return getCollection("komorebi");
 }
 
-/** 小说正文（不含索引页）。 */
+/** The novel itself, excluding its index page. */
 export async function novel(): Promise<Chapter | undefined> {
   return (await komorebi()).find((e) => e.id !== "index");
 }
 
-/** 章节数：数正文里的中文数字小标题。设计层不该知道这个规则。 */
+/** Chapter count, from the Han-numeral headings. The design layer should not know this rule. */
 export async function chapterCount(): Promise<number> {
   const n = await novel();
   if (!n) return 0;
   return (n.body ?? "").match(/^[一二三四五六七八九十]+$/gm)?.length ?? 0;
 }
 
-// ── 渲染 ────────────────────────────────────────────────────
+// ── rendering ───────────────────────────────────────────────
 
-/** 取一篇的渲染结果。包装 render 是为了让设计层只依赖本模块。 */
+/** Render one entry. Wrapped so the design layer depends only on this module. */
 export async function content(entry: Post | Chapter) {
   return render(entry);
 }
