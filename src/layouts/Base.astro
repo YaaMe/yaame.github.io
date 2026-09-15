@@ -1,6 +1,6 @@
 ---
 import "../styles/tokens.css";
-import { site, nav, social } from "../site.config";
+import { site, nav, social, features } from "../site.config";
 interface Props { title: string; description?: string }
 const { title, description } = Astro.props;
 ---
@@ -26,7 +26,7 @@ const { title, description } = Astro.props;
       <a class="brand" href="/">{site.title}</a>
       <nav>
         {nav.slice(1).map((n) => <a href={n.href}>{n.label}</a>)}
-        <button id="theme" type="button" aria-label="切换明暗">◐</button>
+        {features.darkMode && <button id="theme" type="button" aria-label="切换明暗">◐</button>}
       </nav>
     </header>
     <main><slot /></main>
