@@ -66,6 +66,26 @@ One or two paragraphs on why, when the why is not obvious.
 Staging discipline is mandatory: name every path, never `git add -A/./-u`,
 and read `git diff --cached --stat` before committing.
 
+## Branching and merging
+
+Work lands on `main` directly — commit, `make check`, push. Nothing here
+requires review, and a pull request adds a step without adding a reader.
+
+When a change is large enough to want its own branch, merge it locally:
+
+```
+git switch main && git pull --ff-only
+git merge --no-ff --gpg-sign -m "[Domain]: ..." <branch>
+git push origin main
+```
+
+**Never land a branch through GitHub's "Rebase and merge".** It rewrites the
+commits, and the rewritten ones carry no signature: PR #16 went in with nine
+signed commits and left nine unsigned ones on `main`. Of GitHub's three
+buttons only "Create a merge commit" keeps the original commits, and therefore
+their signatures; "Squash and merge" replaces them with a single commit signed
+by GitHub rather than by the author.
+
 ## URL contract
 
 `/posts/{slug}/`, `/tags/{tag}/`, `/komorebi/`. Trailing slashes always.
