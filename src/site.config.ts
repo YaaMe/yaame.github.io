@@ -1,9 +1,26 @@
+interface Site {
+  title: string;
+  author: string;
+  url: string;
+  lang: string;
+  /** IANA zone. Dates render here, not in the reader's zone or the builder's. */
+  timezone: string;
+  description: string;
+  fingerprint: string;
+}
+
 /** Site identity and navigation. Kept here so a redesign swaps the consumer, not the data. */
 export const site = {
   title: "Blogu",
   author: "yaame",
   url: "https://blogu.yaa.me",
   lang: "zh-Hans",          // The old Hexo config said "en", which was always wrong
+
+  // The site publishes from here. Frontmatter dates carry an offset, but the
+  // /YYYY/MM/DD/ segments must be rendered in THIS zone: rendered as UTC, a
+  // 02:22+08:00 timestamp falls back a day and breaks the URL contract.
+  timezone: "Asia/Shanghai",
+
   // TODO: both subtitle and description were empty in the old NexT config
   description: "",
 
@@ -13,6 +30,24 @@ export const site = {
   // substituted key when compared against another channel. Stored unformatted —
   // grouping it into blocks of four is presentation.
   fingerprint: "AD14E09899ECA2C40D518CCB279F27B46C4647E3",
+} as const satisfies Site;
+
+/**
+ * Feature switches.
+ *
+ * A `false` here means the feature is NOT BUILT, not that it is built and
+ * turned off — only `darkMode` currently gates anything. The rest are named in
+ * advance so that adding one is a change in the data layer plus a consumer,
+ * rather than a new conditional invented inside a page.
+ *
+ * Everything the pages already skip — an empty hero, an empty tag list, a post
+ * without a description — is driven by the content being absent, and needs no
+ * switch. Only add one here for something whose presence is a choice.
+ */
+export const features = {
+  darkMode: true,
+  comments: false,   // not built — see docs/architecture.md before wiring one
+  search: false,     // not built
 } as const;
 
 /**

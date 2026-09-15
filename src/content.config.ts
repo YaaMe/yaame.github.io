@@ -1,13 +1,10 @@
 import { defineCollection, z } from "astro:content";
 import { glob } from "astro/loaders";
 import { TAG_SLUGS } from "./tags";
+import { site } from "./site.config";
 
-// The site's publishing timezone. Frontmatter dates carry +08:00, but the
-// /YYYY/MM/DD/ segments must be rendered in THIS zone: rendered as UTC,
-// a 02:22+08:00 timestamp falls back a day and breaks the URL contract.
-const TZ = "Asia/Shanghai";
 const ymd = new Intl.DateTimeFormat("en-CA", {
-  timeZone: TZ, year: "numeric", month: "2-digit", day: "2-digit",
+  timeZone: site.timezone, year: "numeric", month: "2-digit", day: "2-digit",
 });
 
 // Tags must come from the registry in src/tags.ts. A typo fails the build
