@@ -1,9 +1,9 @@
 ---
-import { getCollection, render } from "astro:content";
+import { komorebi, content } from "../../lib/posts";
 import Base from "../../layouts/Base.astro";
 
 export async function getStaticPaths() {
-  const entries = await getCollection("komorebi");
+  const entries = await komorebi();
   return entries.map((entry) => ({
     params: { slug: entry.id === "index" ? undefined : entry.id },
     props: { entry },
@@ -11,7 +11,7 @@ export async function getStaticPaths() {
 }
 
 const { entry } = Astro.props;
-const { Content } = await render(entry);
+const { Content } = await content(entry);
 ---
 <Base title={entry.data.title}>
   <article><Content /></article>
