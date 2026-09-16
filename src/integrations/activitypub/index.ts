@@ -26,13 +26,9 @@ export default function activitypub(): AstroIntegration {
   return {
     name: "activitypub",
     hooks: {
-      "astro:config:setup": ({ injectRoute, addMiddleware, logger }) => {
+      "astro:config:setup": ({ injectRoute, logger }) => {
         const entrypoint = new URL("./routes/federated.ts", import.meta.url).pathname;
         for (const pattern of PATHS) injectRoute({ pattern, entrypoint });
-        addMiddleware({
-          entrypoint: new URL("./middleware.ts", import.meta.url).pathname,
-          order: "pre",
-        });
         logger.info(`${PATHS.length} federated routes injected`);
       },
     },

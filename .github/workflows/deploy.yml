@@ -33,9 +33,10 @@ jobs:
       # command as `make check` locally
       - run: make check
         env:
-          # The KV namespace id. Not a secret — a repository variable, so the
-          # generated wrangler.jsonc binds to the real namespace.
-          CF_KV_ID: ${{ vars.CF_KV_ID }}
+          # Pages gets the static profile: every route prerendered, no Worker.
+          # Named rather than left to the default, so the artifact this job
+          # uploads is not decided by a fallback somewhere else.
+          BUILD_PROFILE: static
       - uses: actions/configure-pages@v6
       - uses: actions/upload-pages-artifact@v5
         with:

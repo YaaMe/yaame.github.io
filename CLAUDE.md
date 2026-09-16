@@ -137,6 +137,23 @@ Only the first two leave commits on `main` signed by their author. A commit
 signed by GitHub attests that GitHub performed the merge, not that you wrote
 the code. `git log --format='%h %G? %s'` is how to read this back.
 
+## Outside the repository
+
+One Cloudflare redirect rule sends everything on the apex except the federated
+paths to the blog.
+
+It is not middleware, because middleware never sees those requests. Static
+assets are served ahead of the Worker: a path that matches a file is answered
+from the file, and one that matches nothing is answered 404 without the Worker
+being invoked. Setting `not_found_handling: "none"` did not change that —
+measured. Middleware does run for declared routes, so the limit is on
+unmatched paths specifically.
+
+This does not stand in the way of anything the pages themselves call. A server
+island fetches a route, not a file, so no asset matches and the request reaches
+the Worker normally. What assets-first prevents is interception, not
+invocation.
+
 ## URL contract
 
 `/posts/{slug}/`, `/tags/{tag}/`, `/komorebi/`. Trailing slashes always.

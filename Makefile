@@ -18,6 +18,12 @@ wrangler: ## 生成 wrangler.jsonc 与绑定类型
 		node scripts/wrangler-config.mjs >/dev/null
 	@npx wrangler types >/dev/null && echo "  wrangler 配置与类型已生成"
 
+deploy: check ## 构建并部署到 Cloudflare Workers（需要真实 CF_KV_ID）
+	@test -n "$$CF_KV_ID" || { echo "  部署需要 CF_KV_ID"; exit 1; }
+	@node scripts/wrangler-config.mjs >/dev/null
+	@node scripts/wrangler-routes.mjs
+	@npx wrangler deploy
+
 build: ## 构建到 dist/（静态产物在 dist/client/）
 	npx astro build
 
