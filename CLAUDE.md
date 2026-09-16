@@ -3,9 +3,12 @@
 A personal blog: essays, periodic summaries, and one serialised novel.
 Chinese content, Astro 7, no theme.
 
-## The one architectural rule
+## The architectural rules
 
-**The design layer must not import `astro:content`.** It reads from
+Two, and they are the same shape: put what changes behind one door, so the rest
+of the tree does not have to know it changed.
+
+**One — the design layer must not import `astro:content`.** It reads from
 `src/lib/posts.ts` and nothing else.
 
 ```
@@ -24,6 +27,43 @@ design layer — replaceable wholesale
 
 See `docs/architecture.md`. When adding data a page needs, add it to
 `lib/posts.ts` first.
+
+**Two — nothing outside `src/platform/` may import a host-specific module.**
+That means `cloudflare:workers`, `@fedify/cfworkers`, `node:*`, `Deno.*` — the
+modules that exist in one runtime and not another.
+
+The deployment target is chosen before the build, not at runtime: an env var
+selects both the Astro adapter and which file `virtual:platform` resolves to, so
+the implementation for the other target is never in the module graph and its
+imports never have to exist.
+
+```js
+// astro.config.mjs
+const TARGET = process.env.DEPLOY_TARGET ?? "cloudflare";
+adapter: TARGET === "node" ? node() : cloudflare(),
+vite: { resolve: { alias: { "virtual:platform": `./src/platform/${TARGET}.ts` } } }
+```
+
+This rule is stricter than the first in one way: breaking rule one makes a
+redesign tedious, breaking rule two makes the build fail outright on the other
+platform.
+
+`DEPLOY_TARGET` is deliberately not in `site.config.ts`. That file describes the
+site, and where a copy of it happens to run is a property of the deployment, not
+of the site — a different question, changed by a different person, on a
+different schedule.
+
+**What this rule cannot make portable**, and the honest reason to keep it small:
+
+- **The actor's URL.** `https://yaame.dev/users/yaame` is written into every
+  follower's database. Moving the compute behind that name is free; moving the
+  name is an account migration.
+- **Host-specific capabilities.** Queues, edge rendering — another platform needs
+  its own answer, not a different import.
+- **The deploy configuration itself.** `wrangler.jsonc` has no abstract form.
+
+There is no `src/platform/` yet, because the site is static and imports nothing
+host-specific. The rule takes effect with the first server-rendered route.
 
 ## Rules that live in the data layer, not in pages
 
