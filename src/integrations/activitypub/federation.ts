@@ -42,8 +42,10 @@ federation
 
       url: new URL(site.url),
 
+      // Served from this repository rather than hotlinked: the avatar is part of
+      // the identity, and a third party's URL can change or disappear under it.
       icon: new Image({
-        url: new URL("/images/star.jpg", site.url),
+        url: new URL("/images/avatar.jpg", site.url),
         mediaType: "image/jpeg",
       }),
 
