@@ -6,12 +6,13 @@
  *   - 少写尾斜杠（trailingSlash: "always" 下会 404）
  *   - Base.astro 里声明了 /rss.xml 但没生成
  *
- *   node scripts/check-links.mjs [dist目录]
+ *   node scripts/check-links.mjs [产物目录]
  */
 import { readdirSync, readFileSync, statSync, existsSync } from "node:fs";
 import { join, relative } from "node:path";
 
-const DIST = process.argv[2] ?? "dist";
+// 装上 adapter 之后静态产物在 dist/client/，服务端代码在 dist/server/。
+const DIST = process.argv[2] ?? "dist/client";
 
 function walk(dir, out = []) {
   for (const e of readdirSync(dir)) {
