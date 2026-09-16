@@ -1,10 +1,11 @@
 import { createFederation, exportJwk, generateCryptoKeyPair, importJwk } from "@fedify/fedify";
 // The vocabulary classes live on their own subpath — the root entry re-exports
 // the machinery, not the ActivityStreams types.
-import { Person, Follow, Undo, Accept, Endpoints, Image, PropertyValue } from "@fedify/fedify/vocab";
+import { Person, Follow, Undo, Accept, Endpoints, Image, PropertyValue, Create, Note } from "@fedify/fedify/vocab";
 import { platform } from "../../platform";
 import { AP } from "./config";
 import { site } from "../../site.config";
+import { allPosts, href } from "../../lib/posts";
 
 /**
  * Fedify does the parts that are tedious to get right and easy to get subtly
@@ -64,6 +65,7 @@ federation
         }),
       ],
       inbox: ctx.getInboxUri(identifier),
+      outbox: ctx.getOutboxUri(identifier),
       followers: ctx.getFollowersUri(identifier),
       endpoints: new Endpoints({ sharedInbox: ctx.getInboxUri() }),
       publicKeys: (await ctx.getActorKeyPairs(identifier)).map((k) => k.cryptographicKey),
@@ -112,6 +114,46 @@ federation
     const list: string[] = (await platform.get<string[]>("ap:followers")) ?? [];
     await platform.put("ap:followers", list.filter((x) => x !== undo.actorId!.href));
   });
+
+const PUBLIC = new URL("https://www.w3.org/ns/activitystreams#Public");
+
+/**
+ * The outbox is derived from the posts, not accumulated in storage.
+ *
+ * The content lives in git, so the activity history is a projection of it: the
+ * same commits produce the same outbox, and there is no second copy to drift.
+ * Only what arrives from outside — followers, and later replies — needs to be
+ * stored.
+ */
+federation.setOutboxDispatcher(`/users/{identifier}/outbox`, async (ctx, identifier) => {
+  if (identifier !== AP.user) return null;
+
+  // One post for now. The shape is the same for the whole archive; publishing
+  // the back catalogue at once would deliver sixteen notifications to anyone
+  // who follows, which is not how anyone wants to meet an account.
+  const posts = (await allPosts()).slice(0, 1);
+
+  return {
+    items: posts.map((post) => {
+      const url = new URL(href(post), site.url);
+      return new Create({
+        id: new URL("#create", url),
+        actor: ctx.getActorUri(identifier),
+        to: PUBLIC,
+        object: new Note({
+          id: url,
+          attribution: ctx.getActorUri(identifier),
+          url,
+          to: PUBLIC,
+          content:
+            `<p><strong>${post.data.title}</strong></p>` +
+            (post.data.description ? `<p>${post.data.description}</p>` : "") +
+            `<p><a href="${url}">${url}</a></p>`,
+        }),
+      });
+    }),
+  };
+});
 
 federation.setFollowersDispatcher(`/users/{identifier}/followers`, async (_ctx, identifier) => {
   if (identifier !== AP.user) return null;
