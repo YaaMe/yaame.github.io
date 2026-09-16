@@ -1,6 +1,6 @@
 ---
 import "../styles/tokens.css";
-import { site, nav, social, features } from "../site.config";
+import { site, nav, social, features, other } from "../site.config";
 interface Props { title: string; description?: string }
 const { title, description } = Astro.props;
 
@@ -40,7 +40,10 @@ const canonical = new URL(
     <main><slot /></main>
     <footer>
       <p>{social.map((s) => <a href={s.href}>{s.label}</a>)}</p>
-      <p class="muted">© {site.author}</p>
+      <p class="muted">
+        © {site.author}
+        <a href={other + Astro.url.pathname}>{new URL(other).host}</a>
+      </p>
     </footer>
     <script is:inline>
       document.getElementById("theme")?.addEventListener("click", () => {

@@ -4,6 +4,7 @@ import { createFederation, exportJwk, generateCryptoKeyPair, importJwk } from "@
 import { Person, Follow, Undo, Accept, Endpoints, Image, PropertyValue } from "@fedify/fedify/vocab";
 import { platform } from "../../platform";
 import { AP } from "./config";
+import { site } from "../../site.config";
 
 /**
  * Fedify does the parts that are tedious to get right and easy to get subtly
@@ -36,12 +37,12 @@ federation
       // here is a link. Plain text shows as text with nothing to click.
       summary:
         '<p>随笔、年结月结，以及一部还在写的小说，都在 ' +
-        '<a href="https://blogu.yaa.me/">blogu.yaa.me</a>。</p>',
+        `<a href="${site.url}/">${new URL(site.url).host}</a>。</p>`,
 
-      url: new URL("https://blogu.yaa.me/"),
+      url: new URL(site.url),
 
       icon: new Image({
-        url: new URL("https://blogu.yaa.me/images/star.jpg"),
+        url: new URL("/images/star.jpg", site.url),
         mediaType: "image/jpeg",
       }),
 
@@ -51,7 +52,7 @@ federation
       attachments: [
         new PropertyValue({
           name: "Blog",
-          value: '<a rel="me" href="https://blogu.yaa.me/">blogu.yaa.me</a>',
+          value: `<a rel="me" href="${site.url}/">${new URL(site.url).host}</a>`,
         }),
         new PropertyValue({
           name: "Code",

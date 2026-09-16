@@ -1,3 +1,38 @@
+/**
+ * Build profiles.
+ *
+ * The same source is published twice. `static` is the pure site: every route
+ * prerendered, no runtime, no scripts beyond the theme toggle — it will keep
+ * working on any file host, indefinitely. `full` adds the parts that need a
+ * server, and is where anything experimental lives.
+ *
+ * They are two products rather than two copies of one, so neither claims to be
+ * the canonical version of the other.
+ */
+// Read twice because this file is loaded twice, in two different runtimes.
+// Node loads it for astro.config, where process.env is the only source; Vite
+// transforms it for the pages, where process.env is gone and the value arrives
+// through `define`. Reading only one of the two makes the same file answer
+// differently depending on who imported it — which it did, silently, until the
+// canonical link and the RSS feed disagreed.
+declare const __BUILD_PROFILE__: string | undefined;
+const PROFILE =
+  (typeof __BUILD_PROFILE__ !== "undefined" ? __BUILD_PROFILE__ : undefined) ??
+  (typeof process !== "undefined" ? process.env.BUILD_PROFILE : undefined) ??
+  "static";
+
+export const features = PROFILE === "full"
+  ? { darkMode: true, activitypub: true, comments: false, search: false }
+  : { darkMode: true, activitypub: false, comments: false, search: false };
+
+export const profile = PROFILE;
+
+const STATIC = "https://blogu.yaa.me";
+const FULL = "https://blogu.yaame.dev";
+
+/** The address of whichever one this build is not. */
+export const other = PROFILE === "full" ? STATIC : FULL;
+
 interface Site {
   title: string;
   author: string;
@@ -13,7 +48,9 @@ interface Site {
 export const site = {
   title: "Blogu",
   author: "yaame",
-  url: "https://blogu.yaa.me",
+  // Each profile publishes to its own address, and each is canonical to
+  // itself: they are two products, not two copies of one page.
+  url: PROFILE === "full" ? FULL : STATIC,
   lang: "zh-Hans",          // The old Hexo config said "en", which was always wrong
 
   // The site publishes from here. Frontmatter dates carry an offset, but the
@@ -32,28 +69,7 @@ export const site = {
   fingerprint: "AD14E09899ECA2C40D518CCB279F27B46C4647E3",
 } as const satisfies Site;
 
-/**
- * Feature switches.
- *
- * A `false` here means the feature is NOT BUILT, not that it is built and
- * turned off — only `darkMode` currently gates anything. The rest are named in
- * advance so that adding one is a change in the data layer plus a consumer,
- * rather than a new conditional invented inside a page.
- *
- * Everything the pages already skip — an empty hero, an empty tag list, a post
- * without a description — is driven by the content being absent, and needs no
- * switch. Only add one here for something whose presence is a choice.
- */
-export const features = {
-  darkMode: true,
 
-  // Federation. Turning this on is what makes the build produce a Worker at
-  // all — with it off every route is prerendered and the output is static.
-  activitypub: false,
-
-  comments: false,   // not built — see docs/architecture.md before wiring one
-  search: false,     // not built
-} as const;
 
 /**
  * The block at the top of the index page.

@@ -13,9 +13,16 @@ install: ## 安装依赖（锁文件优先）
 dev: ## 本地开发服务器
 	npx astro dev
 
-wrangler: ## 生成 wrangler.jsonc 与绑定类型（需要 CF_KV_ID）
-	@node scripts/wrangler-config.mjs
-	@npx wrangler types >/dev/null && echo "  worker-configuration.d.ts 已生成"
+wrangler: ## 生成 wrangler.jsonc 与绑定类型
+	@CF_KV_ID=$${CF_KV_ID:-0000000000000000000000000000000f} \
+		node scripts/wrangler-config.mjs >/dev/null
+	@npx wrangler types >/dev/null && echo "  wrangler 配置与类型已生成"
+
+deploy: check ## 构建并部署到 Cloudflare Workers（需要真实 CF_KV_ID）
+	@test -n "$$CF_KV_ID" || { echo "  部署需要 CF_KV_ID"; exit 1; }
+	@node scripts/wrangler-config.mjs >/dev/null
+	@node scripts/wrangler-routes.mjs
+	@npx wrangler deploy
 
 build: ## 构建到 dist/（静态产物在 dist/client/）
 	npx astro build

@@ -1,16 +1,17 @@
 // @ts-check
 import { defineConfig } from "astro/config";
 import cloudflare from "@astrojs/cloudflare";
-import { features } from "./src/site.config";
+import { features, site } from "./src/site.config";
 import activitypub from "./src/integrations/activitypub";
 
 // Chosen before the build, not branched on at runtime: the other target's
 // implementation never enters the module graph, so its host-only imports never
 // have to resolve. See the second architectural rule in CLAUDE.md.
 const TARGET = process.env.DEPLOY_TARGET ?? "cloudflare";
+const PROFILE = process.env.BUILD_PROFILE ?? "static";
 
 export default defineConfig({
-  site: "https://blogu.yaa.me",
+  site: site.url,
   // Links are still emitted with a trailing slash — that is the external
   // contract, and `build.format: "directory"` is what keeps it. This setting
   // only decides whether the slashless form is a 404, and it must not be:
@@ -29,6 +30,9 @@ export default defineConfig({
   integrations: [features.activitypub && activitypub()].filter(Boolean),
 
   vite: {
+    // One value, one source. Without this the page-side copy of site.config
+    // would read an undefined process.env and silently fall back.
+    define: { __BUILD_PROFILE__: JSON.stringify(PROFILE) },
     resolve: {
       alias: { "virtual:platform": `/src/platform/${TARGET}.ts` },
     },
