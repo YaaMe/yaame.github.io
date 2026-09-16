@@ -103,6 +103,10 @@ One or two paragraphs on why, when the why is not obvious.
 `Domain` is the area touched — `Content`, `Design`, `Data`, `Build`, `Docs`,
 `Chore`. The subject is a sentence, not an imperative fragment.
 
+**Keep it short.** A subject alone is usually enough; two or three lines of body
+when the reason is not visible in the diff. The commit says why, not what — the
+diff already says what, and at length it stops being read.
+
 Staging discipline is mandatory: name every path, never `git add -A/./-u`,
 and read `git diff --cached --stat` before committing.
 
