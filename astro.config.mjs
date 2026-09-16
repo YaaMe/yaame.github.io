@@ -1,5 +1,6 @@
 // @ts-check
 import { defineConfig } from "astro/config";
+import cloudflare from "@astrojs/cloudflare";
 
 export default defineConfig({
   site: "https://blogu.yaa.me",
@@ -11,4 +12,8 @@ export default defineConfig({
   // answered 404, measured.
   trailingSlash: "ignore",
   build: { format: "directory" },
+
+  // Every route is still prerendered, so this produces no Worker until
+  // something opts out with `export const prerender = false`.
+  adapter: cloudflare(),
 });

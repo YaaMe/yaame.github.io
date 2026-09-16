@@ -13,7 +13,7 @@ install: ## 安装依赖（锁文件优先）
 dev: ## 本地开发服务器
 	npx astro dev
 
-build: ## 构建到 dist/
+build: ## 构建到 dist/（静态产物在 dist/client/）
 	npx astro build
 
 preview: build ## 构建后本地预览产物
@@ -47,7 +47,7 @@ links: ## 检查产物里的内部链接
 	@node scripts/check-links.mjs
 
 urls: build ## 列出产物生成的全部 URL
-	@find dist -name index.html | sed 's|^dist||; s|/index.html|/|' | sort
+	@find dist/client -name index.html | sed 's|^dist/client||; s|/index.html|/|' | sort
 
 clean: ## 清掉构建产物和缓存
 	rm -rf dist .astro
