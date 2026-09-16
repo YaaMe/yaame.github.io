@@ -1,6 +1,14 @@
 import type { AstroIntegration } from "astro";
 
-/** The paths Fedify answers for. Declared here so they are visible in one place. */
+/**
+ * The paths Fedify answers for.
+ *
+ * Every dispatcher registered in federation.ts needs a matching entry here, or
+ * the request never reaches the Worker: static assets answer first, and an
+ * unmatched path gets the 404 page rather than falling through. A dispatcher
+ * without its route is silent — the actor advertises the endpoint and the
+ * endpoint 404s.
+ */
 const PATHS = [
   "/.well-known/webfinger",
   "/.well-known/nodeinfo",
@@ -8,6 +16,7 @@ const PATHS = [
   "/users/[user]",
   "/users/[user]/inbox",
   "/users/[user]/followers",
+  "/users/[user]/outbox",
   "/inbox",
 ];
 
