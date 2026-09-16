@@ -3,6 +3,13 @@ import "../styles/tokens.css";
 import { site, nav, social, features } from "../site.config";
 interface Props { title: string; description?: string }
 const { title, description } = Astro.props;
+
+// The slash form is the canonical one. Both resolve now — see astro.config.mjs
+// — so say which is meant, or the same page counts twice.
+const canonical = new URL(
+  Astro.url.pathname.endsWith("/") ? Astro.url.pathname : Astro.url.pathname + "/",
+  site.url,
+);
 ---
 <!doctype html>
 <html lang={site.lang}>
@@ -11,6 +18,7 @@ const { title, description } = Astro.props;
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>{title}</title>
     {(description ?? site.description) && <meta name="description" content={description ?? site.description} />}
+    <link rel="canonical" href={canonical.href} />
     <link rel="alternate" type="application/rss+xml" title="Blogu" href="/rss.xml" />
     <script is:inline>
       // Must be inline and run before first paint, or a reload flashes light.
