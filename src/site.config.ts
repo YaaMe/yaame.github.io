@@ -46,6 +46,11 @@ export const site = {
  */
 export const features = {
   darkMode: true,
+
+  // Federation. Turning this on is what makes the build produce a Worker at
+  // all — with it off every route is prerendered and the output is static.
+  activitypub: false,
+
   comments: false,   // not built — see docs/architecture.md before wiring one
   search: false,     // not built
 } as const;
