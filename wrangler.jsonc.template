@@ -1,0 +1,15 @@
+{
+  "name": "yaame-blogu",
+  "main": "@astrojs/cloudflare/entrypoints/server",
+  "compatibility_date": "2026-09-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "assets": { "directory": "./dist/client", "binding": "ASSETS" },
+
+  // Filled in by `make wrangler` before the build — the adapter reads this file
+  // at build time, so substitution has to happen first.
+  "kv_namespaces": [{ "binding": "AP_KV", "id": "${CF_KV_ID}" }],
+  "routes": [
+    { "pattern": "blogu.yaa.me", "custom_domain": true },
+    { "pattern": "yaame.dev", "custom_domain": true }
+  ]
+}

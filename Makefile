@@ -13,13 +13,17 @@ install: ## 安装依赖（锁文件优先）
 dev: ## 本地开发服务器
 	npx astro dev
 
+wrangler: ## 生成 wrangler.jsonc 与绑定类型（需要 CF_KV_ID）
+	@node scripts/wrangler-config.mjs
+	@npx wrangler types >/dev/null && echo "  worker-configuration.d.ts 已生成"
+
 build: ## 构建到 dist/（静态产物在 dist/client/）
 	npx astro build
 
 preview: build ## 构建后本地预览产物
 	npx astro preview
 
-check: frontmatter types build links ## 全量校验：frontmatter → 类型 → 构建 → 链接（CI 跑这个）
+check: wrangler frontmatter types build links ## 全量校验：配置 → frontmatter → 类型 → 构建 → 链接（CI 跑这个）
 	@echo "  ✓ 全部通过"
 
 types: ## 类型检查（astro build 不做这件事）

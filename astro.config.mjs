@@ -1,6 +1,13 @@
 // @ts-check
 import { defineConfig } from "astro/config";
 import cloudflare from "@astrojs/cloudflare";
+import { features } from "./src/site.config";
+import activitypub from "./src/integrations/activitypub";
+
+// Chosen before the build, not branched on at runtime: the other target's
+// implementation never enters the module graph, so its host-only imports never
+// have to resolve. See the second architectural rule in CLAUDE.md.
+const TARGET = process.env.DEPLOY_TARGET ?? "cloudflare";
 
 export default defineConfig({
   site: "https://blogu.yaa.me",
@@ -16,4 +23,14 @@ export default defineConfig({
   // Every route is still prerendered, so this produces no Worker until
   // something opts out with `export const prerender = false`.
   adapter: cloudflare(),
+
+  // Absent from the array when the feature is off, so nothing it pulls in —
+  // Fedify included — is ever reached by the bundler.
+  integrations: [features.activitypub && activitypub()].filter(Boolean),
+
+  vite: {
+    resolve: {
+      alias: { "virtual:platform": `/src/platform/${TARGET}.ts` },
+    },
+  },
 });
