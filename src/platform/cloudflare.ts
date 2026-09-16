@@ -1,5 +1,5 @@
 import { env } from "cloudflare:workers";
-import { WorkersKvStore } from "@fedify/cfworkers";
+import { MemoryKvStore } from "@fedify/fedify";
 import type { Platform } from "./types";
 
 /**
@@ -10,7 +10,23 @@ import type { Platform } from "./types";
  * would break the build on every other host.
  */
 export const platform: Platform = {
-  kv: new WorkersKvStore(env.AP_KV),
+  // Fedify's own store, in memory rather than in KV.
+  //
+  // It holds four things: cached remote documents, cached public keys, cached
+  // signature specs, and a record of which activities have been processed. The
+  // first three are caches — losing them costs a refetch. The fourth exists to
+  // stop an activity being handled twice, and is only needed when handling it
+  // twice would differ from handling it once.
+  //
+  // Today it would not: a repeated Follow replaces the same entry, a repeated
+  // Undo filters an absent one. THIS STOPS BEING TRUE the moment a handler
+  // accumulates rather than replaces — a reply appended to a list, a counter —
+  // and idempotence has to move back to durable storage before that lands.
+  //
+  // The cost of memory is a lower hit rate: isolates are short-lived, so remote
+  // documents are fetched more often. That is an outbound request instead of a
+  // KV write, which is the trade being made on purpose.
+  kv: new MemoryKvStore(),
 
   get: (key) => env.AP_KV.get(key, "json"),
   put: (key, value) => env.AP_KV.put(key, JSON.stringify(value)),
