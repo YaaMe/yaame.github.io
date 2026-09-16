@@ -1,7 +1,38 @@
 version: 2
 updates:
-- package-ecosystem: npm
-  directory: "/"
-  schedule:
-    interval: daily
-  open-pull-requests-limit: 20
+  # GitHub Actions. These run in CI with access to the repository, and this is
+  # where advisories land. Versions are pinned to a floating major tag, so
+  # patches arrive on their own and Dependabot only opens a pull request for a
+  # new major — a few times a year rather than weekly.
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 5
+    groups:
+      # All five come from the same publisher and move together.
+      actions:
+        patterns: ["*"]
+
+  # npm. Every one of these runs at build time only: the site ships no external
+  # JavaScript, so a vulnerable transitive dependency reaches the build machine,
+  # not a reader. Monthly rather than daily for that reason.
+  #
+  # Security advisories are a separate, repository-level setting and are not
+  # throttled by this schedule.
+  - package-ecosystem: npm
+    directory: "/"
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 5
+    groups:
+      # Everything in one pull request, so dependency churn lands on main as a
+      # single machine-made commit rather than as a scatter of them. Commits
+      # here are signed by GitHub, not by the author; keeping them to one keeps
+      # the authored history easy to pick out.
+      #
+      # The cost is real: a grouped update that breaks the build does not say
+      # which package broke it. `git bisect` does not help either, since it is
+      # one commit — read the pull request and revert the lockfile.
+      deps:
+        patterns: ["*"]
