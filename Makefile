@@ -1,6 +1,6 @@
 # 本站的全部操作入口。`make` 或 `make help` 看清单。
 .DEFAULT_GOAL := help
-.PHONY: help install dev build preview check frontmatter fix new newpost newtag tags urls links clean
+.PHONY: help install dev deploy deploy-site deploy-consumer build preview check frontmatter fix new newpost newtag tags urls links clean
 
 help: ## 显示这份清单
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) \
@@ -23,7 +23,13 @@ deploy-consumer: ## 部署队列消费者（独立 Worker，需要 CF_KV_ID）
 	@node scripts/wrangler-config.mjs worker/wrangler.jsonc worker/wrangler.generated.jsonc
 	@cd worker && npx wrangler deploy -c wrangler.generated.jsonc
 
-deploy: check ## 构建并部署到 Cloudflare Workers（需要真实 CF_KV_ID）
+# 两个 Worker 共享 src/integrations/activitypub/，所以它们一起部署。
+# 分开部署过一次：inbox 监听器只在 consumer 里执行，而诊断端点在站点
+# Worker 里，于是站点报告的是一个与实际执行者无关的世界 —— 连着三次
+# 「部署成功」改的都是没在跑的那份代码。
+deploy: deploy-site deploy-consumer ## 部署站点与队列消费者（需要真实 CF_KV_ID）
+
+deploy-site: check ## 只部署站点 Worker
 	@test -n "$$CF_KV_ID" || { echo "  部署需要 CF_KV_ID"; exit 1; }
 	@node scripts/wrangler-config.mjs >/dev/null
 	@node scripts/wrangler-routes.mjs
