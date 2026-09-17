@@ -39,10 +39,12 @@ jobs:
       - run: make deploy
         env:
           BUILD_PROFILE: full
-          # The namespace holding the actor's key pair and its followers.
-          # A wrong value here does not fail: the Worker binds an empty
-          # namespace, finds no key pair, generates a fresh one, and the actor
-          # silently becomes a different identity to everyone following it.
-          CF_KV_ID: ${{ secrets.CF_KV_ID }}
+          # Identifiers are variables; only the credential is a secret.
+          # Masking an id buys nothing and makes every failure harder to read.
+          #
+          # A wrong CF_KV_ID does not fail: the Worker binds an empty namespace,
+          # finds no key pair, mints a fresh one, and the actor quietly becomes
+          # a different identity to everyone following it.
+          CF_KV_ID: ${{ vars.CF_KV_ID }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
