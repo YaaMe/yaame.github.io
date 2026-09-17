@@ -1,7 +1,7 @@
 import { createFederation, importJwk } from "@fedify/fedify";
 // The vocabulary classes live on their own subpath — the root entry re-exports
 // the machinery, not the ActivityStreams types.
-import { Person, Follow, Undo, Accept, Endpoints, Image, PropertyValue } from "@fedify/fedify/vocab";
+import { Person, Follow, Undo, Accept, Delete, Endpoints, Image, PropertyValue } from "@fedify/fedify/vocab";
 import { configure, getConsoleSink } from "@logtape/logtape";
 import { platform } from "../../platform";
 import { AP } from "./config";
@@ -173,6 +173,18 @@ federation
 
     await ctx.sendActivity({ identifier: AP.user }, follower, accept);
   })
+  // A server announcing that an account is gone. Without this the follower stays
+  // on the list for good, and every post is delivered to an inbox that no longer
+  // exists — which now costs an hour of retries each time before being written
+  // off, and never stops recurring.
+  //
+  // Only a self-delete is of interest: object equal to actor. Anything else is a
+  // post being deleted, and no posts of anyone else's are kept here.
+  .on(Delete, async (_ctx, del) => {
+    if (!del.actorId || del.objectId?.href !== del.actorId.href) return;
+    const list = await readFollowers();
+    await platform.put("ap:followers", list.filter((f) => f.id !== del.actorId!.href));
+  })
   .on(Undo, async (_ctx, undo) => {
     const object = await undo.getObject();
     if (!(object instanceof Follow) || !undo.actorId) return;
@@ -192,4 +204,9 @@ federation.setFollowersDispatcher(`/users/{identifier}/followers`, async (_ctx, 
       endpoints: f.sharedInbox ? { sharedInbox: new URL(f.sharedInbox) } : null,
     })),
   };
-});
+})
+  // Without a counter the collection carries no totalItems — and a follower
+  // count is what most software displays, as zero.
+  .setCounter(async (_ctx, identifier) =>
+    identifier === AP.user ? (await readFollowers()).length : null,
+  );
