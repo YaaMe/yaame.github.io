@@ -20,9 +20,17 @@ const handle: APIRoute = ({ request }) =>
     onNotFound: () => new Response("not found", { status: 404 }),
     // A person, not a server: everything here answers activity+json, and the
     // only reason to arrive asking for HTML is that someone pasted the address
-    // into a browser. 406 is correct and useless to them; the actor already
-    // names where its human-readable side lives, so send them there.
-    onNotAcceptable: () => Response.redirect(AP.blogUrl, 302),
+    // into a browser.
+    //
+    // Only the actor's own address is redirected. That one gets copied around
+    // and landed on by accident, and 406 is correct and useless to whoever did.
+    // The collections and WebFinger are reached on purpose, and answering a
+    // specific request with the front page tells that person nothing — least of
+    // all why. 406 is the honest answer where the visit was deliberate.
+    onNotAcceptable: (request) =>
+      /^\/users\/[^/]+$/.test(new URL(request.url).pathname)
+        ? Response.redirect(AP.blogUrl, 302)
+        : new Response("not acceptable", { status: 406 }),
   });
 
 export const GET = handle;
