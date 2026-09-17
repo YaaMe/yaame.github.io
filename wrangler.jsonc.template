@@ -8,6 +8,14 @@
   // thing goes wrong.
   "observability": { "enabled": true },
 
+  // Declared so wrangler refuses to deploy a Worker that cannot sign, instead
+  // of shipping one that fails on its first request. It is also what `wrangler
+  // types` reads, so Env knows this name without anything asserting it.
+  //
+  // The value is placed by hand with `wrangler secret put`; nothing that builds
+  // or deploys this ever reads it.
+  "secrets": { "required": ["AP_KEY_JWK"] },
+
   "assets": { "directory": "./dist/client", "binding": "ASSETS" },
 
   // Filled in by `make wrangler` before the build — the adapter reads this file

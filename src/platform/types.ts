@@ -15,7 +15,17 @@ export interface Platform {
    * stand-in it would be lost instead.
    */
   queue: MessageQueue | false;
-  /** Small JSON records of our own: the actor key, the follower list. */
+  /** Small JSON records of our own: the follower list. */
   get<T>(key: string): Promise<T | null>;
   put(key: string, value: unknown): Promise<void>;
+
+  /**
+   * A value placed by hand, out of band — not written by this code, and not by
+   * anything that deploys it.
+   *
+   * Separate from `get` because the two differ in who may write: records are
+   * ours to change at runtime, secrets are not. Keeping them apart is what
+   * stops a missing secret from being answered with a freshly minted one.
+   */
+  secret(name: string): string | undefined;
 }

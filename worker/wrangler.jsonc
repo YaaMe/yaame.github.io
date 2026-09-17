@@ -1,0 +1,32 @@
+{
+  "name": "yaame-ap-consumer",
+  "main": "./consumer.ts",
+  "compatibility_date": "2026-09-01",
+  "compatibility_flags": ["nodejs_compat"],
+
+  // Without this the Worker's logs are neither kept nor queryable, and the only
+  // window into it is a live tail that has to be running at the moment the
+  // thing goes wrong.
+  "observability": { "enabled": true },
+
+  // Declared so wrangler refuses to deploy a Worker that cannot sign, instead
+  // of shipping one that fails on its first request. It is also what `wrangler
+  // types` reads, so Env knows this name without anything asserting it.
+  //
+  // The value is placed by hand with `wrangler secret put`; nothing that builds
+  // or deploys this ever reads it.
+  "secrets": { "required": ["AP_KEY_JWK"] },
+
+  // The same namespace the site binds: the follower list is shared state, not
+  // a copy. The signing key is not in here — it arrives as a secret above.
+  "kv_namespaces": [{ "binding": "AP_KV", "id": "${CF_KV_ID}" }],
+
+  // Bound as a producer too — WorkersMessageQueue needs the binding to take the
+  // ordering lock, even on the consuming side.
+  "queues": {
+    "producers": [{ "queue": "yaame-ap-delivery", "binding": "AP_QUEUE" }],
+    "consumers": [{ "queue": "yaame-ap-delivery", "max_batch_size": 10, "max_retries": 5 }]
+  },
+
+  "alias": { "virtual:platform": "../src/platform/cloudflare.ts" }
+}

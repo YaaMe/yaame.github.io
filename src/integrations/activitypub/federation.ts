@@ -1,4 +1,4 @@
-import { createFederation, exportJwk, generateCryptoKeyPair, importJwk } from "@fedify/fedify";
+import { createFederation, importJwk } from "@fedify/fedify";
 // The vocabulary classes live on their own subpath — the root entry re-exports
 // the machinery, not the ActivityStreams types.
 import { Person, Follow, Undo, Accept, Endpoints, Image, PropertyValue } from "@fedify/fedify/vocab";
@@ -95,18 +95,19 @@ federation
     // The actor key is RSA because that is what the classic actor publicKey
     // field requires; it is separate from the OpenPGP identity, which is
     // ed25519 and never leaves hardware.
-    const stored = await platform.get<{ priv: any; pub: any }>("ap:keypair");
-    if (stored) {
-      return [{
-        privateKey: await importJwk(stored.priv, "private"),
-        publicKey: await importJwk(stored.pub, "public"),
-      }];
-    }
-    const { privateKey, publicKey } = await generateCryptoKeyPair("RSASSA-PKCS1-v1_5");
-    await platform.put("ap:keypair", {
-      priv: await exportJwk(privateKey), pub: await exportJwk(publicKey),
-    });
-    return [{ privateKey, publicKey }];
+    // Read, never generated. Generating on a miss makes a misconfigured binding
+    // — or one failed read — indistinguishable from a first run, and answers
+    // both by minting a new identity: every follower is left holding a key that
+    // no longer matches, and nothing reports it. There is no way to tell those
+    // cases apart from in here, so the decision is not made here at all. The
+    // key is placed by hand, once, and an absent one fails every time.
+    const raw = platform.secret("AP_KEY_JWK");
+    if (!raw) throw new Error("AP_KEY_JWK is not set");
+    const { priv, pub } = JSON.parse(raw) as { priv: JsonWebKey; pub: JsonWebKey };
+    return [{
+      privateKey: await importJwk(priv, "private"),
+      publicKey: await importJwk(pub, "public"),
+    }];
   });
 
 /**

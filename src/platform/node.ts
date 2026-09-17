@@ -27,6 +27,8 @@ platform.kv = new MemoryKvStore();
 // Workers side gives when its binding is absent.
 platform.queue = false;
 
+platform.secret = (name) => process.env[name];
+
 platform.get = async <T>(key: string): Promise<T | null> => {
   try {
     return JSON.parse(await readFile(path(key), "utf8")) as T;

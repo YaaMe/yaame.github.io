@@ -40,6 +40,18 @@ Object.defineProperty(platform, "queue", {
 });
 
 // Small durable records of our own: the actor's key, the follower list.
+// Secrets arrive on the same `env` as the other bindings; what differs is that
+// the value is in no file here and cannot be read back out of Cloudflare. The
+// name is declared in the wrangler config, which is what puts it on `Env`.
+//
+// Looked up by name rather than read as a property, so the checked type is the
+// one thing left to establish: `env` also holds namespaces and queues, and a
+// mistyped name would otherwise hand one of those back as a key.
+platform.secret = (name) => {
+  const value: unknown = Reflect.get(env as object, name);
+  return typeof value === "string" ? value : undefined;
+};
+
 platform.get = (key) => (env as { AP_KV: KVNamespace }).AP_KV.get(key, "json");
 platform.put = (key, value) =>
   (env as { AP_KV: KVNamespace }).AP_KV.put(key, JSON.stringify(value));
