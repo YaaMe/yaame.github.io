@@ -13,7 +13,7 @@
  * astro:content, which exists only inside an Astro build.
  */
 import type { WorkersMessageQueue } from "@fedify/cfworkers";
-import { announceActorChange, federation } from "../src/integrations/activitypub/federation";
+import { federation } from "../src/integrations/activitypub/federation";
 import { platform } from "virtual:platform";
 
 /**
@@ -46,17 +46,6 @@ const backoff = (attempts: number) => BACKOFF[Math.min(attempts, BACKOFF.length)
 const FAILURES = "ap:delivery-failures";
 
 export default {
-  /**
-   * The actor's own changes, announced.
-   *
-   * On a timer rather than at deploy time because the deploy has no key — by
-   * design — and signing is what this needs. The work is a fingerprint
-   * comparison, so a tick that finds nothing changed costs one KV read.
-   */
-  async scheduled() {
-    console.log("actor announce:", await announceActorChange());
-  },
-
   async queue(batch: MessageBatch) {
     // The platform's queue, not one constructed here: the site enqueues through
     // that object, and a second construction would keep working against the old
