@@ -74,7 +74,6 @@ Workers KV 的 namespace id,替换 `wrangler.jsonc.template` 里的 `${CF_KV_ID}
 | `handleHost` | `id.yaa.me` | handle 里 `@` 后面那段。**协议规定 WebFinger 由它提供**,没有间接层 |
 | `actorHost` | `yaame.dev` | actor 实际所在。和上一项不同是有意的 |
 | `user` | `yaame` | |
-| `aliases` | `["github"]` | **目前没接** —— 手写实现时用的,Fedify 走自己的逻辑 |
 
 `actorHost` 一旦有了关注者就**不能改** —— actor id 写在每个关注者的库里,换它等于账号迁移。
 

@@ -9,7 +9,6 @@ export const AP = {
   handleHost: "id.yaa.me",
   actorHost: "yaame.dev",
   user: "yaame",
-  aliases: ["github"],
 
   /**
    * The blog this actor points at.
@@ -23,15 +22,7 @@ export const AP = {
   blogUrl: "https://blogu.yaame.dev",
 } as const;
 
-export const handle = `${AP.user}@${AP.handleHost}`;
 // No actorId constant here on purpose. Fedify builds it from origin.webOrigin
 // and the dispatcher's path template, and `ctx.getActorUri()` is the only way
 // to ask for it — a second copy computed here would agree today and diverge
 // the moment the route pattern changes, without anything reporting it.
-export const accepted = [
-  `acct:${AP.user}@${AP.handleHost}`,
-  `acct:${AP.user}@${AP.actorHost}`,
-  ...AP.aliases.flatMap((a) => [`acct:${a}@${AP.handleHost}`, `acct:${a}@${AP.actorHost}`]),
-];
-export const JRD = "application/jrd+json; charset=utf-8";
-export const AS2 = "application/activity+json; charset=utf-8";
