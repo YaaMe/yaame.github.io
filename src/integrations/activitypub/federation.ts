@@ -84,6 +84,8 @@ federation
       ],
       inbox: ctx.getInboxUri(identifier),
       outbox: ctx.getOutboxUri(identifier),
+      discoverable: AP.discoverable,
+      indexable: AP.indexable,
       followers: ctx.getFollowersUri(identifier),
       following: ctx.getFollowingUri(identifier),
       endpoints: new Endpoints({ sharedInbox: ctx.getInboxUri() }),
