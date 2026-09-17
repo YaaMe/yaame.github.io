@@ -32,6 +32,21 @@ export default {
     // MessageQueue interface the platform advertises.
     const queue = platform.queue as WorkersMessageQueue;
 
+    // Which activity, not only what became of it. Recording the outcome alone
+    // made two Accepts — one for a follow since cancelled, one for the live
+    // request — indistinguishable, and a success belonging to the first was
+    // read as success for the second.
+    const describe = (m: unknown) => {
+      const msg = m as { type?: string; inbox?: string; activity?: Record<string, unknown> };
+      const object = msg.activity?.object as { id?: string } | string | undefined;
+      return {
+        type: msg.type,
+        inbox: msg.inbox,
+        activity: msg.activity?.id,
+        object: typeof object === "string" ? object : object?.id,
+      };
+    };
+
     for (const message of batch.messages) {
       try {
         const result = await queue.processMessage(message.body);
@@ -39,11 +54,15 @@ export default {
         // An ordering-key lock is still held by another message, so this one is
         // not ready. Retrying is the only correct answer: acking would drop it.
         if (!result.shouldProcess) {
+          // Not an exception, so nothing would report it — and a message that
+          // is never ready is retried to the limit and then dropped, silently.
+          console.warn("not ready", describe(result.message));
           message.retry();
           continue;
         }
 
         await federation.processQueuedTask(undefined, result.message);
+        console.log("delivered", describe(result.message));
         message.ack();
       } catch (error) {
         // Let the queue retry with backoff. Acking here would turn a failed
