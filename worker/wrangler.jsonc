@@ -25,7 +25,10 @@
   // ordering lock, even on the consuming side.
   "queues": {
     "producers": [{ "queue": "yaame-ap-delivery", "binding": "AP_QUEUE" }],
-    "consumers": [{ "queue": "yaame-ap-delivery", "max_batch_size": 10, "max_retries": 5 }]
+    // max_retries sits above the consumer's own ceiling on purpose: the consumer
+    // stops at seven attempts and records why, and a lower limit here would end
+    // the retries first, silently.
+    "consumers": [{ "queue": "yaame-ap-delivery", "max_batch_size": 10, "max_retries": 10 }]
   },
 
   "alias": { "virtual:platform": "../src/platform/cloudflare.ts" }
