@@ -16,6 +16,11 @@ import { allPosts, href } from "../../lib/posts";
 export const federation = createFederation<void>({
   kv: platform.kv,
 
+  // With a queue, delivery is retried with backoff; without one it is sent
+  // inline and a failure is final. Both are real behaviours, and which applies
+  // is a property of the host, not of this file.
+  ...(platform.queue ? { queue: platform.queue } : {}),
+
   // The handle's domain and the actor's home are deliberately different: the
   // first stays on its own DNS and serves one static WebFinger document, the
   // second is where anything that has to run actually runs. Fedify emits the

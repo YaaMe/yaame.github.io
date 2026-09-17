@@ -28,6 +28,11 @@ export const platform: Platform = {
   // KV write, which is the trade being made on purpose.
   kv: new MemoryKvStore(),
 
+  // No queue here yet. Cloudflare Queues would need the Worker to export a
+  // queue() handler, and the adapter's entrypoint exports only fetch — so
+  // turning this on is a change to the build, not to a line of configuration.
+  queue: false,
+
   get: (key) => env.AP_KV.get(key, "json"),
   put: (key, value) => env.AP_KV.put(key, JSON.stringify(value)),
 };
