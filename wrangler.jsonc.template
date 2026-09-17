@@ -7,6 +7,10 @@
 
   // Filled in by `make wrangler` before the build — the adapter reads this file
   // at build time, so substitution has to happen first.
+  // Producer only. The adapter drops `queues.consumers`, so the consumer is a
+  // separate Worker with its own configuration.
+  "queues": { "producers": [{ "queue": "yaame-ap-delivery", "binding": "AP_QUEUE" }] },
+
   "kv_namespaces": [{ "binding": "AP_KV", "id": "${CF_KV_ID}" }],
   // Both in the same zone, which is what a Worker custom domain requires.
   // blogu.* serves the blog; the apex is where the actor lives, and its id is

@@ -7,9 +7,10 @@
  */
 import { readFileSync, writeFileSync } from "node:fs";
 
-const src = readFileSync("wrangler.jsonc.template", "utf8");
+const [template = "wrangler.jsonc.template", out = "wrangler.jsonc"] = process.argv.slice(2);
+const src = readFileSync(template, "utf8");
 const missing = [];
-const out = src.replace(/\$\{(\w+)\}/g, (_, name) => {
+const result = src.replace(/\$\{(\w+)\}/g, (_, name) => {
   const v = process.env[name];
   if (!v) missing.push(name);
   return v ?? "";
@@ -19,5 +20,5 @@ if (missing.length) {
   console.error(`  缺少环境变量：${[...new Set(missing)].join(", ")}`);
   process.exit(1);
 }
-writeFileSync("wrangler.jsonc", out);
-console.log("  wrangler.jsonc 已生成");
+writeFileSync(out, result);
+console.log(`  ${out} 已生成`);
