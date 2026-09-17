@@ -1,6 +1,6 @@
 # 本站的全部操作入口。`make` 或 `make help` 看清单。
 .DEFAULT_GOAL := help
-.PHONY: help install dev deploy deploy-site deploy-consumer build preview check frontmatter fix new newpost newtag tags urls links clean
+.PHONY: help install dev deploy deploy-site deploy-consumer ap-check build preview check frontmatter fix new newpost newtag tags urls links clean
 
 help: ## 显示这份清单
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) \
@@ -64,6 +64,9 @@ newtag: ## 新建标签。SLUG=reading LABEL=读书
 
 tags: ## 列出标签常量池与用量
 	@node scripts/tags.mjs
+
+ap-check: ## 对线上 ActivityPub 端点做一致性检查（URL=… 可指定）
+	@node scripts/ap-check.mjs $(URL)
 
 links: ## 检查产物里的内部链接
 	@node scripts/check-links.mjs

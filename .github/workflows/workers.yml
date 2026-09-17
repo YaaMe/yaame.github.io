@@ -48,3 +48,12 @@ jobs:
           CF_KV_ID: ${{ vars.CF_KV_ID }}
           CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+
+      # Against what is actually serving, not against the build. Every defect
+      # this catches was one our own output could not show us: a field the
+      # consumer reads and we never sent, a collection advertised and not
+      # answered, a representation refused to a client that accepts anything.
+      # Inspecting our own responses cannot find an omission — only comparing
+      # against what the other end reads can.
+      - name: Conformance
+        run: make ap-check
