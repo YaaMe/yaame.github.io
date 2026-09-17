@@ -1,6 +1,7 @@
 // @ts-check
 import { defineConfig } from "astro/config";
 import cloudflare from "@astrojs/cloudflare";
+import node from "@astrojs/node";
 import { features, site } from "./src/site.config";
 import activitypub from "./src/integrations/activitypub";
 
@@ -21,9 +22,9 @@ export default defineConfig({
   trailingSlash: "ignore",
   build: { format: "directory" },
 
-  // Every route is still prerendered, so this produces no Worker until
+  // Every route is still prerendered, so this produces no server output until
   // something opts out with `export const prerender = false`.
-  adapter: cloudflare(),
+  adapter: TARGET === "node" ? node({ mode: "standalone" }) : cloudflare(),
 
   // Absent from the array when the feature is off, so nothing it pulls in —
   // Fedify included — is ever reached by the bundler.
