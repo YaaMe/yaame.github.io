@@ -19,6 +19,11 @@
 
   // The same namespace the site binds: the follower list is shared state, not
   // a copy. The signing key is not in here — it arrives as a secret above.
+  // Quarter-hourly. The actor changes only when a deploy changes it, so the
+  // interval decides how long followers keep a stale copy — not how much work
+  // gets done, which is one KV read when nothing moved.
+  "triggers": { "crons": ["*/15 * * * *"] },
+
   "kv_namespaces": [{ "binding": "AP_KV", "id": "${CF_KV_ID}" }],
 
   // Bound as a producer too — WorkersMessageQueue needs the binding to take the

@@ -1,7 +1,7 @@
 import { createFederation, importJwk } from "@fedify/fedify";
 // The vocabulary classes live on their own subpath — the root entry re-exports
 // the machinery, not the ActivityStreams types.
-import { Person, Follow, Undo, Accept, Delete, Endpoints, Image, PropertyValue } from "@fedify/fedify/vocab";
+import { Person, Follow, Undo, Accept, Delete, Update, Endpoints, Image, PropertyValue } from "@fedify/fedify/vocab";
 import { configure, getConsoleSink } from "@logtape/logtape";
 import { platform } from "../../platform";
 import { AP } from "./config";
@@ -236,6 +236,59 @@ federation.setFollowersDispatcher(`/users/{identifier}/followers`, async (_ctx, 
  * handler would one day write means the answer stops being empty on its own,
  * rather than needing this to be found and changed.
  */
+/**
+ * Tell the followers the actor changed — but only when it did.
+ *
+ * Nothing re-reads an actor because we edited it. Mastodon refreshes remote
+ * accounts lazily, on the order of a day, and what it stored at first fetch
+ * keeps deciding things long after: the avatar it shows, whether the account is
+ * discoverable, and whether the follower list is hidden. Ours sat wrong on two
+ * instances for a day before anyone could see why.
+ *
+ * Sending on every deploy would push a message to every follower's server for
+ * builds that changed nothing about the actor. So the document is fingerprinted
+ * and compared: an Update goes out when the fingerprint moves, and never
+ * otherwise. The first run records the fingerprint and announces nothing —
+ * there is no previous state to have differed from.
+ */
+export async function announceActorChange(): Promise<string> {
+  // A synthetic request rather than a bare URL: getActor — which is what runs
+  // the actor dispatcher — lives on RequestContext, and createContext only
+  // returns one when given a Request.
+  const ctx = federation.createContext(
+    new Request(`https://${AP.actorHost}/users/${AP.user}`),
+    undefined,
+  );
+  const actor = await ctx.getActor(AP.user);
+  if (!actor) return "no actor";
+
+  const document = JSON.stringify(await actor.toJsonLd({ format: "compact" }));
+  const digest = [...new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(document)))]
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+
+  const previous = await platform.get<string>("ap:actor-digest");
+  if (previous === digest) return "unchanged";
+  await platform.put("ap:actor-digest", digest);
+  if (previous === null) return "first run, recorded";
+
+  await ctx.sendActivity(
+    { identifier: AP.user },
+    "followers",
+    new Update({
+      // Unique per announcement: a repeated id is a repeated activity, and
+      // servers that deduplicate would drop the second change.
+      id: new URL(`#update/${digest.slice(0, 12)}`, ctx.getActorUri(AP.user)),
+      actor: ctx.getActorUri(AP.user),
+      to: new URL("https://www.w3.org/ns/activitystreams#Public"),
+      // Embedded rather than a URI: Mastodon dereferences a bare one, and the
+      // document is small enough that making them fetch it buys nothing.
+      object: actor,
+    }),
+  );
+  return `announced ${digest.slice(0, 12)}`;
+}
+
 const readFollowing = async (): Promise<string[]> =>
   (await platform.get<string[]>("ap:following")) ?? [];
 
