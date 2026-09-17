@@ -32,15 +32,23 @@ const ACTOR = /^\/users\/[^/]+$/;
  */
 const handle: APIRoute = async ({ request }) => {
   const path = new URL(request.url).pathname;
-  const wantsHtml =
-    request.method === "GET" && (request.headers.get("accept") ?? "").includes("text/html");
+  const accept = request.headers.get("accept") ?? "";
+  const get = request.method === "GET";
+  const wantsHtml = get && accept.includes("text/html");
+
+  // `*/*`, or no Accept at all, means every representation is acceptable —
+  // RFC 7231 §5.3.2, and 406 is for when none of them is. Fedify refuses it, so
+  // a plain `curl` got 406 from an endpoint that had the document in hand,
+  // which is indistinguishable from the endpoint being broken.
+  const anything = get && (accept.trim() === "" || /^\s*\*\/\*\s*(;.*)?$/.test(accept));
 
   if (wantsHtml && ACTOR.test(path)) return Response.redirect(AP.blogUrl, 302);
 
   // Asked again as a machine would, so Fedify produces the document it has
-  // rather than refusing. Only the label changes on the way back out.
+  // rather than refusing. Only the label changes on the way back out, and only
+  // for the browser.
   const headers = new Headers(request.headers);
-  if (wantsHtml) headers.set("accept", AS2);
+  if (wantsHtml || anything) headers.set("accept", AS2);
 
   const response = await federation.fetch(new Request(request, { headers }), {
     contextData: undefined,
