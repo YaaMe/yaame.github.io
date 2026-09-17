@@ -2,6 +2,7 @@ import { createFederation, exportJwk, generateCryptoKeyPair, importJwk } from "@
 // The vocabulary classes live on their own subpath — the root entry re-exports
 // the machinery, not the ActivityStreams types.
 import { Person, Follow, Undo, Accept, Endpoints, Image, PropertyValue } from "@fedify/fedify/vocab";
+import { configure, getConsoleSink } from "@logtape/logtape";
 import { platform } from "../../platform";
 import { AP } from "./config";
 
@@ -11,6 +12,18 @@ import { AP } from "./config";
  * delivery with retries, and the behavioural quirks of each implementation it
  * is tested against.
  */
+// Fedify reports what it is doing through LogTape, and without a sink it
+// reports it to nobody. Everything below the application — signature
+// verification, delivery, its own retries — is otherwise invisible, which is
+// how an ordering-key problem cost an afternoon.
+await configure({
+  sinks: { console: getConsoleSink() },
+  loggers: [
+    { category: "fedify", sinks: ["console"], lowestLevel: "info" },
+    { category: ["logtape", "meta"], sinks: [], lowestLevel: "error" },
+  ],
+});
+
 export const federation = createFederation<void>({
   kv: platform.kv,
 
