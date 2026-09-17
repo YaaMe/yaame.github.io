@@ -1,5 +1,7 @@
 import type { APIRoute } from "astro";
 import { federation } from "../federation";
+// Registers the outbox dispatcher; only the Astro build can resolve its imports.
+import "../outbox";
 
 // On-demand: these are the only dynamic routes the site has, and their presence
 // is what makes a Worker exist at all. With the feature off they are never

@@ -18,6 +18,11 @@ wrangler: ## 生成 wrangler.jsonc 与绑定类型
 		node scripts/wrangler-config.mjs >/dev/null
 	@npx wrangler types >/dev/null && echo "  wrangler 配置与类型已生成"
 
+deploy-consumer: ## 部署队列消费者（独立 Worker，需要 CF_KV_ID）
+	@test -n "$$CF_KV_ID" || { echo "  需要 CF_KV_ID"; exit 1; }
+	@node scripts/wrangler-config.mjs worker/wrangler.jsonc worker/wrangler.generated.jsonc
+	@cd worker && npx wrangler deploy -c wrangler.generated.jsonc
+
 deploy: check ## 构建并部署到 Cloudflare Workers（需要真实 CF_KV_ID）
 	@test -n "$$CF_KV_ID" || { echo "  部署需要 CF_KV_ID"; exit 1; }
 	@node scripts/wrangler-config.mjs >/dev/null
