@@ -29,8 +29,13 @@ platform.kv = new MemoryKvStore();
 Object.defineProperty(platform, "queue", {
   enumerable: true,
   get(): Platform["queue"] {
-    const binding = (env as { AP_QUEUE?: Queue }).AP_QUEUE;
-    return binding ? new WorkersMessageQueue(binding) : false;
+    const e = env as { AP_QUEUE?: Queue; AP_KV: KVNamespace };
+    if (!e.AP_QUEUE) return false;
+
+    // orderingKv is what makes ordering keys work at all: without it
+    // processMessage can report a message as not ready, and a message that is
+    // never ready is retried to the limit and then dropped.
+    return new WorkersMessageQueue(e.AP_QUEUE, { orderingKv: e.AP_KV });
   },
 });
 
