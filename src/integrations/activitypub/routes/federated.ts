@@ -1,4 +1,5 @@
 import type { APIRoute } from "astro";
+import { AP } from "../config";
 import { federation } from "../federation";
 // Registers the outbox dispatcher; only the Astro build can resolve its imports.
 import "../outbox";
@@ -17,7 +18,11 @@ const handle: APIRoute = ({ request }) =>
   federation.fetch(request, {
     contextData: undefined,
     onNotFound: () => new Response("not found", { status: 404 }),
-    onNotAcceptable: () => new Response("not acceptable", { status: 406 }),
+    // A person, not a server: everything here answers activity+json, and the
+    // only reason to arrive asking for HTML is that someone pasted the address
+    // into a browser. 406 is correct and useless to them; the actor already
+    // names where its human-readable side lives, so send them there.
+    onNotAcceptable: () => Response.redirect(AP.blogUrl, 302),
   });
 
 export const GET = handle;
