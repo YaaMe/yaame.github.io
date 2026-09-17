@@ -109,6 +109,27 @@ federation
     return [{ privateKey, publicKey }];
   });
 
+/**
+ * A follower, as much of it as delivery needs.
+ *
+ * The inbox is stored, not derived. `<actor>/inbox` is Mastodon's layout rather
+ * than a rule, and deriving it posts to a 404 on anything that chose otherwise —
+ * silently, because delivery is asynchronous and no one is waiting on the answer.
+ */
+type Follower = { id: string; inbox: string; sharedInbox?: string };
+
+// Entries written before the inbox was stored are bare actor URIs, and keep the
+// old assumption: their real inbox is no longer at hand, and is recovered the
+// next time that follower sends anything.
+const readFollowers = async (): Promise<Follower[]> => {
+  // Annotated rather than inferred: `(T[] | null) ?? []` is a union of two array
+  // types, and `.map` resolves no overload against a union — leaving its
+  // parameter an implicit any.
+  const stored: (Follower | string)[] =
+    (await platform.get<(Follower | string)[]>("ap:followers")) ?? [];
+  return stored.map((f) => (typeof f === "string" ? { id: f, inbox: `${f}/inbox` } : f));
+};
+
 federation
   .setInboxListeners(`/users/{identifier}/inbox`, "/inbox")
   // Fedify has already verified the signature and that the sender speaks for
@@ -116,12 +137,21 @@ federation
   .on(Follow, async (ctx, follow) => {
     if (follow.objectId?.href !== ctx.getActorUri(AP.user).href) return;
     const follower = await follow.getActor();
-    if (!follower?.id) return;
+    // No inbox means nothing can be delivered to them, the Accept below
+    // included — so there is nothing to record either.
+    if (!follower?.id || !follower.inboxId) return;
 
-    const list: string[] = (await platform.get<string[]>("ap:followers")) ?? [];
-    if (!list.includes(follower.id.href)) {
-      await platform.put("ap:followers", [follower.id.href, ...list]);
-    }
+    const entry: Follower = {
+      id: follower.id.href,
+      inbox: follower.inboxId.href,
+      ...(follower.endpoints?.sharedInbox
+        ? { sharedInbox: follower.endpoints.sharedInbox.href }
+        : {}),
+    };
+    // Replaced rather than skipped when already present: a repeat Follow is how
+    // a moved inbox reaches us.
+    const list = await readFollowers();
+    await platform.put("ap:followers", [entry, ...list.filter((f) => f.id !== entry.id)]);
     // The Follow is rebuilt from its three identifiers rather than echoed.
     // Echoing it serialises whatever the object is carrying, and getActor()
     // above has just filled it with the sender's entire Person — so object.actor
@@ -145,12 +175,20 @@ federation
   .on(Undo, async (_ctx, undo) => {
     const object = await undo.getObject();
     if (!(object instanceof Follow) || !undo.actorId) return;
-    const list: string[] = (await platform.get<string[]>("ap:followers")) ?? [];
-    await platform.put("ap:followers", list.filter((x) => x !== undo.actorId!.href));
+    const list = await readFollowers();
+    await platform.put("ap:followers", list.filter((f) => f.id !== undo.actorId!.href));
   });
 
 federation.setFollowersDispatcher(`/users/{identifier}/followers`, async (_ctx, identifier) => {
   if (identifier !== AP.user) return null;
-  const list: string[] = (await platform.get<string[]>("ap:followers")) ?? [];
-  return { items: list.map((href) => ({ id: new URL(href), inboxId: new URL(href + "/inbox") })) };
+  const list = await readFollowers();
+  return {
+    items: list.map((f) => ({
+      id: new URL(f.id),
+      inboxId: new URL(f.inbox),
+      // Fedify prefers this when fanning out, collapsing one POST per follower
+      // on a shared host into one POST for all of them.
+      endpoints: f.sharedInbox ? { sharedInbox: new URL(f.sharedInbox) } : null,
+    })),
+  };
 });
