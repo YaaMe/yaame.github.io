@@ -85,6 +85,7 @@ federation
       inbox: ctx.getInboxUri(identifier),
       outbox: ctx.getOutboxUri(identifier),
       followers: ctx.getFollowersUri(identifier),
+      following: ctx.getFollowingUri(identifier),
       endpoints: new Endpoints({ sharedInbox: ctx.getInboxUri() }),
       publicKeys: (await ctx.getActorKeyPairs(identifier)).map((k) => k.cryptographicKey),
     });
@@ -209,4 +210,25 @@ federation.setFollowersDispatcher(`/users/{identifier}/followers`, async (_ctx, 
   // count is what most software displays, as zero.
   .setCounter(async (_ctx, identifier) =>
     identifier === AP.user ? (await readFollowers()).length : null,
+  );
+
+/**
+ * Who this actor follows: nobody, so far.
+ *
+ * Served anyway, and read from storage rather than returned as a literal empty
+ * list. The actor advertises the collection, and an advertised endpoint that
+ * answers 404 is the defect this pass is about. Reading the same key an Accept
+ * handler would one day write means the answer stops being empty on its own,
+ * rather than needing this to be found and changed.
+ */
+const readFollowing = async (): Promise<string[]> =>
+  (await platform.get<string[]>("ap:following")) ?? [];
+
+federation
+  .setFollowingDispatcher(`/users/{identifier}/following`, async (_ctx, identifier) => {
+    if (identifier !== AP.user) return null;
+    return { items: (await readFollowing()).map((href) => new URL(href)) };
+  })
+  .setCounter(async (_ctx, identifier) =>
+    identifier === AP.user ? (await readFollowing()).length : null,
   );

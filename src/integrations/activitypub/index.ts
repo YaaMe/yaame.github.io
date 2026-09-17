@@ -16,6 +16,7 @@ const PATHS = [
   "/users/[user]",
   "/users/[user]/inbox",
   "/users/[user]/followers",
+  "/users/[user]/following",
   "/users/[user]/outbox",
   "/inbox",
 ];

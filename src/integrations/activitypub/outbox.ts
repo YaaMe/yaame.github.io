@@ -78,7 +78,9 @@ federation.setNodeInfoDispatcher("/nodeinfo/2.1", async () => ({
   protocols: ["activitypub"],
   usage: {
     users: { total: 1, activeMonth: 1, activeHalfyear: 1 },
-    localPosts: (await allPosts()).length,
+    // What the outbox actually publishes, not what the archive holds. Reporting
+    // sixteen here while the outbox offers one describes two different servers.
+    localPosts: Math.min((await allPosts()).length, PUBLISHED),
     // Zero, and honestly so: nothing inbound is stored yet. The inbox listens
     // for Follow, Undo and Delete, and a reply arriving here is dropped.
     localComments: 0,
