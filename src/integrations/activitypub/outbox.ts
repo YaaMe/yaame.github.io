@@ -119,10 +119,9 @@ federation.setObjectDispatcher(
  * nothing.
  */
 federation.setNodeInfoDispatcher("/nodeinfo/2.1", async () => ({
-  // NodeInfo requires a version string and this software has none — package.json
-  // carries no version field. 0.0.0 is the conventional way to say unversioned,
-  // and is preferable to inventing a release number nobody cut.
-  software: { name: "blogu", version: "0.0.0" },
+  // Federating, and not finished: the inbox still drops replies, boosts and
+  // likes on the floor. 0.0.x says that without pretending otherwise.
+  software: { name: "blogu", version: "0.0.1" },
   protocols: ["activitypub"],
   usage: {
     users: { total: 1, activeMonth: 1, activeHalfyear: 1 },
