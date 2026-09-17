@@ -122,9 +122,25 @@ federation
     if (!list.includes(follower.id.href)) {
       await platform.put("ap:followers", [follower.id.href, ...list]);
     }
-    await ctx.sendActivity({ identifier: AP.user }, follower, new Accept({
-      actor: ctx.getActorUri(AP.user), object: follow,
-    }));
+    // The Follow is rebuilt from its three identifiers rather than echoed.
+    // Echoing it serialises whatever the object is carrying, and getActor()
+    // above has just filled it with the sender's entire Person — so object.actor
+    // goes out as several kilobytes of inlined document where a URI belongs.
+    //
+    // This shape is the one verified end to end against Mastodon, against both
+    // the personal inbox and a clean instance. The remote end answers 202
+    // whether or not it could match the Accept to the request it is waiting on,
+    // so nothing here can tell a working delivery from a useless one.
+    const accept = new Accept({
+      actor: ctx.getActorUri(AP.user),
+      object: new Follow({
+        id: follow.id,
+        actor: follow.actorId,
+        object: ctx.getActorUri(AP.user),
+      }),
+    });
+
+    await ctx.sendActivity({ identifier: AP.user }, follower, accept);
   })
   .on(Undo, async (_ctx, undo) => {
     const object = await undo.getObject();
