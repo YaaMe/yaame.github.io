@@ -10,6 +10,17 @@ export const AP = {
   actorHost: "yaame.dev",
   user: "yaame",
   aliases: ["github"],
+
+  /**
+   * The blog this actor points at.
+   *
+   * Fixed rather than taken from site.url, which follows the build profile:
+   * the actor advertises one address to the rest of the network, and it should
+   * not depend on which of the two sites happened to produce this build. Also
+   * keeps this file free of the Astro-only imports the queue consumer cannot
+   * resolve.
+   */
+  blogUrl: "https://blogu.yaame.dev",
 } as const;
 
 export const handle = `${AP.user}@${AP.handleHost}`;
