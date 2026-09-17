@@ -9,29 +9,51 @@ import "../outbox";
 // injected and the build produces static files alone.
 export const prerender = false;
 
+const AS2 = "application/activity+json";
+const ACTOR = /^\/users\/[^/]+$/;
+
 /**
  * One handler behind every federated path. Fedify resolves the request against
  * its own router — actor, inboxes, collections, WebFinger, NodeInfo — so the
  * paths are declared once, in the integration, rather than implied by files.
+ *
+ * Everything here answers activity+json, so a browser is always asking for a
+ * representation that does not exist. Two different things are right depending
+ * on which address it asked for:
+ *
+ *   the actor      redirect to the blog. That address gets copied around and
+ *                  landed on by accident, and what the person wanted was the
+ *                  person.
+ *   anything else  the same document, labelled as JSON so the browser renders
+ *                  it. These are visited on purpose. 406 was technically
+ *                  correct and read as a broken endpoint — which, after a day
+ *                  spent removing endpoints that were advertised and did not
+ *                  answer, is the same defect wearing a correct status code.
  */
-const handle: APIRoute = ({ request }) =>
-  federation.fetch(request, {
+const handle: APIRoute = async ({ request }) => {
+  const path = new URL(request.url).pathname;
+  const wantsHtml =
+    request.method === "GET" && (request.headers.get("accept") ?? "").includes("text/html");
+
+  if (wantsHtml && ACTOR.test(path)) return Response.redirect(AP.blogUrl, 302);
+
+  // Asked again as a machine would, so Fedify produces the document it has
+  // rather than refusing. Only the label changes on the way back out.
+  const headers = new Headers(request.headers);
+  if (wantsHtml) headers.set("accept", AS2);
+
+  const response = await federation.fetch(new Request(request, { headers }), {
     contextData: undefined,
     onNotFound: () => new Response("not found", { status: 404 }),
-    // A person, not a server: everything here answers activity+json, and the
-    // only reason to arrive asking for HTML is that someone pasted the address
-    // into a browser.
-    //
-    // Only the actor's own address is redirected. That one gets copied around
-    // and landed on by accident, and 406 is correct and useless to whoever did.
-    // The collections and WebFinger are reached on purpose, and answering a
-    // specific request with the front page tells that person nothing — least of
-    // all why. 406 is the honest answer where the visit was deliberate.
-    onNotAcceptable: (request) =>
-      /^\/users\/[^/]+$/.test(new URL(request.url).pathname)
-        ? Response.redirect(AP.blogUrl, 302)
-        : new Response("not acceptable", { status: 406 }),
+    onNotAcceptable: () => new Response("not acceptable", { status: 406 }),
   });
+
+  if (!wantsHtml) return response;
+  return new Response(response.body, {
+    status: response.status,
+    headers: { "content-type": "application/json; charset=utf-8" },
+  });
+};
 
 export const GET = handle;
 export const POST = handle;
