@@ -25,12 +25,18 @@ design layer — replaceable wholesale
   src/layouts/  src/components/  src/pages/  src/styles/
 ```
 
-See `docs/architecture.md`. When adding data a page needs, add it to
+See `docs/architecture.md` for the first, `docs/configuration.md` for every
+switch and how they interact. When adding data a page needs, add it to
 `lib/posts.ts` first.
 
-**Two — nothing outside `src/platform/` may import a host-specific module.**
-That means `cloudflare:workers`, `@fedify/cfworkers`, `node:*`, `Deno.*` — the
-modules that exist in one runtime and not another.
+**Two — nothing outside `src/platform/` may reach a host-specific service.**
+Not only `cloudflare:workers`, `@fedify/cfworkers`, `node:*`, `Deno.*` — also
+any call that would change with the host: object storage, a queue, a database,
+a third-party API. The test is whether moving hosts would rewrite the line, not
+whether it imported anything unusual.
+
+What the protocol requires does not count: Fedify fetching a remote actor is
+the same call wherever it runs.
 
 The deployment target is chosen before the build, not at runtime: an env var
 selects both the Astro adapter and which file `virtual:platform` resolves to, so
