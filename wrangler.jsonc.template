@@ -3,6 +3,11 @@
   "main": "@astrojs/cloudflare/entrypoints/server",
   "compatibility_date": "2026-09-01",
   "compatibility_flags": ["nodejs_compat"],
+  // Without this the Worker's logs are neither kept nor queryable, and the only
+  // window into it is a live tail that has to be running at the moment the
+  // thing goes wrong.
+  "observability": { "enabled": true },
+
   "assets": { "directory": "./dist/client", "binding": "ASSETS" },
 
   // Filled in by `make wrangler` before the build — the adapter reads this file
