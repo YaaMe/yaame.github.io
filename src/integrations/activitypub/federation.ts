@@ -248,8 +248,10 @@ federation.setFollowersDispatcher(`/users/{identifier}/followers`, async (_ctx, 
  * Sending on every deploy would push a message to every follower's server for
  * builds that changed nothing about the actor. So the document is fingerprinted
  * and compared: an Update goes out when the fingerprint moves, and never
- * otherwise. The first run records the fingerprint and announces nothing —
- * there is no previous state to have differed from.
+ * otherwise. A first run counts as a move — announcing costs one message and
+ * asks the reader for nothing it could not already fetch, while staying quiet
+ * would leave whatever the followers hold at that moment wrong for as long as
+ * the actor happens not to change.
  */
 export async function announceActorChange(): Promise<string> {
   // A synthetic request rather than a bare URL: getActor — which is what runs
@@ -269,8 +271,9 @@ export async function announceActorChange(): Promise<string> {
 
   const previous = await platform.get<string>("ap:actor-digest");
   if (previous === digest) return "unchanged";
+  // Written before sending, so a delivery that fails does not leave the
+  // fingerprint behind and announce again on every tick.
   await platform.put("ap:actor-digest", digest);
-  if (previous === null) return "first run, recorded";
 
   await ctx.sendActivity(
     { identifier: AP.user },
