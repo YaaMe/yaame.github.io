@@ -1,0 +1,59 @@
+name: Actor key
+
+# Installs the actor's signing key into the Workers that sign with it.
+#
+# Separate from Deploy, and manual, because this is the only job that touches
+# the key. Deploys run on every push and never see it; this runs when the key
+# changes, which is rarely and on purpose.
+#
+# The record lives in a GitHub secret rather than in Cloudflare so that it can
+# follow the code somewhere else — the platform seam exists to make a Node
+# deployment possible, and a key that only exists inside Workers would be the
+# one thing that could not move.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: actor-key
+  cancel-in-progress: false
+
+jobs:
+  install:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: make install
+
+      # printf rather than echo: the value is parsed as JSON at the other end,
+      # and a shell that decides to interpret an escape would corrupt it in a
+      # way nothing here would notice.
+      - name: Install into both Workers
+        env:
+          AP_KEY_JWK: ${{ secrets.AP_KEY_JWK }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          test -n "$AP_KEY_JWK" || { echo "AP_KEY_JWK is not set"; exit 1; }
+          for worker in yaame-blogu yaame-ap-consumer; do
+            printf '%s' "$AP_KEY_JWK" | npx wrangler secret put AP_KEY_JWK --name "$worker"
+          done
+
+      # Names only — `wrangler secret list` never returns values, which is the
+      # property the whole arrangement rests on.
+      - name: Confirm
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          for worker in yaame-blogu yaame-ap-consumer; do
+            echo "$worker:"
+            npx wrangler secret list --name "$worker"
+          done
