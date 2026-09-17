@@ -68,6 +68,7 @@ federation
     if (identifier !== AP.user) return null;
 
     return {
+      nextCursor: null,
       items: (await allPosts()).slice(0, PUBLISHED).map((post) => {
         const object = note(ctx, post);
         return new Create({
@@ -83,7 +84,9 @@ federation
   })
   .setCounter(async (_ctx, identifier) =>
     identifier === AP.user ? Math.min((await allPosts()).length, PUBLISHED) : null,
-  );
+  )
+  // Paged like the other collections; see FIRST in federation.ts.
+  .setFirstCursor(() => "0");
 
 /**
  * The object behind a Note's id.
