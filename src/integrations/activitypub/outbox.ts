@@ -8,7 +8,7 @@
  */
 import type { Context } from "@fedify/fedify";
 import { Temporal } from "@js-temporal/polyfill";
-import { Create, Note, OrderedCollection } from "@fedify/fedify/vocab";
+import { Create, Note, OrderedCollection, Update } from "@fedify/fedify/vocab";
 import { federation } from "./federation";
 import { platform } from "../../platform";
 import { replies, replyCounts } from "./store/comments";
@@ -140,6 +140,62 @@ async function publishPending(ctx: Context<void>, activities: Create[]): Promise
   }
 }
 
+/** What each delivered post looked like when it was last announced. */
+const DIGESTS = "ap:note-digests";
+
+/**
+ * Tell the followers when a post they already have has changed.
+ *
+ * Nothing re-reads a post because we edited it; a server that holds a copy goes
+ * on showing what it fetched. So an edit in git is invisible to everyone who
+ * received the original, forever.
+ *
+ * Fingerprinted on the content, deliberately not on the counts. A reply or a
+ * like changes what the note serialises, and announcing those would push a
+ * message to every follower's server for every heart — which is also not what
+ * Mastodon does: counts travel when someone fetches, not when they change.
+ *
+ * Only posts that were actually delivered are announced. Editing something the
+ * followers never received is not news to them.
+ */
+async function announceEdits(ctx: Context<void>, notes: Note[]): Promise<void> {
+  const delivered = new Set((await platform.get<string[]>(DELIVERED)) ?? []);
+  const digests = (await platform.get<Record<string, string>>(DIGESTS)) ?? {};
+
+  const changed: Note[] = [];
+  for (const note of notes) {
+    if (!note.id) continue;
+    const body = JSON.stringify([note.content?.toString(), note.url?.toString(), note.published?.toString()]);
+    const digest = [
+      ...new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(body))),
+    ]
+      .map((b) => b.toString(16).padStart(2, "0"))
+      .join("");
+
+    if (digests[note.id.href] === digest) continue;
+    const first = digests[note.id.href] === undefined;
+    digests[note.id.href] = digest;
+    // A post seen for the first time has nothing to compare against, and one
+    // never delivered has no audience holding a stale copy.
+    if (!first && delivered.has(note.id.href)) changed.push(note);
+  }
+
+  if (Object.keys(digests).length > 0) await platform.put(DIGESTS, digests);
+
+  for (const note of changed) {
+    await ctx.sendActivity(
+      { identifier: AP.user },
+      "followers",
+      new Update({
+        id: new URL(`#update/${Date.now()}`, note.id!),
+        actor: ctx.getActorUri(AP.user),
+        to: PUBLIC,
+        object: note,
+      }),
+    );
+  }
+}
+
 /**
  * The outbox is derived from the posts, not accumulated in storage.
  *
@@ -159,11 +215,13 @@ federation
       replyCounts(ids),
       reactionCounts(ids),
     ]);
+    const notes: Note[] = [];
     const all = posts.map((post, i) => {
       const object = note(ctx, post, {
         replies: replyTally.get(ids[i]) ?? 0,
         ...(reactionTally.get(ids[i]) ?? { likes: 0, shares: 0 }),
       });
+      notes.push(object);
       return new Create({
         // Alongside the object it wraps, rather than on the blog: an activity is
         // this actor's, and nothing on the blog would ever answer for it.
@@ -178,6 +236,7 @@ federation
     // reader asking for page three must not decide which posts the followers
     // have been sent.
     await publishPending(ctx, all);
+    await announceEdits(ctx, notes);
     return page(all, cursor);
   })
   .setCounter(async (_ctx, identifier) =>
