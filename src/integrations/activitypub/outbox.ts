@@ -9,6 +9,7 @@
 import type { Context } from "@fedify/fedify";
 import { Create, Note } from "@fedify/fedify/vocab";
 import { federation } from "./federation";
+import { platform } from "../../platform";
 import { AP } from "./config";
 import { allPosts, href, type Post } from "../../lib/posts";
 
@@ -56,6 +57,47 @@ const note = (ctx: Context<void>, post: Post) => {
 };
 
 /**
+ * Posts already sent to the followers.
+ *
+ * Without this, every trigger would deliver the same Create again. Remote
+ * servers de-duplicate by activity id and ours is stable, so the duplicates
+ * would be discarded rather than shown twice — but they would still be a
+ * delivery attempt per follower, every time, and a follower whose server is
+ * down would collect an hour of retries for a post it already has.
+ */
+const DELIVERED = "ap:delivered";
+
+/**
+ * Send what has not been sent.
+ *
+ * Called when the outbox is built, for the same reason the actor announces
+ * itself when the actor document is built: that is the moment the thing exists,
+ * and it needs no timer to notice. In practice the trigger is the conformance
+ * check, which fetches the outbox after every deploy.
+ *
+ * Only the slice the outbox publishes is considered. Delivering something the
+ * outbox does not offer would leave a follower holding a post they cannot find
+ * in the collection it supposedly came from.
+ */
+async function publishPending(ctx: Context<void>, activities: Create[]): Promise<void> {
+  const sent = new Set((await platform.get<string[]>(DELIVERED)) ?? []);
+  const pending = activities.filter((a) => a.objectId && !sent.has(a.objectId.href));
+  if (pending.length === 0) return;
+
+  for (const activity of pending) {
+    // Recorded before sending, like the actor digest: a delivery that fails is
+    // retried by the queue, and a record written afterwards would be lost on
+    // the throw — leaving the post to be delivered again on the next build.
+    sent.add(activity.objectId!.href);
+  }
+  await platform.put(DELIVERED, [...sent]);
+
+  for (const activity of pending) {
+    await ctx.sendActivity({ identifier: AP.user }, "followers", activity);
+  }
+}
+
+/**
  * The outbox is derived from the posts, not accumulated in storage.
  *
  * The content lives in git, so the activity history is a projection of it: the
@@ -67,20 +109,20 @@ federation
   .setOutboxDispatcher(`/users/{identifier}/outbox`, async (ctx, identifier) => {
     if (identifier !== AP.user) return null;
 
-    return {
-      nextCursor: null,
-      items: (await allPosts()).slice(0, PUBLISHED).map((post) => {
-        const object = note(ctx, post);
-        return new Create({
-          // Alongside the object it wraps, rather than on the blog: an activity
-          // is this actor's, and nothing on the blog would ever answer for it.
-          id: new URL("#create", object.id!),
-          actor: ctx.getActorUri(identifier),
-          to: PUBLIC,
-          object,
-        });
-      }),
-    };
+    const items = (await allPosts()).slice(0, PUBLISHED).map((post) => {
+      const object = note(ctx, post);
+      return new Create({
+        // Alongside the object it wraps, rather than on the blog: an activity is
+        // this actor's, and nothing on the blog would ever answer for it.
+        id: new URL("#create", object.id!),
+        actor: ctx.getActorUri(identifier),
+        to: PUBLIC,
+        object,
+      });
+    });
+
+    await publishPending(ctx, items);
+    return { nextCursor: null, items };
   })
   .setCounter(async (_ctx, identifier) =>
     identifier === AP.user ? Math.min((await allPosts()).length, PUBLISHED) : null,
