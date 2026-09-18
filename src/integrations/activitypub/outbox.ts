@@ -7,9 +7,11 @@
  * needs the content lives here, imported only from the Astro side.
  */
 import type { Context } from "@fedify/fedify";
-import { Create, Note } from "@fedify/fedify/vocab";
+import { Temporal } from "@js-temporal/polyfill";
+import { Collection, Create, Note } from "@fedify/fedify/vocab";
 import { federation } from "./federation";
 import { platform } from "../../platform";
+import { replies, replyCounts } from "./store/comments";
 import { FIRST, page } from "./paging";
 import { AP } from "./config";
 import { allPosts, href, type Post } from "../../lib/posts";
@@ -35,13 +37,36 @@ const window = () => (AP.published === 0 ? undefined : AP.published);
  * application/activity+json gets HTML no matter what it asked for. Splitting
  * them costs nothing and leaves the blog's hot paths as plain files.
  */
-const note = (ctx: Context<void>, post: Post) => {
+const note = (ctx: Context<void>, post: Post, replyCount = 0) => {
   const url = new URL(href(post), AP.blogUrl);
+  const id = ctx.getObjectUri(Note, { identifier: AP.user, slug: post.id });
   return new Note({
-    id: ctx.getObjectUri(Note, { identifier: AP.user, slug: post.id }),
+    id,
     attribution: ctx.getActorUri(AP.user),
     url,
     to: PUBLIC,
+    // Public posts are addressed to the followers as well, which is how every
+    // other implementation spells "public, and my followers should see it".
+    cc: ctx.getFollowersUri(AP.user),
+    // Without this a reader has no date to sort by, and a receiving server
+    // supplies one of its own — so the same post is dated differently on every
+    // instance that holds it.
+    // Two Temporals, one runtime. Fedify's signature names an ambient global
+    // that does not exist in either runtime we deploy to — it rejects a string
+    // and requires a real Instant — while the polyfill it bundles produces one
+    // that works. The assertion is where those two identities are reconciled;
+    // measured, not assumed: a string throws, this does not.
+    published: Temporal.Instant.from(post.data.date.iso) as unknown as ConstructorParameters<
+      typeof Note
+    >[0]["published"],
+    // The conversation under the post, which until now existed only in our
+    // database: replies arrived, were stored, and nothing said so. A reference
+    // rather than the items, with the count inline — that is what a reader uses
+    // to decide whether the collection is worth fetching.
+    replies: new Collection({
+      id: new URL(`${id.href}/replies`),
+      totalItems: replyCount,
+    }),
     content:
       `<p><strong>${post.data.title}</strong></p>` +
       (post.data.description ? `<p>${post.data.description}</p>` : "") +
@@ -118,8 +143,14 @@ federation
   .setOutboxDispatcher(`/users/{identifier}/outbox`, async (ctx, identifier, cursor) => {
     if (identifier !== AP.user) return null;
 
-    const all = (await allPosts()).slice(0, window()).map((post) => {
-      const object = note(ctx, post);
+    const posts = (await allPosts()).slice(0, window());
+    const counts = await replyCounts(
+      posts.map((p) => ctx.getObjectUri(Note, { identifier: AP.user, slug: p.id }).href),
+    );
+    const all = posts.map((post) => {
+      const object = note(ctx, post, counts.get(
+        ctx.getObjectUri(Note, { identifier: AP.user, slug: post.id }).href,
+      ) ?? 0);
       return new Create({
         // Alongside the object it wraps, rather than on the blog: an activity is
         // this actor's, and nothing on the blog would ever answer for it.
@@ -158,7 +189,31 @@ federation.setObjectDispatcher(
   async (ctx, { identifier, slug }) => {
     if (identifier !== AP.user) return null;
     const post = (await allPosts()).find((p) => p.id === slug);
-    return post ? note(ctx, post) : null;
+    if (!post) return null;
+    const id = ctx.getObjectUri(Note, { identifier, slug }).href;
+    return note(ctx, post, (await replyCounts([id])).get(id) ?? 0);
+  },
+);
+
+/**
+ * The replies under one post.
+ *
+ * The other half of the `replies` reference above: the count says how many, and
+ * this is where they are. Items are the reply objects' own ids — they live on
+ * the servers that wrote them, and re-serving their content here would make us
+ * a second, diverging copy of someone else's words.
+ */
+federation.setOrderedCollectionDispatcher(
+  "replies",
+  Note,
+  `/users/{identifier}/notes/{slug}/replies`,
+  async (ctx, { identifier, slug }) => {
+    if (identifier !== AP.user) return null;
+    const id = ctx.getObjectUri(Note, { identifier, slug }).href;
+    return {
+      items: (await replies(id)).map((c) => new Note({ id: new URL(c.objectId) })),
+      nextCursor: null,
+    };
   },
 );
 

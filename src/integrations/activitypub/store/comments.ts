@@ -5,7 +5,7 @@
  * Drizzle against the definitions in schema.ts, so a deployment that brings its
  * own database changes the driver and not this.
  */
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, count, eq, inArray, isNull } from "drizzle-orm";
 import { platform } from "../../../platform";
 import type { Database } from "../../../platform/types";
 import { comments, migrate } from "./schema";
@@ -128,4 +128,35 @@ export async function remove(objectId: string, actorId: string): Promise<boolean
 export async function thread(rootId: string): Promise<Comment[]> {
   const db = await store();
   return db.select().from(comments).where(eq(comments.rootId, rootId)).orderBy(asc(comments.published));
+}
+
+/**
+ * How many replies each of these posts has.
+ *
+ * One grouped query for the whole page rather than one per post: a page holds
+ * up to twenty, and D1's free plan allows fifty queries per invocation — a
+ * per-post count would spend the budget on arithmetic.
+ *
+ * Deleted replies are excluded. The row survives as a record, but a count is a
+ * claim about what a reader can find, and they cannot find that one.
+ */
+export async function replyCounts(rootIds: string[]): Promise<Map<string, number>> {
+  if (rootIds.length === 0) return new Map();
+  const db = await store();
+  const rows = await db
+    .select({ rootId: comments.rootId, n: count() })
+    .from(comments)
+    .where(and(inArray(comments.rootId, rootIds), isNull(comments.deletedAt)))
+    .groupBy(comments.rootId);
+  return new Map(rows.map((r) => [r.rootId, Number(r.n)]));
+}
+
+/** One page of the replies under a post, oldest first, deleted ones left out. */
+export async function replies(rootId: string): Promise<Comment[]> {
+  const db = await store();
+  return db
+    .select()
+    .from(comments)
+    .where(and(eq(comments.rootId, rootId), isNull(comments.deletedAt)))
+    .orderBy(asc(comments.published));
 }
