@@ -1,10 +1,11 @@
 import { createFederation, importJwk, type RequestContext } from "@fedify/fedify";
 // The vocabulary classes live on their own subpath — the root entry re-exports
 // the machinery, not the ActivityStreams types.
-import { Person, Follow, Undo, Accept, Delete, Update, Endpoints, Image, PropertyValue } from "@fedify/fedify/vocab";
+import { Person, Follow, Undo, Accept, Create, Delete, Note, Update, Endpoints, Image, PropertyValue } from "@fedify/fedify/vocab";
 import { configure, getConsoleSink } from "@logtape/logtape";
 import { platform } from "../../platform";
 import { AP } from "./config";
+import { record, remove } from "./store/comments";
 
 /**
  * Fedify does the parts that are tedious to get right and easy to get subtly
@@ -89,6 +90,16 @@ async function announceIfChanged(ctx: RequestContext<void>, person: Person): Pro
     }),
   );
 }
+
+/**
+ * Whether an object id is one of ours.
+ *
+ * A prefix test rather than a lookup: our notes are addressed by the dispatcher
+ * in outbox.ts, and asking the content layer would drag astro:content into the
+ * queue consumer, which cannot resolve it.
+ */
+const OURS = `https://${AP.actorHost}/users/${AP.user}/notes/`;
+const ours = (id: string) => id.startsWith(OURS);
 
 federation
   .setActorDispatcher(`/users/{identifier}`, async (ctx, identifier) => {
@@ -234,10 +245,53 @@ federation
   //
   // Only a self-delete is of interest: object equal to actor. Anything else is a
   // post being deleted, and no posts of anyone else's are kept here.
+  // A reply. Until now these arrived and were dropped: the sender's server
+  // reported success, the person saw their reply posted, and nothing on this
+  // side kept it or said so.
+  //
+  // Only replies to something of ours are kept. A Create can address us for
+  // other reasons — a mention with no reply target, a post merely delivered to
+  // the shared inbox — and storing those would make this a mailbox for anything
+  // pointed at us rather than the comments under our posts.
+  .on(Create, async (_ctx, create) => {
+    const object = await create.getObject();
+    if (!(object instanceof Note)) return;
+    if (!create.id || !object.id || !object.replyTargetId) return;
+
+    const author = object.attributionId ?? create.actorId;
+    if (!author) return;
+
+    await record(
+      {
+        activity_id: create.id.href,
+        object_id: object.id.href,
+        reply_to_id: object.replyTargetId.href,
+        actor_id: author.href,
+        content: object.content?.toString() ?? "",
+        // Date rather than Temporal for the fallback: Fedify hands us a
+        // Temporal.Instant when the sender supplied one, but constructing one
+        // ourselves would depend on Temporal being present in the runtime,
+        // which is a different question from the type existing.
+        published: object.published?.toString() ?? new Date().toISOString(),
+      },
+      ours,
+    );
+  })
   .on(Delete, async (_ctx, del) => {
-    if (!del.actorId || del.objectId?.href !== del.actorId.href) return;
-    const list = await readFollowers();
-    await platform.put("ap:followers", list.filter((f) => f.id !== del.actorId!.href));
+    if (!del.actorId || !del.objectId) return;
+
+    // The account itself. Without this the follower stays on the list for good,
+    // and every post is delivered to an inbox that no longer exists.
+    if (del.objectId.href === del.actorId.href) {
+      const list = await readFollowers();
+      await platform.put("ap:followers", list.filter((f) => f.id !== del.actorId!.href));
+      return;
+    }
+
+    // Otherwise a comment. ActivityPub §7.4 says we SHOULD remove our
+    // representation; the row survives as a record that something was here, and
+    // if it was carried into git the removal there is raised against it.
+    await remove(del.objectId.href, del.actorId.href);
   })
   .on(Undo, async (_ctx, undo) => {
     const object = await undo.getObject();
