@@ -1,0 +1,72 @@
+name: Tombstones
+
+# 把「已经进了 git 而后被要求删除」的评论改成墓碑，开一个 PR 交给人决定。
+#
+# 为什么要有这道弯：运行时收到 Delete 的那一刻就停止呈现了，但它改不了 git。
+# 而 CI 有 git 令牌、没有别的权限——这个分隔是有意的，所以由这里来做，
+# 且只是提议，不是合并。
+#
+# 一周一次就够：即时的那一半已经由运行时承担，这里慢几天只影响仓库，
+# 而仓库那一步本来就要人看。
+
+on:
+  schedule:
+    # 周一早上，不取整点——每个写 cron 的人都写 0，那一刻的调度最挤。
+    - cron: "37 1 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: tombstones
+  cancel-in-progress: false
+
+jobs:
+  raise:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: make install
+
+      - name: Rewrite what has been withdrawn
+        env:
+          APPLY: "1"
+          CF_KV_ID: ${{ vars.CF_KV_ID }}
+          CF_D1_ID: ${{ vars.CF_D1_ID }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          node scripts/wrangler-config.mjs >/dev/null
+          node scripts/tombstone.mjs
+
+      # 没有改动就什么都不做。空 PR 每周一个，比没有提醒更糟——几次之后
+      # 就没人看了，真有内容的那次也一起被忽略。
+      - name: Open or update the pull request
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if git diff --quiet -- src/content/comments; then
+            echo "  没有要立碑的"
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          # 固定分支：同一批待办更新同一个 PR，而不是每周开一个新的。
+          git switch -c comments/tombstones
+          git add src/content/comments
+          git commit -m "chore(comments): tombstone what has been withdrawn"
+          git push --force-with-lease origin comments/tombstones
+
+          gh pr view comments/tombstones >/dev/null 2>&1 \
+            || gh pr create \
+                 --base main --head comments/tombstones \
+                 --title "有评论被作者撤回" \
+                 --body "运行时已经停止呈现这些评论。这个 PR 把 git 里那一份换成墓碑——内容去掉，事实留着。合不合由你决定。"

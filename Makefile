@@ -1,6 +1,6 @@
 # 本站的全部操作入口。`make` 或 `make help` 看清单。
 .DEFAULT_GOAL := help
-.PHONY: help install dev deploy deploy-site deploy-consumer ap-check promote build preview check frontmatter fix new newpost newtag tags urls links clean
+.PHONY: help install dev deploy deploy-site deploy-consumer ap-check promote tombstone build preview check frontmatter fix new newpost newtag tags urls links clean
 
 help: ## 显示这份清单
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) \
@@ -70,6 +70,11 @@ promote: ## 把收下的评论有筛选地拉回 git（APPLY=1 才真的写）
 	@test -n "$$CF_D1_ID" || { echo "  需要 CF_D1_ID —— wrangler 从 wrangler.jsonc 解析数据库，而 make check 会把它写成占位值"; exit 1; }
 	@node scripts/wrangler-config.mjs >/dev/null
 	@node scripts/promote.mjs
+
+tombstone: ## 把已进 git 而后被撤回的评论改成墓碑（APPLY=1 才真的写）
+	@test -n "$$CF_D1_ID" || { echo "  需要 CF_D1_ID"; exit 1; }
+	@node scripts/wrangler-config.mjs >/dev/null
+	@node scripts/tombstone.mjs
 
 ap-check: ## 对线上 ActivityPub 端点做一致性检查（URL=… 可指定）
 	@node scripts/ap-check.mjs $(URL)
