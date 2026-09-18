@@ -242,6 +242,25 @@ XSS 口子。三条路各有代价:
 
 后两条会在正常写作时自己发生。
 
+## CI 那个 token 的权限
+
+写在 `docs/cloudflare-token.tf` 里,声明式的一份。那几项原本只存在于报错里 ——
+每一项都是撞了一次墙才知道要加的:
+
+| 权限 | 撞出它的那次失败 |
+|---|---|
+| Workers Scripts Write | 没有它什么都发不出去 |
+| Workers KV Storage Write | `AP_KV` 绑定 |
+| Queues Write | producer 与 consumer |
+| Zone → Workers Routes Write | `Authentication error [code: 10000]`,发生在 zone 这一侧 —— 账号级的 Workers 权限盖不到 |
+| D1 Read | `code: 7403 该账号未被授权访问此服务`,Tombstones job 查库时 |
+
+**故意不给的**:`Memberships Read`。一旦 wrangler 需要去查 memberships,说明
+account id 没配上,那正是该失败的时候;给了它,部署会成功,但发到一个没人声明
+过的账号上。
+
+那份 tf **没有被 apply 过**,token 目前是手工建的。
+
 ## 待办
 
 - [x] 存储缝 + D1 与 `node:sqlite` 两个实现 —— 用的是 Drizzle,不是手写的渲染层
