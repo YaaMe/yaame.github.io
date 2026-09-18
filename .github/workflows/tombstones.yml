@@ -68,5 +68,16 @@ jobs:
           gh pr view comments/tombstones >/dev/null 2>&1 \
             || gh pr create \
                  --base main --head comments/tombstones \
-                 --title "有评论被作者撤回" \
-                 --body "运行时已经停止呈现这些评论。这个 PR 把 git 里那一份换成墓碑——内容去掉，事实留着。合不合由你决定。"
+                 --title "Comments withdrawn by their authors" \
+                 --body "$(cat <<'EOF'
+These comments have already stopped being served: the runtime marked them
+deleted the moment the Delete arrived, which is what ActivityPub asks of us.
+
+What it cannot do is reach git. This removes the content there and leaves the
+record — who wrote it, when, and when they took it back. History still holds
+the original, and that is not the promise being made: not that it never
+existed, but that the record says it was withdrawn.
+
+Merging is your call.
+EOF
+)"
