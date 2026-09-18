@@ -1,0 +1,13 @@
+{
+  "comments": [
+    {
+      "activityId": "https://activitypub.academy/users/banules_kuraks/statuses/117290977176624180/activity",
+      "objectId": "https://activitypub.academy/users/banules_kuraks/statuses/117290977176624180",
+      "rootId": "https://yaame.dev/users/yaame/notes/2025-year",
+      "replyToId": null,
+      "actorId": "https://activitypub.academy/users/banules_kuraks",
+      "content": "<p><span class=\"h-card\"><a href=\"https://yaame.dev/users/yaame\" class=\"u-url mention\">@<span>yaame</span></a></span> do a reply test</p>",
+      "published": "2026-09-18T07:57:59Z"
+    }
+  ]
+}
