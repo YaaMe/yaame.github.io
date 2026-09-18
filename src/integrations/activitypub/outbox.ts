@@ -8,7 +8,7 @@
  */
 import type { Context } from "@fedify/fedify";
 import { Temporal } from "@js-temporal/polyfill";
-import { Collection, Create, Note } from "@fedify/fedify/vocab";
+import { Create, Note, OrderedCollection } from "@fedify/fedify/vocab";
 import { federation } from "./federation";
 import { platform } from "../../platform";
 import { replies, replyCounts } from "./store/comments";
@@ -63,7 +63,10 @@ const note = (ctx: Context<void>, post: Post, replyCount = 0) => {
     // database: replies arrived, were stored, and nothing said so. A reference
     // rather than the items, with the count inline — that is what a reader uses
     // to decide whether the collection is worth fetching.
-    replies: new Collection({
+    // OrderedCollection, matching what the endpoint actually serves. A reference
+    // that names a different type than the resource behind it is the kind of
+    // disagreement only a strict client notices, and only in production.
+    replies: new OrderedCollection({
       id: new URL(`${id.href}/replies`),
       totalItems: replyCount,
     }),
@@ -215,7 +218,11 @@ federation.setOrderedCollectionDispatcher(
       nextCursor: null,
     };
   },
-);
+).setCounter(async (ctx, { identifier, slug }) => {
+  if (identifier !== AP.user) return null;
+  const id = ctx.getObjectUri(Note, { identifier, slug }).href;
+  return (await replyCounts([id])).get(id) ?? 0;
+});
 
 /**
  * NodeInfo.
