@@ -124,6 +124,28 @@ export async function dropFollowerByInbox(inbox: string): Promise<string | null>
   return gone.id;
 }
 
+/**
+ * An inbox that is gone, rather than one that is having a bad day.
+ *
+ * Fedify treats 404 and 410 as permanent and stops retrying — correctly, since
+ * a server that says "no such actor" will keep saying it. But that also means
+ * nothing throws, so the consumer's write-off path never runs and the follower
+ * stayed on the list: we watched a deleted account collect a delivery on every
+ * publish, with the failure visible only in a log nobody reads.
+ *
+ * The retry ceiling covers the other shape — an address that keeps timing out —
+ * and is no help here. This is the shape where we are told.
+ */
+federation.setOutboxPermanentFailureHandler(async (_ctx, { reason, inbox, activity }) => {
+  const dropped = await dropFollowerByInbox(inbox.href);
+  console.warn("permanent delivery failure", {
+    reason,
+    inbox: inbox.href,
+    activity: activity.id?.href,
+    dropped,
+  });
+});
+
 federation
   .setActorDispatcher(`/users/{identifier}`, async (ctx, identifier) => {
     if (identifier !== AP.user) return null;
