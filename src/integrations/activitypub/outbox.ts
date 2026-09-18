@@ -15,16 +15,8 @@ import { allPosts, href, type Post } from "../../lib/posts";
 
 const PUBLIC = new URL("https://www.w3.org/ns/activitystreams#Public");
 
-/**
- * How much of the archive the outbox publishes.
- *
- * One, for now: the shape is the same for the whole archive, and publishing the
- * back catalogue at once would deliver sixteen notifications to anyone who
- * follows, which is not how anyone wants to meet an account. Named because the
- * counter below has to agree with it — a total that disagrees with the items it
- * counts is worse than no total.
- */
-const PUBLISHED = 1;
+/** `slice(0, undefined)` is the whole array, which is what 0 means here. */
+const window = () => (AP.published === 0 ? undefined : AP.published);
 
 /**
  * One post, as an ActivityPub object.
@@ -80,7 +72,23 @@ const DELIVERED = "ap:delivered";
  * in the collection it supposedly came from.
  */
 async function publishPending(ctx: Context<void>, activities: Create[]): Promise<void> {
-  const sent = new Set((await platform.get<string[]>(DELIVERED)) ?? []);
+  const recorded = await platform.get<string[]>(DELIVERED);
+
+  // Nothing recorded means this actor has never delivered anything, which is
+  // not the same as everything being new. Sixteen years of archive arriving in
+  // one burst is how an account introduces itself badly, so a first run marks
+  // the existing posts as sent and sends none of them. Only what is written
+  // after this point is delivered.
+  //
+  // The opposite of the rule for the actor document, deliberately: announcing a
+  // changed actor costs one message, and going quiet there would leave every
+  // follower holding a stale copy.
+  if (recorded === null) {
+    await platform.put(DELIVERED, activities.flatMap((a) => (a.objectId ? [a.objectId.href] : [])));
+    return;
+  }
+
+  const sent = new Set(recorded);
   const pending = activities.filter((a) => a.objectId && !sent.has(a.objectId.href));
   if (pending.length === 0) return;
 
@@ -109,7 +117,7 @@ federation
   .setOutboxDispatcher(`/users/{identifier}/outbox`, async (ctx, identifier) => {
     if (identifier !== AP.user) return null;
 
-    const items = (await allPosts()).slice(0, PUBLISHED).map((post) => {
+    const items = (await allPosts()).slice(0, window()).map((post) => {
       const object = note(ctx, post);
       return new Create({
         // Alongside the object it wraps, rather than on the blog: an activity is
@@ -125,7 +133,7 @@ federation
     return { nextCursor: null, items };
   })
   .setCounter(async (_ctx, identifier) =>
-    identifier === AP.user ? Math.min((await allPosts()).length, PUBLISHED) : null,
+    identifier === AP.user ? (await allPosts()).slice(0, window()).length : null,
   )
   // Paged like the other collections; see FIRST in federation.ts.
   .setFirstCursor(() => "0");
@@ -169,7 +177,7 @@ federation.setNodeInfoDispatcher("/nodeinfo/2.1", async () => ({
     users: { total: 1, activeMonth: 1, activeHalfyear: 1 },
     // What the outbox actually publishes, not what the archive holds. Reporting
     // sixteen here while the outbox offers one describes two different servers.
-    localPosts: Math.min((await allPosts()).length, PUBLISHED),
+    localPosts: (await allPosts()).slice(0, window()).length,
     // Zero, and honestly so: nothing inbound is stored yet. The inbox listens
     // for Follow, Undo and Delete, and a reply arriving here is dropped.
     localComments: 0,

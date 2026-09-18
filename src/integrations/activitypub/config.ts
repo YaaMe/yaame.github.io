@@ -26,6 +26,22 @@ export const AP = {
   indexable: false,
 
   /**
+   * How much of the archive the outbox offers. 0 means all of it.
+   *
+   * ActivityPub leaves the number to the implementer — §5.1 says only that the
+   * outbox holds what the actor published, and §6 that an activity "might
+   * appear after a delay or disappear at any period". For an unauthenticated
+   * reader it does say a server SHOULD return all public posts, which is the
+   * argument for 0.
+   *
+   * This used to be 1 to stop the back catalogue being delivered to followers
+   * all at once. That is no longer what guards it — delivery keeps its own
+   * record of what it has sent — so the two questions are separate again: this
+   * one is only about what the collection shows.
+   */
+  published: 0,
+
+  /**
    * The blog this actor points at.
    *
    * Fixed rather than taken from site.url, which follows the build profile:
