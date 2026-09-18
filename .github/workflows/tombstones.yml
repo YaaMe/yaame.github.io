@@ -60,6 +60,11 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
           # 固定分支：同一批待办更新同一个 PR，而不是每周开一个新的。
+          #
+          # 先取一次远端分支，哪怕它还不存在。--force-with-lease 的租约是和
+          # 远端跟踪引用比对的，而 checkout 只拉了 main —— 没有那个引用时它
+          # 失败关闭，报 "stale info"，和有没有人改过那个分支无关。
+          git fetch origin comments/tombstones || true
           git switch -c comments/tombstones
           git add src/content/comments
           git commit -m "chore(comments): tombstone what has been withdrawn"
