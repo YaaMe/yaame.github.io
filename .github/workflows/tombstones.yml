@@ -76,8 +76,15 @@ jobs:
           git commit -m "chore(comments): tombstone what has been withdrawn"
           git push --force origin comments/tombstones
 
-          gh pr view comments/tombstones >/dev/null 2>&1 \
-            || gh pr create \
-                 --base main --head comments/tombstones \
-                 --title "Comments withdrawn by their authors" \
-                 --body-file .github/tombstone-pr.md
+          # 「打开的」PR，不是「任何」PR。gh pr view 连已关闭的也找得到，于是一次
+          # 关闭之后这里就再也不开新的了 —— 分支照常推，PR 永远不出现，而这个
+          # job 报成功。
+          open=$(gh pr list --head comments/tombstones --state open --json number --jq 'length')
+          if [ "$open" = "0" ]; then
+            gh pr create \
+              --base main --head comments/tombstones \
+              --title "Comments withdrawn by their authors" \
+              --body-file .github/tombstone-pr.md
+          else
+            echo "  已有打开的 PR，分支已更新"
+          fi
