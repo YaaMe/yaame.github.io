@@ -1,4 +1,4 @@
-name: Deploy
+name: Deploy Pages
 
 # Pages is already on build_type=workflow, so no repository setting needs
 # changing. The custom domain is held by the Pages config; public/CNAME

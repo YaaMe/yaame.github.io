@@ -1,4 +1,4 @@
-name: Workers
+name: Deploy CF Workers
 
 # The other half of Deploy. That workflow publishes the static profile to
 # Pages; this one publishes the full profile — Astro's runtime and
