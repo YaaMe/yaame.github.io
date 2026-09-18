@@ -1,11 +1,12 @@
 import { createFederation, importJwk, type RequestContext } from "@fedify/fedify";
 // The vocabulary classes live on their own subpath — the root entry re-exports
 // the machinery, not the ActivityStreams types.
-import { Person, Follow, Undo, Accept, Create, Delete, Note, Update, Endpoints, Image, PropertyValue } from "@fedify/fedify/vocab";
+import { Person, Follow, Undo, Accept, Announce, Create, Delete, Like, Note, Update, Endpoints, Image, PropertyValue } from "@fedify/fedify/vocab";
 import { configure, getConsoleSink } from "@logtape/logtape";
 import { platform } from "../../platform";
 import { AP } from "./config";
 import { record, remove } from "./store/comments";
+import * as reactions from "./store/reactions";
 import { FIRST, page } from "./paging";
 
 /**
@@ -322,6 +323,36 @@ federation
       ours,
     );
   })
+  // A boost and a like. Both were arriving and being logged as unsupported,
+  // which is the same as being dropped: someone amplified a post and nothing on
+  // this side knew.
+  //
+  // One handler each because Fedify dispatches by type, but one table behind
+  // them — they differ only in the verb.
+  .on(Announce, async (_ctx, announce) => {
+    if (!announce.id || !announce.actorId || !announce.objectId) return;
+    await reactions.record(
+      {
+        activityId: announce.id.href,
+        objectId: announce.objectId.href,
+        actorId: announce.actorId.href,
+        kind: "Announce",
+      },
+      ours,
+    );
+  })
+  .on(Like, async (_ctx, like) => {
+    if (!like.id || !like.actorId || !like.objectId) return;
+    await reactions.record(
+      {
+        activityId: like.id.href,
+        objectId: like.objectId.href,
+        actorId: like.actorId.href,
+        kind: "Like",
+      },
+      ours,
+    );
+  })
   .on(Delete, async (_ctx, del) => {
     if (!del.actorId || !del.objectId) return;
 
@@ -340,9 +371,30 @@ federation
   })
   .on(Undo, async (_ctx, undo) => {
     const object = await undo.getObject();
-    if (!(object instanceof Follow) || !undo.actorId) return;
-    const list = await readFollowers();
-    await platform.put("ap:followers", list.filter((f) => f.id !== undo.actorId!.href));
+    if (!undo.actorId) return;
+
+    // Unfollowing.
+    if (object instanceof Follow) {
+      const list = await readFollowers();
+      await platform.put("ap:followers", list.filter((f) => f.id !== undo.actorId!.href));
+      return;
+    }
+
+    // Withdrawing a boost or a like. Without this the counts only ever rise,
+    // and a person who changed their mind stays counted for good.
+    //
+    // Narrowed on the concrete classes rather than reading objectId off the
+    // base type: `Object` has no such property, and the two that do are exactly
+    // the two we handle.
+    if (object instanceof Announce || object instanceof Like) {
+      const target = object.objectId;
+      if (!target) return;
+      await reactions.undo(
+        target.href,
+        undo.actorId.href,
+        object instanceof Announce ? "Announce" : "Like",
+      );
+    }
   });
 
 federation.setFollowersDispatcher(`/users/{identifier}/followers`, async (_ctx, identifier, cursor) => {

@@ -61,6 +61,39 @@ export const comments = sqliteTable(
 );
 
 /**
+ * Boosts and likes.
+ *
+ * One table for both, because they differ only in the verb: same sender, same
+ * target, same undo. Splitting them would duplicate the whole shape to record
+ * a word that fits in a column.
+ */
+export const reactions = sqliteTable(
+  "reactions",
+  {
+    /** The activity id — de-duplication, §5.2, enforced by the database. */
+    activityId: text("activity_id").primaryKey(),
+
+    /** Which of our objects this is about. */
+    objectId: text("object_id").notNull(),
+
+    actorId: text("actor_id").notNull(),
+
+    /** `Announce` or `Like`. */
+    kind: text("kind").notNull(),
+
+    receivedAt: text("received_at").notNull(),
+
+    /**
+     * Set when an Undo arrives. The row stays rather than being deleted, so a
+     * repeat of the original activity is still refused by the primary key —
+     * deleting it would let the same boost be counted again.
+     */
+    undoneAt: text("undone_at"),
+  },
+  (t) => [index("reactions_by_object").on(t.objectId, t.kind)],
+);
+
+/**
  * Applied in order, never edited once shipped.
  *
  * Editing a migration that has already run somewhere leaves two databases
@@ -86,6 +119,15 @@ const MIGRATIONS: string[] = [
    )`,
   `CREATE INDEX IF NOT EXISTS comments_by_thread ON comments (root_id, published)`,
   `CREATE INDEX IF NOT EXISTS comments_by_actor ON comments (actor_id, published)`,
+  `CREATE TABLE IF NOT EXISTS reactions (
+     activity_id TEXT PRIMARY KEY,
+     object_id   TEXT NOT NULL,
+     actor_id    TEXT NOT NULL,
+     kind        TEXT NOT NULL,
+     received_at TEXT NOT NULL,
+     undone_at   TEXT
+   )`,
+  `CREATE INDEX IF NOT EXISTS reactions_by_object ON reactions (object_id, kind)`,
 ];
 
 /**

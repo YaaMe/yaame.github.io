@@ -12,6 +12,7 @@ import { Create, Note, OrderedCollection } from "@fedify/fedify/vocab";
 import { federation } from "./federation";
 import { platform } from "../../platform";
 import { replies, replyCounts } from "./store/comments";
+import { counts as reactionCounts } from "./store/reactions";
 import { FIRST, page } from "./paging";
 import { AP } from "./config";
 import { allPosts, href, type Post } from "../../lib/posts";
@@ -37,7 +38,7 @@ const window = () => (AP.published === 0 ? undefined : AP.published);
  * application/activity+json gets HTML no matter what it asked for. Splitting
  * them costs nothing and leaves the blog's hot paths as plain files.
  */
-const note = (ctx: Context<void>, post: Post, replyCount = 0) => {
+const note = (ctx: Context<void>, post: Post, tally = { replies: 0, likes: 0, shares: 0 }) => {
   const url = new URL(href(post), AP.blogUrl);
   const id = ctx.getObjectUri(Note, { identifier: AP.user, slug: post.id });
   return new Note({
@@ -68,8 +69,13 @@ const note = (ctx: Context<void>, post: Post, replyCount = 0) => {
     // disagreement only a strict client notices, and only in production.
     replies: new OrderedCollection({
       id: new URL(`${id.href}/replies`),
-      totalItems: replyCount,
+      totalItems: tally.replies,
     }),
+    // Read by Mastodon as `likes.totalItems` and `shares.totalItems` — a count
+    // inline, with the collection there for anyone who wants the members. We
+    // hold both now, and until this they were held and never shown.
+    likes: new OrderedCollection({ id: new URL(`${id.href}/likes`), totalItems: tally.likes }),
+    shares: new OrderedCollection({ id: new URL(`${id.href}/shares`), totalItems: tally.shares }),
     content:
       `<p><strong>${post.data.title}</strong></p>` +
       (post.data.description ? `<p>${post.data.description}</p>` : "") +
@@ -147,13 +153,17 @@ federation
     if (identifier !== AP.user) return null;
 
     const posts = (await allPosts()).slice(0, window());
-    const counts = await replyCounts(
-      posts.map((p) => ctx.getObjectUri(Note, { identifier: AP.user, slug: p.id }).href),
-    );
-    const all = posts.map((post) => {
-      const object = note(ctx, post, counts.get(
-        ctx.getObjectUri(Note, { identifier: AP.user, slug: post.id }).href,
-      ) ?? 0);
+    const ids = posts.map((p) => ctx.getObjectUri(Note, { identifier: AP.user, slug: p.id }).href);
+    // Two grouped queries for the page, not two per post.
+    const [replyTally, reactionTally] = await Promise.all([
+      replyCounts(ids),
+      reactionCounts(ids),
+    ]);
+    const all = posts.map((post, i) => {
+      const object = note(ctx, post, {
+        replies: replyTally.get(ids[i]) ?? 0,
+        ...(reactionTally.get(ids[i]) ?? { likes: 0, shares: 0 }),
+      });
       return new Create({
         // Alongside the object it wraps, rather than on the blog: an activity is
         // this actor's, and nothing on the blog would ever answer for it.
@@ -194,7 +204,14 @@ federation.setObjectDispatcher(
     const post = (await allPosts()).find((p) => p.id === slug);
     if (!post) return null;
     const id = ctx.getObjectUri(Note, { identifier, slug }).href;
-    return note(ctx, post, (await replyCounts([id])).get(id) ?? 0);
+    const [replyTally, reactionTally] = await Promise.all([
+      replyCounts([id]),
+      reactionCounts([id]),
+    ]);
+    return note(ctx, post, {
+      replies: replyTally.get(id) ?? 0,
+      ...(reactionTally.get(id) ?? { likes: 0, shares: 0 }),
+    });
   },
 );
 
