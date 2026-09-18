@@ -95,12 +95,20 @@ async function collections(actor) {
       fail(`${key} 带 first`, "没有首页；Mastodon 据此判定集合私有并隐藏列表");
       continue;
     }
-    const page = await get(String(body.first), AS2);
-    if (page.status !== 200 || page.body?.type !== "OrderedCollectionPage") {
-      fail(`${key} 的 first 页可取`, `HTTP ${page.status}, type: ${page.body?.type}`);
-    } else {
-      pass(`${key}：totalItems=${body.totalItems}，first 页可取`);
+    const first = await get(String(body.first), AS2);
+    if (first.status !== 200 || first.body?.type !== "OrderedCollectionPage") {
+      fail(`${key} 的 first 页可取`, `HTTP ${first.status}, type: ${first.body?.type}`);
+      continue;
     }
+
+    // 一页装不下时必须给 next，否则读者走到这里就断了 —— 集合声称有 N 条，
+    // 却没有办法取到第一页之外的任何一条。
+    const shown = (first.body.orderedItems ?? first.body.items ?? []).length;
+    if (shown < body.totalItems && !first.body.next) {
+      fail(`${key} 分页可续`, `首页 ${shown} 条 / 共 ${body.totalItems} 条，但没有 next`);
+      continue;
+    }
+    pass(`${key}：totalItems=${body.totalItems}，首页 ${shown} 条${first.body.next ? "，有 next" : ""}`);
   }
 }
 

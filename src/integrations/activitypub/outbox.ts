@@ -10,6 +10,7 @@ import type { Context } from "@fedify/fedify";
 import { Create, Note } from "@fedify/fedify/vocab";
 import { federation } from "./federation";
 import { platform } from "../../platform";
+import { FIRST, page } from "./paging";
 import { AP } from "./config";
 import { allPosts, href, type Post } from "../../lib/posts";
 
@@ -114,10 +115,10 @@ async function publishPending(ctx: Context<void>, activities: Create[]): Promise
  * stored.
  */
 federation
-  .setOutboxDispatcher(`/users/{identifier}/outbox`, async (ctx, identifier) => {
+  .setOutboxDispatcher(`/users/{identifier}/outbox`, async (ctx, identifier, cursor) => {
     if (identifier !== AP.user) return null;
 
-    const items = (await allPosts()).slice(0, window()).map((post) => {
+    const all = (await allPosts()).slice(0, window()).map((post) => {
       const object = note(ctx, post);
       return new Create({
         // Alongside the object it wraps, rather than on the blog: an activity is
@@ -129,14 +130,16 @@ federation
       });
     });
 
-    await publishPending(ctx, items);
-    return { nextCursor: null, items };
+    // Delivery considers the whole published window, not the page in hand: a
+    // reader asking for page three must not decide which posts the followers
+    // have been sent.
+    await publishPending(ctx, all);
+    return page(all, cursor);
   })
   .setCounter(async (_ctx, identifier) =>
     identifier === AP.user ? (await allPosts()).slice(0, window()).length : null,
   )
-  // Paged like the other collections; see FIRST in federation.ts.
-  .setFirstCursor(() => "0");
+  .setFirstCursor(FIRST);
 
 /**
  * The object behind a Note's id.

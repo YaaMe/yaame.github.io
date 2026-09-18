@@ -6,6 +6,7 @@ import { configure, getConsoleSink } from "@logtape/logtape";
 import { platform } from "../../platform";
 import { AP } from "./config";
 import { record, remove } from "./store/comments";
+import { FIRST, page } from "./paging";
 
 /**
  * Fedify does the parts that are tedious to get right and easy to get subtly
@@ -322,30 +323,19 @@ federation
     await platform.put("ap:followers", list.filter((f) => f.id !== undo.actorId!.href));
   });
 
-/**
- * Collections are paged, even holding one entry.
- *
- * An OrderedCollection that carries its items directly is legal, and is what
- * this served until now — but nothing else on the network emits that shape, so
- * clients walk `first` and find nothing to walk. One page is enough while the
- * lists are this small; what matters is that the shape does not have to change
- * when they are not.
- */
-const FIRST = () => "0";
-
-federation.setFollowersDispatcher(`/users/{identifier}/followers`, async (_ctx, identifier) => {
+federation.setFollowersDispatcher(`/users/{identifier}/followers`, async (_ctx, identifier, cursor) => {
   if (identifier !== AP.user) return null;
   const list = await readFollowers();
-  return {
-    nextCursor: null,
-    items: list.map((f) => ({
+  return page(
+    list.map((f) => ({
       id: new URL(f.id),
       inboxId: new URL(f.inbox),
       // Fedify prefers this when fanning out, collapsing one POST per follower
       // on a shared host into one POST for all of them.
       endpoints: f.sharedInbox ? { sharedInbox: new URL(f.sharedInbox) } : null,
     })),
-  };
+    cursor,
+  );
 })
   // Without a counter the collection carries no totalItems — and a follower
   // count is what most software displays, as zero.
@@ -368,9 +358,9 @@ const readFollowing = async (): Promise<string[]> =>
   (await platform.get<string[]>("ap:following")) ?? [];
 
 federation
-  .setFollowingDispatcher(`/users/{identifier}/following`, async (_ctx, identifier) => {
+  .setFollowingDispatcher(`/users/{identifier}/following`, async (_ctx, identifier, cursor) => {
     if (identifier !== AP.user) return null;
-    return { items: (await readFollowing()).map((href) => new URL(href)), nextCursor: null };
+    return page((await readFollowing()).map((href) => new URL(href)), cursor);
   })
   .setCounter(async (_ctx, identifier) =>
     identifier === AP.user ? (await readFollowing()).length : null,
