@@ -286,15 +286,15 @@ federation.setOrderedCollectionDispatcher(
   "replies",
   Note,
   `/users/{identifier}/notes/{slug}/replies`,
-  async (ctx, { identifier, slug }) => {
+  async (ctx, { identifier, slug }, cursor) => {
     if (identifier !== AP.user) return null;
     const id = ctx.getObjectUri(Note, { identifier, slug }).href;
-    return {
-      items: (await replies(id)).map((c) => new Note({ id: new URL(c.objectId) })),
-      nextCursor: null,
-    };
+    return page(
+      (await replies(id)).map((c) => new Note({ id: new URL(c.objectId) })),
+      cursor,
+    );
   },
-).setCounter(async (ctx, { identifier, slug }) => {
+).setFirstCursor(FIRST).setCounter(async (ctx, { identifier, slug }) => {
   if (identifier !== AP.user) return null;
   const id = ctx.getObjectUri(Note, { identifier, slug }).href;
   return (await replyCounts([id])).get(id) ?? 0;
