@@ -6,8 +6,8 @@
       "rootId": "https://yaame.dev/users/yaame/notes/2025-year",
       "replyToId": null,
       "actorId": "https://activitypub.academy/users/banules_kuraks",
-      "content": "<p><span class=\"h-card\"><a href=\"https://yaame.dev/users/yaame\" class=\"u-url mention\">@<span>yaame</span></a></span> do a reply test</p>",
-      "published": "2026-09-18T07:57:59Z"
+      "published": "2026-09-18T07:57:59Z",
+      "deletedAt": "2026-09-18T09:25:26.283Z"
     }
   ]
 }
