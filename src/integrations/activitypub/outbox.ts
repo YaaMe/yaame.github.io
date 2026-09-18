@@ -71,11 +71,17 @@ const note = (ctx: Context<void>, post: Post, tally = { replies: 0, likes: 0, sh
       id: new URL(`${id.href}/replies`),
       totalItems: tally.replies,
     }),
-    // Read by Mastodon as `likes.totalItems` and `shares.totalItems` — a count
-    // inline, with the collection there for anyone who wants the members. We
-    // hold both now, and until this they were held and never shown.
-    likes: new OrderedCollection({ id: new URL(`${id.href}/likes`), totalItems: tally.likes }),
-    shares: new OrderedCollection({ id: new URL(`${id.href}/shares`), totalItems: tally.shares }),
+    // Counts, with no id — there is no endpoint behind them and a link to one
+    // that does not exist is the defect this whole pass was about. The spec
+    // makes both collections a MAY and only obliges a server to add to them
+    // "if this collection is present"; Mastodon publishes the same counts and
+    // answers 404 for the collections themselves, which is the shape a reader
+    // already expects.
+    //
+    // Who liked or boosted a post stays unpublished. That is a decision, not an
+    // omission: the members are held in the database either way.
+    likes: new OrderedCollection({ totalItems: tally.likes }),
+    shares: new OrderedCollection({ totalItems: tally.shares }),
     content:
       `<p><strong>${post.data.title}</strong></p>` +
       (post.data.description ? `<p>${post.data.description}</p>` : "") +
