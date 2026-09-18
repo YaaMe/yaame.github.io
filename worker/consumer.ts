@@ -13,7 +13,7 @@
  * astro:content, which exists only inside an Astro build.
  */
 import type { WorkersMessageQueue } from "@fedify/cfworkers";
-import { federation } from "../src/integrations/activitypub/federation";
+import { dropFollowerByInbox, federation } from "../src/integrations/activitypub/federation";
 import { platform } from "virtual:platform";
 
 /**
@@ -124,7 +124,12 @@ export default {
         }
 
         await writeOff({ ...what, reason: String(error), attempts: message.attempts });
-        console.error("giving up after", message.attempts, "attempts", what);
+        // The address is settled as unreachable, so stop addressing it. Recording
+        // the failure without this leaves the follower on the list and spends
+        // another hour of retries on the next thing we publish.
+        const dropped = what.inbox ? await dropFollowerByInbox(what.inbox) : null;
+        console.error("giving up after", message.attempts, "attempts", what,
+          dropped ? `— dropped follower ${dropped}` : "");
         message.ack();
       }
     }

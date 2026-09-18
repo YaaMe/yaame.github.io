@@ -101,6 +101,28 @@ async function announceIfChanged(ctx: RequestContext<void>, person: Person): Pro
 const OURS = `https://${AP.actorHost}/users/${AP.user}/notes/`;
 const ours = (id: string) => id.startsWith(OURS);
 
+/**
+ * Drop a follower whose inbox has been written off.
+ *
+ * ActivityPub §7.5 says it is reasonable to remove a subscriber whose server
+ * cannot be reached. Without this the write-off only records the failure: the
+ * follower stays on the list, and the next thing we publish spends another hour
+ * of retries on the same dead address, for as long as the list is never read by
+ * a person.
+ *
+ * Only a personal inbox prunes. A shared inbox stands for everyone on that host,
+ * and one failed delivery to it is not evidence about any particular follower —
+ * removing them all would turn a remote outage into a silent loss of an
+ * audience.
+ */
+export async function dropFollowerByInbox(inbox: string): Promise<string | null> {
+  const list = await readFollowers();
+  const gone = list.find((f) => f.inbox === inbox);
+  if (!gone) return null;
+  await platform.put("ap:followers", list.filter((f) => f.inbox !== inbox));
+  return gone.id;
+}
+
 federation
   .setActorDispatcher(`/users/{identifier}`, async (ctx, identifier) => {
     if (identifier !== AP.user) return null;
