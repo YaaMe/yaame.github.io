@@ -1,6 +1,6 @@
 # 本站的全部操作入口。`make` 或 `make help` 看清单。
 .DEFAULT_GOAL := help
-.PHONY: help install dev deploy deploy-site deploy-consumer ap-check promote tombstone build preview check frontmatter fix new newpost newtag tags urls links clean
+.PHONY: help install dev deploy deploy-site deploy-consumer ap-check promote tombstone build preview check frontmatter fix new po newpost newtag tags urls links clean
 
 help: ## 显示这份清单
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) \
@@ -56,6 +56,17 @@ fix: ## 补全缺失的 description 和 tags（不覆盖已有的）
 
 new: ## 交互式新建（问你要建文章还是标签）
 	@node scripts/new.mjs
+
+# `make po 今天天气不错` —— 把 po 之后的词当正文。只在 po 是第一个目标时生效，
+# 并且只给那几个词建空规则，不用 `%:` 那种什么都吞的兜底（它会让别的目标写错
+# 时静默变成空操作）。正文里有 # 或 $ 这类 make 要插手的字符时，改用 T="…"。
+ifeq (po,$(firstword $(MAKECMDGOALS)))
+  PO := $(wordlist 2,$(words $(MAKECMDGOALS)),$(MAKECMDGOALS))
+  $(eval $(PO):;@:)
+endif
+
+po: ## 写一条短文。make po 正文 / make po T="正文"
+	@node scripts/note.mjs $(if $(T),"$(T)",$(PO))
 
 newpost: ## 新建文章。P=2026-year / P=2026-09 / P=2026-09-15，T=标题
 	@node scripts/newpost.mjs $(P) $(if $(T),--title "$(T)",)

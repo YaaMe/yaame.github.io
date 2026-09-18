@@ -16,6 +16,8 @@ import { counts as reactionCounts } from "./store/reactions";
 import { FIRST, page } from "./paging";
 import { AP } from "./config";
 import { allPosts, href, type Post } from "../../lib/posts";
+import { allNotes } from "../../lib/notes";
+import { marked } from "marked";
 
 const PUBLIC = new URL("https://www.w3.org/ns/activitystreams#Public");
 
@@ -38,13 +40,55 @@ const window = () => (AP.published === 0 ? undefined : AP.published);
  * application/activity+json gets HTML no matter what it asked for. Splitting
  * them costs nothing and leaves the blog's hot paths as plain files.
  */
-const note = (ctx: Context<void>, post: Post, tally = { replies: 0, likes: 0, shares: 0 }) => {
+/**
+ * 一条时间线上的一项。
+ *
+ * 长文经过转译(标题 + 摘要 + 链接)之后就是一条短文 —— outbox 不是两个集合,
+ * 是一条时间线。所以这里只有一种结构,长文和短文都先变成它。
+ */
+type Item = {
+  slug: string;
+  published: string;
+  /** 已经是 HTML。长文是拼出来的,短文是 markdown 渲染出来的。 */
+  content: string;
+  /** 人能看的地址。短文还没有页面 —— 絮语那一页做出来之前不假装有。 */
+  url?: URL;
+};
+
+const fromPost = (post: Post): Item => {
   const url = new URL(href(post), AP.blogUrl);
-  const id = ctx.getObjectUri(Note, { identifier: AP.user, slug: post.id });
+  return {
+    slug: post.id,
+    published: post.data.date.iso,
+    content:
+      `<p><strong>${post.data.title}</strong></p>` +
+      (post.data.description ? `<p>${post.data.description}</p>` : "") +
+      `<p><a href="${url}">${url}</a></p>`,
+    url,
+  };
+};
+
+const fromNote = (n: { id: string; published: string; content: string }): Item => ({
+  slug: n.id,
+  published: n.published,
+  // marked 而不是原样输出：短文里最常见的就是链接，不解析就只能显示裸 URL。
+  content: marked.parse(n.content, { async: false }) as string,
+});
+
+/** 两种合成一条,新的在前 —— `OrderedCollection` 必须倒序(AP §5)。 */
+async function timeline(): Promise<Item[]> {
+  const [posts, notes] = await Promise.all([allPosts(), allNotes()]);
+  return [...posts.map(fromPost), ...notes.map(fromNote)].sort((a, b) =>
+    b.published.localeCompare(a.published),
+  );
+}
+
+const note = (ctx: Context<void>, item: Item, tally = { replies: 0, likes: 0, shares: 0 }) => {
+  const id = ctx.getObjectUri(Note, { identifier: AP.user, slug: item.slug });
   return new Note({
     id,
     attribution: ctx.getActorUri(AP.user),
-    url,
+    ...(item.url ? { url: item.url } : {}),
     to: PUBLIC,
     // Public posts are addressed to the followers as well, which is how every
     // other implementation spells "public, and my followers should see it".
@@ -57,7 +101,7 @@ const note = (ctx: Context<void>, post: Post, tally = { replies: 0, likes: 0, sh
     // and requires a real Instant — while the polyfill it bundles produces one
     // that works. The assertion is where those two identities are reconciled;
     // measured, not assumed: a string throws, this does not.
-    published: Temporal.Instant.from(post.data.date.iso) as unknown as ConstructorParameters<
+    published: Temporal.Instant.from(item.published) as unknown as ConstructorParameters<
       typeof Note
     >[0]["published"],
     // The conversation under the post, which until now existed only in our
@@ -82,10 +126,7 @@ const note = (ctx: Context<void>, post: Post, tally = { replies: 0, likes: 0, sh
     // omission: the members are held in the database either way.
     likes: new OrderedCollection({ totalItems: tally.likes }),
     shares: new OrderedCollection({ totalItems: tally.shares }),
-    content:
-      `<p><strong>${post.data.title}</strong></p>` +
-      (post.data.description ? `<p>${post.data.description}</p>` : "") +
-      `<p><a href="${url}">${url}</a></p>`,
+    content: item.content,
   });
 };
 
@@ -214,16 +255,16 @@ federation
   .setOutboxDispatcher(`/users/{identifier}/outbox`, async (ctx, identifier, cursor) => {
     if (identifier !== AP.user) return null;
 
-    const posts = (await allPosts()).slice(0, window());
-    const ids = posts.map((p) => ctx.getObjectUri(Note, { identifier: AP.user, slug: p.id }).href);
+    const items = (await timeline()).slice(0, window());
+    const ids = items.map((i) => ctx.getObjectUri(Note, { identifier: AP.user, slug: i.slug }).href);
     // Two grouped queries for the page, not two per post.
     const [replyTally, reactionTally] = await Promise.all([
       replyCounts(ids),
       reactionCounts(ids),
     ]);
     const notes: Note[] = [];
-    const all = posts.map((post, i) => {
-      const object = note(ctx, post, {
+    const all = items.map((item, i) => {
+      const object = note(ctx, item, {
         replies: replyTally.get(ids[i]) ?? 0,
         ...(reactionTally.get(ids[i]) ?? { likes: 0, shares: 0 }),
       });
@@ -246,7 +287,7 @@ federation
     return page(all, cursor);
   })
   .setCounter(async (_ctx, identifier) =>
-    identifier === AP.user ? (await allPosts()).slice(0, window()).length : null,
+    identifier === AP.user ? (await timeline()).slice(0, window()).length : null,
   )
   .setFirstCursor(FIRST);
 
@@ -266,14 +307,14 @@ federation.setObjectDispatcher(
   `/users/{identifier}/notes/{slug}`,
   async (ctx, { identifier, slug }) => {
     if (identifier !== AP.user) return null;
-    const post = (await allPosts()).find((p) => p.id === slug);
-    if (!post) return null;
+    const item = (await timeline()).find((i) => i.slug === slug);
+    if (!item) return null;
     const id = ctx.getObjectUri(Note, { identifier, slug }).href;
     const [replyTally, reactionTally] = await Promise.all([
       replyCounts([id]),
       reactionCounts([id]),
     ]);
-    return note(ctx, post, {
+    return note(ctx, item, {
       replies: replyTally.get(id) ?? 0,
       ...(reactionTally.get(id) ?? { likes: 0, shares: 0 }),
     });
@@ -324,7 +365,7 @@ federation.setNodeInfoDispatcher("/nodeinfo/2.1", async () => ({
     users: { total: 1, activeMonth: 1, activeHalfyear: 1 },
     // What the outbox actually publishes, not what the archive holds. Reporting
     // sixteen here while the outbox offers one describes two different servers.
-    localPosts: (await allPosts()).slice(0, window()).length,
+    localPosts: (await timeline()).slice(0, window()).length,
     // Zero, and honestly so: nothing inbound is stored yet. The inbox listens
     // for Follow, Undo and Delete, and a reply arriving here is dropped.
     localComments: 0,

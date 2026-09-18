@@ -73,7 +73,32 @@ const comment = z.object({
   deletedAt: z.string().optional(),
 });
 
+/**
+ * 短文 —— 自己写的、没有标题的那种。
+ *
+ * 按年一个文件,一条一个文件太碎;而短文没有标题、标签、正文结构,本来就更像
+ * 记录而不是文档,JSON 比 markdown 文件合身。正文仍然当 markdown 看 ——
+ * 纯文字也是合法的 markdown,而带链接的短文如果不解析就只能显示裸 URL。
+ *
+ * `id` 和时间分开:一天发几条都有可能,时间当不了身份。而且短文的 id 是
+ * 非日期形状的短串,长文的 slug 是日期形状(`2025-year`、`2023-07`),两者
+ * 共用 `/users/…/notes/` 这个命名空间也不会撞。
+ */
+const notes = defineCollection({
+  loader: glob({ base: "./src/content/notes", pattern: "**/*.json" }),
+  schema: z.object({
+    notes: z.array(
+      z.object({
+        id: z.string().regex(/^[a-z0-9]{6,12}$/, "短随机串，不要日期形状"),
+        published: z.string(),
+        content: z.string(),
+      }),
+    ),
+  }),
+});
+
 export const collections = {
+  notes,
   comments: defineCollection({
     loader: glob({ base: "./src/content/comments", pattern: "**/*.json" }),
     schema: z.object({ comments: z.array(comment) }),
