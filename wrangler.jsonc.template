@@ -24,6 +24,12 @@
   // separate Worker with its own configuration.
   "queues": { "producers": [{ "queue": "yaame-ap-delivery", "binding": "AP_QUEUE" }] },
 
+  // Comments, short posts and reactions. SQLite dialect, so the same statements
+  // run against node:sqlite when DEPLOY_TARGET=node — see docs/interactions.md.
+  "d1_databases": [
+    { "binding": "AP_DB", "database_name": "yaame-ap-interactions", "database_id": "${CF_D1_ID}" }
+  ],
+
   "kv_namespaces": [{ "binding": "AP_KV", "id": "${CF_KV_ID}" }],
   // Both in the same zone, which is what a Worker custom domain requires.
   // blogu.* serves the blog; the apex is where the actor lives, and its id is

@@ -19,6 +19,12 @@
 
   // The same namespace the site binds: the follower list is shared state, not
   // a copy. The signing key is not in here — it arrives as a secret above.
+  // Comments, short posts and reactions. SQLite dialect, so the same statements
+  // run against node:sqlite when DEPLOY_TARGET=node — see docs/interactions.md.
+  "d1_databases": [
+    { "binding": "AP_DB", "database_name": "yaame-ap-interactions", "database_id": "${CF_D1_ID}" }
+  ],
+
   "kv_namespaces": [{ "binding": "AP_KV", "id": "${CF_KV_ID}" }],
 
   // Bound as a producer too — WorkersMessageQueue needs the binding to take the

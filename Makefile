@@ -15,6 +15,7 @@ dev: ## 本地开发服务器
 
 wrangler: ## 生成 wrangler.jsonc 与绑定类型
 	@CF_KV_ID=$${CF_KV_ID:-0000000000000000000000000000000f} \
+		CF_D1_ID=$${CF_D1_ID:-00000000-0000-0000-0000-00000000000f} \
 		node scripts/wrangler-config.mjs >/dev/null
 	@npx wrangler types >/dev/null && echo "  wrangler 配置与类型已生成"
 
