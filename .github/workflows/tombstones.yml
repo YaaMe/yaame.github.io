@@ -61,14 +61,20 @@ jobs:
 
           # 固定分支：同一批待办更新同一个 PR，而不是每周开一个新的。
           #
-          # 先取一次远端分支，哪怕它还不存在。--force-with-lease 的租约是和
-          # 远端跟踪引用比对的，而 checkout 只拉了 main —— 没有那个引用时它
-          # 失败关闭，报 "stale info"，和有没有人改过那个分支无关。
-          git fetch origin comments/tombstones || true
+          # 裸 --force，而仓库的规矩是永远不用它。这里是例外，因为这个分支不是
+          # 有人在上面工作的分支：它每次都从 main 重新生成同样的内容，内容本身
+          # 来自数据库，丢了再跑一次就有。
+          #
+          # --force-with-lease 在这里不但没保护到什么，还坏事：租约要和远端跟踪
+          # 引用比对，而 checkout 只拉了 main，没有那个引用时它失败关闭，报
+          # "stale info" —— 和有没有人改过那个分支毫无关系。
+          #
+          # 代价说清楚：如果有人在合并前手动改了这个分支上的墓碑，下一次运行会
+          # 把它冲掉。真要改，改在 main 上。
           git switch -c comments/tombstones
           git add src/content/comments
           git commit -m "chore(comments): tombstone what has been withdrawn"
-          git push --force-with-lease origin comments/tombstones
+          git push --force origin comments/tombstones
 
           gh pr view comments/tombstones >/dev/null 2>&1 \
             || gh pr create \
