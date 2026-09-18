@@ -1,96 +1,123 @@
 /**
- * Every statement that touches the database, in one file.
+ * The tables, declared once for both hosts.
  *
- * Kept together so the dialect stays reviewable: this is SQLite because D1 is,
- * and moving to anything else later is only cheap while the statements are
- * conservative and countable. Nothing here uses a SQLite-only function, a join,
- * or full-text search — search is a build-time concern over git, not a query
- * (docs/interactions.md).
+ * Drizzle renders these into SQLite for D1 and for node:sqlite; the same
+ * definitions carry to its postgres driver if a deployment ever brings its own
+ * database. Nothing above this file writes SQL.
  *
- * Times are ISO 8601 strings. SQLite has no date type, and every dialect reads
- * an ISO string the same way; a numeric epoch would be smaller and would have
- * to be decoded by hand in every place that reads it.
+ * Times are ISO 8601 strings. SQLite has no date type, every dialect reads an
+ * ISO string the same way, and a numeric epoch would have to be decoded by hand
+ * wherever it is read.
  */
-import type { SqlStore } from "../../../platform/types";
+import { sql } from "drizzle-orm";
+import { index, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import type { Database } from "../../../platform/types";
+
+export const comments = sqliteTable(
+  "comments",
+  {
+    /**
+     * The activity's id, not the object's.
+     *
+     * ActivityPub §5.2 requires de-duplication by activity id, so this is the
+     * primary key: a redelivery is refused by the database rather than by
+     * whoever remembered to check.
+     */
+    activityId: text("activity_id").primaryKey(),
+
+    /** The Note itself — what a Delete names, and what a reply points at. */
+    objectId: text("object_id").notNull().unique(),
+
+    /**
+     * The top of the thread, usually one of our own posts.
+     *
+     * Stored rather than walked, so "everything under this post" is one indexed
+     * range instead of a recursive climb on every render.
+     */
+    rootId: text("root_id").notNull(),
+
+    /** The direct parent, null when the reply is to the root itself. */
+    replyToId: text("reply_to_id"),
+
+    actorId: text("actor_id").notNull(),
+    content: text("content").notNull(),
+    published: text("published").notNull(),
+    receivedAt: text("received_at").notNull(),
+
+    /**
+     * Set when a Delete arrives. The row stays: we still owe a record that
+     * something was here, and a promoted comment needs one to raise a removal
+     * against.
+     */
+    deletedAt: text("deleted_at"),
+
+    /** Set when carried into git — the point it stops being ours to erase. */
+    promotedAt: text("promoted_at"),
+  },
+  (t) => [
+    index("comments_by_thread").on(t.rootId, t.published),
+    index("comments_by_actor").on(t.actorId, t.published),
+  ],
+);
 
 /**
  * Applied in order, never edited once shipped.
  *
- * Editing a migration that has run somewhere leaves two databases claiming the
- * same version with different shapes, and nothing reports it. To change the
- * schema, append.
+ * Editing a migration that has already run somewhere leaves two databases
+ * claiming the same version with different shapes, and nothing reports it. To
+ * change the schema, append.
+ *
+ * Hand-written for now. drizzle-kit generates these from a schema diff, and will
+ * take over here once it can be installed — the npm cache on this machine is not
+ * writable, which is a local problem rather than a decision.
  */
-export const MIGRATIONS: string[] = [
-  `CREATE TABLE comments (
-     -- The activity's id, not the object's. ActivityPub §5.2 requires
-     -- de-duplication by activity id, so this is a constraint rather than an
-     -- index: a redelivered activity must be rejected by the database, not by
-     -- whoever remembered to check.
+const MIGRATIONS: string[] = [
+  `CREATE TABLE IF NOT EXISTS comments (
      activity_id TEXT PRIMARY KEY,
-
-     -- The Note itself, which is what a Delete names and what a reply points at.
      object_id   TEXT NOT NULL UNIQUE,
-
-     -- The top of the thread — usually one of our own posts. Stored rather than
-     -- walked, so "everything under this post" is one indexed read instead of a
-     -- recursive climb on every render.
      root_id     TEXT NOT NULL,
-
-     -- The direct parent, null when the reply is to the root itself.
      reply_to_id TEXT,
-
      actor_id    TEXT NOT NULL,
      content     TEXT NOT NULL,
      published   TEXT NOT NULL,
      received_at TEXT NOT NULL,
-
-     -- Set when a Delete arrives. The row stays: we still owe a record of what
-     -- was here, and a promoted comment needs one to raise a removal against.
      deleted_at  TEXT,
-
-     -- Set when this comment has been carried into git, which is the point it
-     -- stops being ours to erase.
      promoted_at TEXT
    )`,
-  `CREATE INDEX comments_by_thread ON comments (root_id, published)`,
-  `CREATE INDEX comments_by_actor ON comments (actor_id, published)`,
+  `CREATE INDEX IF NOT EXISTS comments_by_thread ON comments (root_id, published)`,
+  `CREATE INDEX IF NOT EXISTS comments_by_actor ON comments (actor_id, published)`,
 ];
 
 /**
  * Bring a database up to the current schema.
  *
- * Written here rather than delegated to `wrangler d1 migrations` so that both
- * hosts run the same thing. The wrangler command exists only on Cloudflare, and
- * a node deployment would otherwise need a second, separately maintained way to
- * arrive at the same tables.
+ * Run here rather than delegated to `wrangler d1 migrations` so both hosts do
+ * the same thing: that command exists only on Cloudflare, and a node deployment
+ * would otherwise need a second, separately maintained way to the same tables.
  *
- * Idempotent and cheap: one read when there is nothing to do.
+ * Idempotent, and one read when there is nothing to do.
  */
-export async function migrate(sql: SqlStore): Promise<number> {
-  await sql.run(
-    `CREATE TABLE IF NOT EXISTS migrations (
-       version    INTEGER PRIMARY KEY,
-       applied_at TEXT NOT NULL
-     )`,
+export async function migrate(db: Database): Promise<number> {
+  await db.run(
+    sql`CREATE TABLE IF NOT EXISTS migrations (version INTEGER PRIMARY KEY, applied_at TEXT NOT NULL)`,
   );
 
-  const row = await sql.first<{ version: number | null }>(
-    "SELECT MAX(version) AS version FROM migrations",
+  const rows = await db.all<{ version: number | null }>(
+    sql`SELECT MAX(version) AS version FROM migrations`,
   );
-  const applied = row?.version ?? -1;
+  const applied = rows[0]?.version ?? -1;
 
   let count = 0;
   for (let version = applied + 1; version < MIGRATIONS.length; version++) {
-    // One statement and its bookkeeping together: a migration that ran but was
-    // not recorded would run again on the next boot, against tables that already
-    // exist.
-    await sql.batch([
-      { sql: MIGRATIONS[version], params: [] },
-      {
-        sql: "INSERT INTO migrations (version, applied_at) VALUES (?, ?)",
-        params: [version, new Date().toISOString()],
-      },
-    ]);
+    // Sequential rather than batched: batching is driver-specific — D1 has
+    // `batch`, node:sqlite a transaction — and depending on either would make
+    // this file know which host it is on. Instead every statement is written to
+    // be safe to repeat, so a crash between the migration and its bookkeeping
+    // costs a re-run and nothing else.
+    await db.run(sql.raw(MIGRATIONS[version]));
+    await db.run(
+      sql`INSERT INTO migrations (version, applied_at) VALUES (${version}, ${new Date().toISOString()})`,
+    );
     count++;
   }
   return count;

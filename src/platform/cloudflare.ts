@@ -1,7 +1,8 @@
 import { env } from "cloudflare:workers";
 import { MemoryKvStore } from "@fedify/fedify";
 import { WorkersMessageQueue } from "@fedify/cfworkers";
-import type { Platform, SqlValue } from "./types";
+import { drizzle } from "drizzle-orm/d1";
+import type { Platform } from "./types";
 
 /**
  * Cloudflare Workers.
@@ -47,26 +48,14 @@ Object.defineProperty(platform, "queue", {
 // Looked up by name rather than read as a property, so the checked type is the
 // one thing left to establish: `env` also holds namespaces and queues, and a
 // mistyped name would otherwise hand one of those back as a key.
-// D1 speaks SQLite, which is what makes this seam portable at all: the same
-// statements run against node:sqlite in a process. `false` when the binding is
-// absent — the static profile builds no Worker, so nothing there has a database.
-Object.defineProperty(platform, "sql", {
+// D1 speaks SQLite, so the table definitions are shared with the node build
+// rather than written twice. `false` when the binding is absent: the static
+// profile builds no Worker, and nothing there has a database.
+Object.defineProperty(platform, "db", {
   enumerable: true,
-  get(): Platform["sql"] {
-    const db = (env as { AP_DB?: D1Database }).AP_DB;
-    if (!db) return false;
-    return {
-      all: async <T>(sql: string, ...params: SqlValue[]) =>
-        (await db.prepare(sql).bind(...params).all<T>()).results,
-      first: <T>(sql: string, ...params: SqlValue[]) =>
-        db.prepare(sql).bind(...params).first<T>(),
-      run: async (sql: string, ...params: SqlValue[]) =>
-        (await db.prepare(sql).bind(...params).run()).meta.changes,
-      // D1's batch is one transaction, which is the property this is for.
-      batch: async (statements) => {
-        await db.batch(statements.map((s) => db.prepare(s.sql).bind(...s.params)));
-      },
-    };
+  get(): Platform["db"] {
+    const d1 = (env as { AP_DB?: D1Database }).AP_DB;
+    return d1 ? drizzle(d1) : false;
   },
 });
 

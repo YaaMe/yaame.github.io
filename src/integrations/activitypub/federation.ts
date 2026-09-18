@@ -263,10 +263,10 @@ federation
 
     await record(
       {
-        activity_id: create.id.href,
-        object_id: object.id.href,
-        reply_to_id: object.replyTargetId.href,
-        actor_id: author.href,
+        activityId: create.id.href,
+        objectId: object.id.href,
+        replyToId: object.replyTargetId.href,
+        actorId: author.href,
         content: object.content?.toString() ?? "",
         // Date rather than Temporal for the fallback: Fedify hands us a
         // Temporal.Instant when the sender supplied one, but constructing one
