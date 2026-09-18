@@ -69,15 +69,4 @@ jobs:
             || gh pr create \
                  --base main --head comments/tombstones \
                  --title "Comments withdrawn by their authors" \
-                 --body "$(cat <<'EOF'
-These comments have already stopped being served: the runtime marked them
-deleted the moment the Delete arrived, which is what ActivityPub asks of us.
-
-What it cannot do is reach git. This removes the content there and leaves the
-record — who wrote it, when, and when they took it back. History still holds
-the original, and that is not the promise being made: not that it never
-existed, but that the record says it was withdrawn.
-
-Merging is your call.
-EOF
-)"
+                 --body-file .github/tombstone-pr.md
