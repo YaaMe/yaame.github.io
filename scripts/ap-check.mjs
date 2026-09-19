@@ -91,8 +91,20 @@ async function collections(actor) {
     if (typeof body.totalItems !== "number") {
       fail(`${key} 带 totalItems`, "缺少计数，多数客户端显示为 0");
     }
+    // first 只对 followers / following 是硬要求：Mastodon 的 ProcessAccountService
+    // 拿它的有无判定集合是否私有，缺了就把整份名单藏起来。别的集合内联条目是
+    // 合法的，而且 Mastodon 自己的 featured 正是内联、没有 first。
+    const inline = body.orderedItems ?? body.items;
     if (!body.first) {
-      fail(`${key} 带 first`, "没有首页；Mastodon 据此判定集合私有并隐藏列表");
+      if (["followers", "following"].includes(key)) {
+        fail(`${key} 带 first`, "没有首页；Mastodon 据此判定集合私有并隐藏列表");
+        continue;
+      }
+      if (!Array.isArray(inline)) {
+        fail(`${key} 可取到条目`, "既没有 first，也没有内联的 items");
+        continue;
+      }
+      pass(`${key}：totalItems=${body.totalItems}，内联 ${inline.length} 条`);
       continue;
     }
     const first = await get(String(body.first), AS2);

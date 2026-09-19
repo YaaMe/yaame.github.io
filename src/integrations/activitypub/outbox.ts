@@ -316,7 +316,9 @@ federation.setFeaturedDispatcher(`/users/{identifier}/featured`, async (ctx, ide
     ),
     nextCursor: null,
   };
-});
+}).setCounter(async (_ctx, identifier) =>
+  identifier === AP.user ? (await allPosts()).filter((p) => p.data.pinned).length : null,
+);
 
 /**
  * The object behind a Note's id.
