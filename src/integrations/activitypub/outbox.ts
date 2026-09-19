@@ -9,7 +9,7 @@
 import type { Context } from "@fedify/fedify";
 import { Temporal } from "@js-temporal/polyfill";
 import { Create, Note, OrderedCollection, Update } from "@fedify/fedify/vocab";
-import { federation } from "./federation";
+import { federation, reconcileFollowing } from "./federation";
 import { platform } from "../../platform";
 import { replies, replyCounts } from "./store/comments";
 import { counts as reactionCounts } from "./store/reactions";
@@ -283,6 +283,9 @@ federation
     // reader asking for page three must not decide which posts the followers
     // have been sent.
     await publishPending(ctx, all);
+    // 和投递同一个时刻对账：这是每次部署之后一致性检查必然命中的地方，而关注
+    // 意图的变化也只可能来自一次部署。
+    await reconcileFollowing(ctx);
     await announceEdits(ctx, notes);
     return page(all, cursor);
   })

@@ -1,10 +1,14 @@
 import { createFederation, importJwk, type RequestContext } from "@fedify/fedify";
 // The vocabulary classes live on their own subpath — the root entry re-exports
 // the machinery, not the ActivityStreams types.
-import { Person, Follow, Undo, Accept, Announce, Create, Delete, Like, Note, Reject, Update, Endpoints, Image, PropertyValue } from "@fedify/fedify/vocab";
+import { Person, Follow, Undo, Accept, Announce, Create, Delete, Like, Note, Reject, Update, Endpoints, Image, PropertyValue, isActor, type Actor } from "@fedify/fedify/vocab";
 import { configure, getConsoleSink } from "@logtape/logtape";
 import { platform } from "../../platform";
 import { AP } from "./config";
+import intentJson from "./following.json";
+
+/** git 里写下的关注意图。JSON 导入的形状在两个打包器下推断不一致，标注一次。 */
+const intent = intentJson as { follow: string[] };
 import { record, remove } from "./store/comments";
 import * as reactions from "./store/reactions";
 import { FIRST, page } from "./paging";
@@ -146,6 +150,101 @@ federation.setOutboxPermanentFailureHandler(async (_ctx, { reason, inbox, activi
     dropped,
   });
 });
+
+/**
+ * 把一个 actor 收成投递需要的那几样。
+ *
+ * `Actor` 是 Person/Group/Service/… 的联合,而 sendActivity 的重载在联合上解不
+ * 出来。显式取出这三个字段,也和 followers 调度器里给的形状一致。
+ */
+const recipientOf = (actor: Actor) => ({
+  id: actor.id,
+  inboxId: actor.inboxId,
+  endpoints: actor.endpoints?.sharedInbox
+    ? { sharedInbox: actor.endpoints.sharedInbox }
+    : null,
+});
+
+/**
+ * 让实际关注的人,和 git 里写下的意图一致。
+ *
+ * 对账的枢轴是**我们发过什么**,不是**对方同意了什么**。「不在 `ap:following`
+ * 里」是个歧义状态:还没发过、发了还在等 Accept、被 Reject 了 —— 三者长得一样,
+ * 而后两者都不该重发。所以比对的是意图和 `ap:follow-intent`(发过的记录):
+ *
+ *   意图有、发过   → 什么都不做
+ *   意图有、没发过 → 发 Follow
+ *   意图无、发过   → 发 Undo，并从 following 摘掉
+ *   意图无、没发过 → 什么都不做
+ *
+ * 只能在这里做,不能在 CI:发 Follow 要签名,而签名密钥只在 Worker 的 env 里 ——
+ * 那是有意的分隔,不是疏忽。反过来,写 git 的那一半(评论墓碑、短文提升)只能
+ * 在 CI,因为运行时没有 git 令牌。
+ *
+ * handle 到 actor 的解析结果记在 KV 里,不是每次对账都去 WebFinger 一遍。那张
+ * 表同时是「我们照着哪一条意图发过 Follow」的记录 —— 意图被删掉时,靠它才知道
+ * 该向谁发 Undo。
+ */
+export async function reconcileFollowing(ctx: RequestContext<void>): Promise<void> {
+  const wanted = new Set(intent.follow);
+  // 标注而不是推断：`Record | null` 取 `?? {}` 之后是两个类型的联合，
+  // Object.entries 在联合上解不出重载，键值退化成 unknown。
+  const resolved: Record<string, string> =
+    (await platform.get<Record<string, string>>("ap:follow-intent")) ?? {};
+  let changed = false;
+
+  for (const handle of wanted) {
+    if (resolved[handle]) continue;
+    const found = await ctx.lookupObject(handle);
+    // 解析不了就跳过,下次再试。可能是对方暂时不可达,也可能是 handle 写错了 ——
+    // 两者在这里分不开,而把一个错字变成永久失败并不会让它更容易被发现。
+    if (found === null || !isActor(found) || found.id === null) continue;
+    const actor = found;
+    // 单独取出来：对 found.id 的收窄不会跟着 actor 这个新绑定走。
+    const actorId = found.id;
+    resolved[handle] = actorId.href;
+    changed = true;
+    await ctx.sendActivity(
+      { identifier: AP.user },
+      recipientOf(actor),
+      new Follow({
+        id: new URL(`#follow/${encodeURIComponent(handle)}`, ctx.getActorUri(AP.user)),
+        actor: ctx.getActorUri(AP.user),
+        object: actorId,
+      }),
+    );
+  }
+
+  for (const [handle, actorId] of Object.entries(resolved)) {
+    if (wanted.has(handle)) continue;
+    delete resolved[handle];
+    changed = true;
+    const found = await ctx.lookupObject(actorId);
+    if (found !== null && isActor(found) && found.id !== null) {
+      const actor = found;
+      const target = found.id;
+      await ctx.sendActivity(
+        { identifier: AP.user },
+        recipientOf(actor),
+        new Undo({
+          id: new URL(`#unfollow/${encodeURIComponent(handle)}`, ctx.getActorUri(AP.user)),
+          actor: ctx.getActorUri(AP.user),
+          object: new Follow({
+            id: new URL(`#follow/${encodeURIComponent(handle)}`, ctx.getActorUri(AP.user)),
+            actor: ctx.getActorUri(AP.user),
+            object: target,
+          }),
+        }),
+      );
+    }
+    // 不等对方回应就从 following 里摘掉:Undo 没有 Accept,发出去就是我们这边的
+    // 事实了。
+    const list = await readFollowing();
+    await platform.put("ap:following", list.filter((href) => href !== actorId));
+  }
+
+  if (changed) await platform.put("ap:follow-intent", resolved);
+}
 
 federation
   .setActorDispatcher(`/users/{identifier}`, async (ctx, identifier) => {
@@ -390,6 +489,14 @@ federation
     // 而且同意的人得是被关注的那一个：签名者说了算，但它要和 Follow 的对象一致，
     // 否则就是甲替乙答应。
     if (object.objectId && object.objectId.href !== accept.actorId.href) return;
+
+    // 迟到的 Accept 不能把已经取关的人复活。
+    //
+    // 集合比对看不出时序:我们可能已经发过 Undo 并把它从意图里删掉了,而对方的
+    // Accept 这时才到。没有这道守卫，`following` 会多出一个我们并不打算关注的人，
+    // 而且下一次对账也不会去掉它 —— 对账的枢轴是「发过什么」，它那边已经清干净了。
+    const sent = (await platform.get<Record<string, string>>("ap:follow-intent")) ?? {};
+    if (!Object.values(sent).includes(accept.actorId.href)) return;
 
     const list = await readFollowing();
     if (list.includes(accept.actorId.href)) return;
