@@ -18,6 +18,42 @@ import { mkdirSync, readFileSync, writeFileSync, existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 import filter from "./promote-filter.mjs";
 
+/**
+ * 把对方给的 HTML 提取成文本。
+ *
+ * 进 git 的是文本而不是 HTML,理由不是安全(虽然顺带解决了),是**呈现权**:
+ * 存 HTML 等于把别人的标记选择固化进我们的内容,站点以后想换个样子就得先跟
+ * 那份标记打架。文本留着这个自由,而发给 Mastodon 的那次转换是我们自己写的、
+ * 固定的。
+ *
+ * 段落和链接都留下来:`</p>` 和 `<br>` 变换行,`<a href="U">T</a>` 留下 T 并在
+ * 后面补上 U —— 唯一的损失是锚文本和地址不再是一个东西,而 Mastodon 上的内容
+ * 本来就以句子加链接为主。
+ *
+ * 这里用正则解析 HTML,而消毒器绝不能这么写。区别在于**输出经不经过转义**:
+ * 这里的产物是纯文本,渲染时必然被转义,解析错了顶多难看;消毒器的产物要原样
+ * 进页面,它的每个边角情况都是安全边界。
+ */
+function toText(html) {
+  const entities = {
+    "&amp;": "&", "&lt;": "<", "&gt;": ">", "&quot;": '"', "&#39;": "'",
+    "&apos;": "'", "&nbsp;": " ",
+  };
+  return html
+    .replace(/<a\b[^>]*\bhref=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi, (_, url, inner) => {
+      const label = inner.replace(/<[^>]+>/g, "").trim();
+      // 锚文本本身就是那个地址时不要写两遍 —— Mastodon 常把长链接截断显示。
+      return !label || url.startsWith(label) || label.startsWith(url) ? url : `${label}（${url}）`;
+    })
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/p>/gi, "\n\n")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(Number(n)))
+    .replace(/&[a-z]+;/gi, (e) => entities[e.toLowerCase()] ?? e)
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
 const APPLY = process.env.APPLY === "1";
 const DB = "yaame-ap-interactions";
 const DIR = "src/content/comments";

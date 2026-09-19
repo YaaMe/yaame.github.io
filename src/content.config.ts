@@ -75,7 +75,12 @@ const comment = z.object({
   /** The post this hangs off. Redundant in posts/, load-bearing in notes/. */
   rootId: z.url(),
   actorId: z.url(),
-  /** Absent once the comment has been withdrawn; the record of it stays. */
+  /**
+   * 纯文本,不是 HTML。
+   *
+   * 提升时从对方给的 HTML 提取出来 —— 存 HTML 等于把别人的标记选择固化进我们
+   * 的内容,而文本把呈现权留给站点自己。撤回之后这个字段消失,记录留着。
+   */
   content: z.string().optional(),
   published: z.string(),
   replyToId: z.url().nullable().default(null),
