@@ -77,7 +77,7 @@ async function negotiation() {
  * 从规范上读不出来。
  */
 async function collections(actor) {
-  for (const key of ["outbox", "followers", "following"]) {
+  for (const key of ["outbox", "followers", "following", "featured"]) {
     const uri = actor[key];
     if (!uri) {
       fail(`actor 声明 ${key}`, "字段不存在；Mastodon 视作集合私有，列表会被隐藏");

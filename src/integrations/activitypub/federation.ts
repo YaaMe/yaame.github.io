@@ -290,6 +290,9 @@ federation
       outbox: ctx.getOutboxUri(identifier),
       discoverable: AP.discoverable,
       indexable: AP.indexable,
+      // 新访客一来就能看到内容的唯一入口：Mastodon 从不回补远端 outbox，
+      // 只有这个集合它会在处理 actor 时主动去抓。
+      featured: ctx.getFeaturedUri(identifier),
       followers: ctx.getFollowersUri(identifier),
       following: ctx.getFollowingUri(identifier),
       endpoints: new Endpoints({ sharedInbox: ctx.getInboxUri() }),

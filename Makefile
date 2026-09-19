@@ -1,6 +1,6 @@
 # 本站的全部操作入口。`make` 或 `make help` 看清单。
 .DEFAULT_GOAL := help
-.PHONY: help install dev deploy deploy-site deploy-consumer ap-check promote tombstone build preview check frontmatter fix new po follow unfollow newpost newtag tags urls links clean
+.PHONY: help install dev deploy deploy-site deploy-consumer ap-check promote tombstone build preview check frontmatter fix new po follow unfollow pin unpin newpost newtag tags urls links clean
 
 help: ## 显示这份清单
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) \
@@ -60,10 +60,16 @@ new: ## 交互式新建（问你要建文章还是标签）
 # `make po 今天天气不错` —— 把 po 之后的词当正文。只在 po 是第一个目标时生效，
 # 并且只给那几个词建空规则，不用 `%:` 那种什么都吞的兜底（它会让别的目标写错
 # 时静默变成空操作）。正文里有 # 或 $ 这类 make 要插手的字符时，改用 T="…"。
-ifneq (,$(filter po follow unfollow,$(firstword $(MAKECMDGOALS))))
+ifneq (,$(filter po follow unfollow pin unpin,$(firstword $(MAKECMDGOALS))))
   PO := $(wordlist 2,$(words $(MAKECMDGOALS)),$(MAKECMDGOALS))
   $(eval $(PO):;@:)
 endif
+
+pin: ## 置顶一篇文章。make pin <slug>
+	@node scripts/pin.mjs $(filter-out $@,$(MAKECMDGOALS))
+
+unpin: ## 取消置顶。make unpin <slug>
+	@node scripts/pin.mjs --remove $(filter-out $@,$(MAKECMDGOALS))
 
 follow: ## 关注一个人。make follow @someone@example.com
 	@node scripts/follow.mjs $(filter-out $@,$(MAKECMDGOALS)) $(if $(T),"$(T)",)

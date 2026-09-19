@@ -295,6 +295,30 @@ federation
   .setFirstCursor(FIRST);
 
 /**
+ * 置顶。
+ *
+ * 只有长文能置顶:短文没有标题,而置顶的用处正是"让第一次看到这个账号的人知道
+ * 这里写什么",一条没有标题的絮语担不起这个。
+ *
+ * 顺带这也是唯一一个不需要对方关注、也不需要等我们发新东西就能看到内容的地方。
+ */
+federation.setFeaturedDispatcher(`/users/{identifier}/featured`, async (ctx, identifier) => {
+  if (identifier !== AP.user) return null;
+  const pinned = (await allPosts()).filter((p) => p.data.pinned).map(fromPost);
+  const ids = pinned.map((i) => ctx.getObjectUri(Note, { identifier, slug: i.slug }).href);
+  const [replyTally, reactionTally] = await Promise.all([replyCounts(ids), reactionCounts(ids)]);
+  return {
+    items: pinned.map((item, i) =>
+      note(ctx, item, {
+        replies: replyTally.get(ids[i]) ?? 0,
+        ...(reactionTally.get(ids[i]) ?? { likes: 0, shares: 0 }),
+      }),
+    ),
+    nextCursor: null,
+  };
+});
+
+/**
  * The object behind a Note's id.
  *
  * Without this the id in every Create points at nothing that can be fetched as

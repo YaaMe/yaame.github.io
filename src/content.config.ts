@@ -26,6 +26,16 @@ const stamped = z.coerce.date().transform((d) => {
 
 const base = {
   title: z.string(),
+  /**
+   * 置顶。
+   *
+   * 放在文章自己身上,不是配置里列一串 slug —— 置顶是这篇文章的属性,而 slug
+   * 改名时这里会跟着走,配置里那份则会悄悄变成指向空处的一行。
+   *
+   * 联邦那边读的是 actor 的 `featured` 集合,而那是**新访客一来就能看到内容的
+   * 唯一入口**:Mastodon 从不回补远端的 outbox,只有这个集合它会主动去抓。
+   */
+  pinned: z.boolean().default(false),
   // Filled in by scripts/frontmatter.mjs; hand-written values are never overwritten
   description: z.string().optional(),
   tags,
