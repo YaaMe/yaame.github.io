@@ -143,6 +143,20 @@ Only the first two leave commits on `main` signed by their author. A commit
 signed by GitHub attests that GitHub performed the merge, not that you wrote
 the code. `git log --format='%h %G? %s'` is how to read this back.
 
+## One place uses a bare `--force`
+
+`.github/workflows/tombstones.yml` force-pushes `comments/tombstones`. The
+standing rule is never to, and the exception is narrow: that branch is a
+generated artefact, rebuilt from `main` on every run out of data held in D1.
+Nobody works on it, and losing it costs one re-run.
+
+`--force-with-lease` was tried there and was worse than useless: CI checks out
+only `main`, so there is no remote-tracking ref for the lease to compare
+against, and it fails closed with "stale info" — a refusal that has nothing to
+do with anyone having touched the branch.
+
+Anything you want to keep on that branch, put on `main` instead.
+
 ## Outside the repository
 
 One Cloudflare redirect rule sends everything on the apex except the federated
