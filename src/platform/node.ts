@@ -8,15 +8,11 @@ import type { Platform } from "./types";
 /**
  * A plain Node process.
  *
- * The only file allowed to import `node:*`. It exists first to prove the
- * boundary: an interface with one implementation is a claim about portability,
- * not evidence of it — writing the second one is what tests whether the seam
- * was drawn in the right place.
+ * The only file allowed to import `node:*`.
  *
- * Deliberately the simplest thing that satisfies the interface. Durable records
- * are files; there is no queue. A real deployment would reach for
- * @fedify/sqlite, which supplies both from one file — and would then have
- * retries, which the Workers side still lacks.
+ * Deliberately the simplest thing that satisfies the interface: durable records
+ * are files, and there is no queue — so delivery here is synchronous and a
+ * failure is final.
  */
 const DIR = process.env.AP_DATA_DIR ?? ".data";
 const path = (key: string) => join(DIR, `${key.replace(/[^\w.-]/g, "_")}.json`);

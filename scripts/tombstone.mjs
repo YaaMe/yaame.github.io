@@ -1,20 +1,19 @@
 #!/usr/bin/env node
 /**
- * 把「已经进了 git 而后被要求删除」的评论换成墓碑。
+ * Turn comments that reached git and were later withdrawn into tombstones.
  *
- *   node scripts/tombstone.mjs          看会改什么
- *   APPLY=1 node scripts/tombstone.mjs  真的改
+ *   node scripts/tombstone.mjs          show what would change
+ *   APPLY=1 node scripts/tombstone.mjs  write it
  *
- * 运行时收到 `Delete` 的那一刻就已经停止呈现了 —— 标记 `deleted_at`、清空内容,
- * 自动、秒级,这一步本身就满足规范 §7.4。git 里那一份运行时够不着,所以走这里:
- * 一周一次读出来、改成墓碑、开 PR,由人决定合不合。
+ * The runtime already stopped serving them the moment the `Delete` arrived,
+ * which is where ActivityPub §7.4 is satisfied. What the runtime cannot reach is
+ * git, so this reads the pair out, rewrites the files and opens a pull request
+ * for a person to decide on.
  *
- * **不改写历史。** 合并之后内容没了,事实留着:
- *
- *     这条评论由 X 在 T1 发表，于 T2 被删除
- *
- * 我们许诺的从来不是"它不曾存在",而是"记录显示它被删除了" —— 而那次提交本身
- * 就是那份记录。
+ * **History is not rewritten.** After the merge the content is gone and the
+ * record stays: written by X at T1, withdrawn at T2. The promise was never that
+ * it did not exist, but that the record says it was withdrawn — and the commit
+ * is that record.
  */
 import { execFileSync } from "node:child_process";
 import { readFileSync, writeFileSync, readdirSync, statSync } from "node:fs";
@@ -49,8 +48,8 @@ function* files(dir) {
   }
 }
 
-// 「进了 git 之后又被删除」就是这两列的交集。不需要单独的待办表 —— 那张表
-// 会是这个查询的一份会过期的副本。
+// The intersection of the two columns is the whole of the work. A separate
+// queue table would be a copy of this query that goes stale.
 const pending = query(
   `SELECT activity_id, deleted_at FROM comments
    WHERE deleted_at IS NOT NULL AND promoted_at IS NOT NULL`,
@@ -70,8 +69,9 @@ for (const file of files(DIR)) {
 
   for (const comment of doc.comments) {
     const at = when.get(comment.activityId);
-    // 已经有 deletedAt 的说明立过碑了。用文件自身的状态判断，而不是在数据库里
-    // 再记一列「git 那边做完了没有」—— 那一列会和 git 的实际内容各说各话。
+    // An existing `deletedAt` means this one is already a tombstone. Judged
+    // from the file itself: a column recording whether git was updated would
+    // disagree with git's actual contents sooner or later.
     if (!at || comment.deletedAt) continue;
     delete comment.content;
     comment.deletedAt = at;

@@ -2,10 +2,7 @@
  * Cursor paging for the collections.
  *
  * ActivityPub leaves page size to the implementer and only advises capping it
- * (§B.9) so a client is not handed an unbounded document. Until now every
- * collection advertised a `first` page and then returned everything on it,
- * which is the shape of paging without the property — fine at sixteen posts,
- * and quietly worse with every one added.
+ * (§B.9) so a client is not handed an unbounded document.
  *
  * The cursor is an offset. That is the simplest thing that works over a list
  * computed from git, and it has the failure mode offsets always have: an item

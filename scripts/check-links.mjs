@@ -1,17 +1,18 @@
 #!/usr/bin/env node
 /**
- * 检查构建产物里的内部链接是否全部可达。
+ * Check that every internal link in the build output resolves.
  *
- * 抓到过两类真 bug：
- *   - 少写尾斜杠（trailingSlash: "always" 下会 404）
- *   - Base.astro 里声明了 /rss.xml 但没生成
+ * The two shapes it catches: a missing trailing slash, which is a 404 under
+ * `trailingSlash: "always"`, and a path declared in a layout that nothing
+ * generates.
  *
- *   node scripts/check-links.mjs [产物目录]
+ *   node scripts/check-links.mjs [output directory]
  */
 import { readdirSync, readFileSync, statSync, existsSync } from "node:fs";
 import { join, relative } from "node:path";
 
-// 装上 adapter 之后静态产物在 dist/client/，服务端代码在 dist/server/。
+// With an adapter installed the static output is under dist/client/ and the
+// server code under dist/server/.
 const DIST = process.argv[2] ?? "dist/client";
 
 function walk(dir, out = []) {

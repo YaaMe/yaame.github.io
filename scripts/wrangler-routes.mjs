@@ -1,9 +1,10 @@
 #!/usr/bin/env node
 /**
- * 把 routes 补回 adapter 生成的配置。
+ * Put `routes` back into the config the adapter generates.
  *
- * @astrojs/cloudflare 会把 wrangler.jsonc 重写成 dist/server/wrangler.json，
- * 路上丢掉 routes —— 部署照常成功，只是自定义域从未被创建。构建后补一次。
+ * @astrojs/cloudflare rewrites wrangler.jsonc into dist/server/wrangler.json
+ * and drops `routes` on the way. The deploy still succeeds; the custom domains
+ * are simply never created.
  */
 import { readFileSync, writeFileSync } from "node:fs";
 

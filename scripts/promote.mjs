@@ -1,17 +1,19 @@
 #!/usr/bin/env node
 /**
- * 把运行时收下的评论,有筛选地拉回 git。
+ * Carry selected comments from the runtime store back into git.
  *
- *   make promote          看会写什么，不动任何东西
- *   make promote APPLY=1  真的写文件并回写数据库
+ *   make promote          show what would be written, touch nothing
+ *   make promote APPLY=1  write the files and record it in the database
  *
- * 为什么要有这一步:数据库是全量收件箱,git 是你挑过的那一份。
- * **把陌生人的话放进公开仓库是一个不可撤销的承诺** —— git 是永久的、被索引的、
- * 全世界可读的,而对方写下那句话时并不知道会落到这里。所以默认什么都不进,
- * 进去的每一条都是有人挑过的(规则在 scripts/promote-filter.mjs)。
+ * The database is the whole inbox; git is the part you chose. **Putting a
+ * stranger's words into a public repository is irreversible** — git is
+ * permanent, indexed and world-readable, and they did not know it would land
+ * there when they wrote it. So nothing is promoted by default and every row
+ * that goes in was selected by the rule in scripts/promote-filter.mjs.
  *
- * 只能在本地跑。它要同时够得着数据库和工作区,而 CI 两样都不该有:运行时没有
- * git 令牌,部署没有数据库凭据,这是有意的分隔。
+ * Local only: this needs the database and the working tree at once, and CI is
+ * deliberately denied both — the runtime holds no git token, the deploy holds no
+ * database credentials.
  */
 import { execFileSync } from "node:child_process";
 import { mkdirSync, readFileSync, writeFileSync, existsSync } from "node:fs";
@@ -19,20 +21,18 @@ import { dirname, join } from "node:path";
 import filter from "./promote-filter.mjs";
 
 /**
- * 把对方给的 HTML 提取成文本。
+ * Extract text from the sender's HTML.
  *
- * 进 git 的是文本而不是 HTML,理由不是安全(虽然顺带解决了),是**呈现权**:
- * 存 HTML 等于把别人的标记选择固化进我们的内容,站点以后想换个样子就得先跟
- * 那份标记打架。文本留着这个自由,而发给 Mastodon 的那次转换是我们自己写的、
- * 固定的。
+ * Paragraphs and links survive: `</p>` and `<br>` become newlines, and
+ * `<a href="U">T</a>` keeps T with U after it. What is lost is anchor text and
+ * target being one thing. See
+ * docs/decisions/0006-promoted-comments-are-stored-as-text.md.
  *
- * 段落和链接都留下来:`</p>` 和 `<br>` 变换行,`<a href="U">T</a>` 留下 T 并在
- * 后面补上 U —— 唯一的损失是锚文本和地址不再是一个东西,而 Mastodon 上的内容
- * 本来就以句子加链接为主。
- *
- * 这里用正则解析 HTML,而消毒器绝不能这么写。区别在于**输出经不经过转义**:
- * 这里的产物是纯文本,渲染时必然被转义,解析错了顶多难看;消毒器的产物要原样
- * 进页面,它的每个边角情况都是安全边界。
+ * HTML is parsed here with regular expressions, which a sanitiser must never
+ * do. The difference is whether the output is escaped: this output is plain
+ * text and is escaped at render time, so a mis-parse is ugly. A sanitiser's
+ * output goes onto the page verbatim, and every edge case is a security
+ * boundary.
  */
 function toText(html) {
   const entities = {
@@ -42,7 +42,8 @@ function toText(html) {
   return html
     .replace(/<a\b[^>]*\bhref=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi, (_, url, inner) => {
       const label = inner.replace(/<[^>]+>/g, "").trim();
-      // 锚文本本身就是那个地址时不要写两遍 —— Mastodon 常把长链接截断显示。
+      // Not twice when the anchor text is the address: Mastodon routinely
+      // truncates a long link for display.
       return !label || url.startsWith(label) || label.startsWith(url) ? url : `${label}（${url}）`;
     })
     .replace(/<br\s*\/?>/gi, "\n")
@@ -58,7 +59,7 @@ const APPLY = process.env.APPLY === "1";
 const DB = "yaame-ap-interactions";
 const DIR = "src/content/comments";
 
-/** 从 D1 取一次。--json 之外还有横幅，所以只认最后一个 JSON 数组。 */
+/** One read from D1. `--json` still prints a banner, so only the array counts. */
 function query(sql) {
   const out = execFileSync(
     "npx",
@@ -71,10 +72,12 @@ function query(sql) {
 }
 
 /**
- * 一条评论落到哪个文件。
+ * Which file a comment belongs in.
  *
- * 长文一篇一个,短推按年归档 —— 短推会很多,一条一个文件就成了一地碎屑。
- * 这里只认长文;短推还不存在,等它存在了再补这一支,而不是现在猜它的 id 长什么样。
+ * One file per long post; notes will be archived by year, since one file each
+ * would be a drift of fragments. Only long posts are recognised here — the
+ * branch for notes lands when notes have comments, rather than on a guess about
+ * what their ids will look like.
  */
 function fileFor(rootId) {
   const m = /\/users\/[^/]+\/notes\/([^/?#]+)$/.exec(rootId);
@@ -94,8 +97,8 @@ if (rows.length === 0) {
   process.exit(0);
 }
 
-// 按线程分组：filter 拿到的是一整条链，不是单条。判断需要上下文 ——
-// 只看一条的话，「保留整条回复链」根本表达不出来。
+// Grouped by thread: a filter receives the whole chain, because "keep the
+// entire reply chain" cannot be expressed from a single row.
 const threads = new Map();
 for (const r of rows) {
   const thread = threads.get(r.root_id) ?? [];
@@ -126,7 +129,8 @@ for (const [rootId, thread] of threads) {
     continue;
   }
 
-  // 已有内容读进来合并。重跑一次不该产生重复，也不该覆盖之前挑过的。
+  // Merged with what is already there: a re-run must not duplicate, and must
+  // not overwrite what was selected before.
   const existing = writes.get(file) ?? (existsSync(file)
     ? JSON.parse(readFileSync(file, "utf8")).comments
     : []);
@@ -157,8 +161,8 @@ if (!APPLY) {
   process.exit(0);
 }
 
-// 回写在写文件之后：先记数据库再写文件的话，一次失败的写入会让这些评论
-// 被当成已提升，而 git 里没有它们 —— 那是一种再也不会被重试的丢失。
+// Recorded after the files are written. The other order lets a failed write
+// mark these as promoted while git does not hold them — a loss nothing retries.
 const list = promoted.map((id) => `'${id.replace(/'/g, "''")}'`).join(",");
 query(
   `UPDATE comments SET promoted_at = '${new Date().toISOString()}' WHERE activity_id IN (${list})`,

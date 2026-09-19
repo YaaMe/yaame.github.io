@@ -42,19 +42,14 @@ export interface Platform {
 /**
  * A database handle.
  *
- * Drizzle rather than a hand-written layer: rendering CRUD into SQL, quoting
- * identifiers and spelling conflict clauses per dialect is solved work, and the
- * version here is one package with **no dependencies of its own** and a
- * provenance attestation — which is the part that matters when adding one.
+ * Typed as the shared async SQLite base so both drivers fit, with both
+ * parameters left open because the two differ in both: D1 is
+ * `SQLiteAsyncDatabase<'async', D1RunResult>`, node:sqlite is `<'sync',
+ * NodeSQLiteRunResult>`. Pinning either admits one driver and rejects the
+ * other. What this application uses is the query builder above them, which is
+ * the same on both.
  *
- * Typed as the shared async SQLite base so both drivers fit: D1 on Workers,
- * node:sqlite in a process. Swapping to Postgres later means Drizzle's postgres
- * driver and the same table definitions, not a second renderer written here.
+ * See docs/decisions/0007-interactions-live-in-a-database-the-host-provides.md.
  */
-// Both parameters are left open, because the two drivers differ in both: D1 is
-// SQLiteAsyncDatabase<'async', D1RunResult> and node:sqlite is <'sync',
-// NodeSQLiteRunResult>. Pinning either would admit one driver and reject the
-// other. What this application uses is the query builder above them, which is
-// the same on both — and that is the part Drizzle guarantees.
 // biome-ignore lint/suspicious/noExplicitAny: the two drivers differ only here
 export type Database = SQLiteAsyncDatabase<any, any>;

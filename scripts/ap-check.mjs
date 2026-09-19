@@ -1,19 +1,16 @@
 #!/usr/bin/env node
 /**
- * 对着**正在服务的** ActivityPub 端点做一致性检查。
+ * Conformance check against the endpoints that are actually being served.
  *
- * 存在的理由:今天修掉的每一个缺陷都是同一个形状 —— 我们发出的文档里少了
- * 某样东西,而少了什么在我们自己的输出里不可见。检视自己的响应永远看不出
- * 遗漏,只有拿外部参照对照才能。参照一直是临时去找的,于是每次都要等一次
- * 用户报告。
+ * It asserts what a consumer reads and what breaks when a field is missing, not
+ * whether this code does what it was written to do. An omission is invisible in
+ * our own output: only an external reference shows it.
  *
- * 这份脚本把那份参照写死下来:消费方读什么、缺了会发生什么。它检查的不是
- * "我写的东西按我写的那样跑了吗",而是"对面拿到的东西够不够用"。
+ *   node scripts/ap-check.mjs [base-url] [user]
  *
- *   node scripts/ap-check.mjs [base-url]
- *
- * 失败退出非零。选择类的缺席只报告不失败 —— 它们是人该决定的事,脚本的职责
- * 是不让它们保持隐形。
+ * Non-zero exit on failure. Absences that are choices are reported and do not
+ * fail — they are a person's to make, and the job here is only to stop them
+ * being invisible.
  */
 const BASE = process.argv[2] ?? "https://yaame.dev";
 const USER = process.argv[3] ?? "yaame";
@@ -36,19 +33,20 @@ const get = async (url, accept) => {
     try {
       body = await res.json();
     } catch {
-      /* 留作 null，调用方按缺失处理 */
+      /* left null; the caller treats it as missing */
     }
   }
   return { status: res.status, type, body };
 };
 
 /**
- * 内容协商。
+ * Content negotiation.
  *
- * AP §3.2 规定服务端 MUST 对带 profile 的 ld+json 返回 AS2;activity+json
- * 只是 SHOULD。通配的 Accept 与缺省 Accept 不在规范里，但 RFC 7231 §5.3.2 说它们
- * 表示"任何表示都可接受",对它们回 406 是错的 —— 而裸 curl 正是这么发的,
- * 于是一个手里有文档的端点看起来像坏了。
+ * ActivityPub §3.2 makes AS2 for profiled `ld+json` a MUST and `activity+json`
+ * only a SHOULD. A wildcard or absent Accept is outside the spec, but RFC 7231
+ * §5.3.2 makes both mean "any representation will do", so 406 is wrong for them
+ * — and a bare `curl` sends exactly that, which makes an endpoint holding the
+ * document look broken.
  */
 async function negotiation() {
   const url = `${BASE}/users/${USER}`;
@@ -65,16 +63,16 @@ async function negotiation() {
 }
 
 /**
- * actor 声明的每一个集合都必须应答,而且必须带 first。
+ * Every collection the actor advertises must answer.
  *
- * Mastodon 的 ProcessAccountService 用 first 的有无判定集合是否私有:
+ * Mastodon decides whether a collection is private by whether it has a `first`:
  *
  *   has_first_page = collection['first'].present?
  *   hide_collections = following_private? || followers_private?
  *
- * 两个集合里任意一个没有 first,对方就把整份关注者列表藏起来 —— 计数照常
- * 显示,列表返回空数组。AP 本身不要求分页,所以这条是纯粹的互操作要求,
- * 从规范上读不出来。
+ * Either one missing hides the whole follower list — the count still shows, the
+ * list comes back empty. ActivityPub does not require paging, so this is an
+ * interoperability requirement that cannot be read off the specification.
  */
 async function collections(actor) {
   for (const key of ["outbox", "followers", "following", "featured"]) {
@@ -91,9 +89,9 @@ async function collections(actor) {
     if (typeof body.totalItems !== "number") {
       fail(`${key} 带 totalItems`, "缺少计数，多数客户端显示为 0");
     }
-    // first 只对 followers / following 是硬要求：Mastodon 的 ProcessAccountService
-    // 拿它的有无判定集合是否私有，缺了就把整份名单藏起来。别的集合内联条目是
-    // 合法的，而且 Mastodon 自己的 featured 正是内联、没有 first。
+    // `first` is only required of followers and following, where its absence
+    // reads as private. Other collections may inline their items, and
+    // Mastodon's own featured does exactly that.
     const inline = body.orderedItems ?? body.items;
     if (!body.first) {
       if (["followers", "following"].includes(key)) {
@@ -113,8 +111,8 @@ async function collections(actor) {
       continue;
     }
 
-    // 一页装不下时必须给 next，否则读者走到这里就断了 —— 集合声称有 N 条，
-    // 却没有办法取到第一页之外的任何一条。
+    // Without `next` a reader stops here: the collection claims N items and
+    // offers no way to reach any beyond the first page.
     const shown = (first.body.orderedItems ?? first.body.items ?? []).length;
     if (shown < body.totalItems && !first.body.next) {
       fail(`${key} 分页可续`, `首页 ${shown} 条 / 共 ${body.totalItems} 条，但没有 next`);
@@ -125,8 +123,8 @@ async function collections(actor) {
 }
 
 /**
- * inbox 只需要接收 POST。读取是可选的,所以这里不要求 GET 成功 —— 要求的是
- * POST 不是 404,即路由确实存在。
+ * The inbox only has to accept POST. Reading one is optional, so what is
+ * asserted is that POST is not a 404 — that the route exists at all.
  */
 async function inbox(actor) {
   const res = await fetch(actor.inbox, {
@@ -139,10 +137,10 @@ async function inbox(actor) {
 }
 
 /**
- * 发现文档不能指向不存在的东西。
+ * A discovery document must not point at something that is not there.
  *
- * 这里曾经返回 {"links": []} —— 一份什么也没发现的发现文档,而它本该指向的
- * 那条路由 404。路由有、调度器没有,两边都不报错。
+ * A route without its dispatcher, or a dispatcher without its route, reports
+ * nothing on either side: the link is advertised and answers 404.
  */
 async function nodeinfo() {
   const { status, body } = await get(`${BASE}/.well-known/nodeinfo`, AS2);
@@ -158,12 +156,12 @@ async function nodeinfo() {
 }
 
 /**
- * 消费方会读、而缺席会改变行为的字段。
+ * Fields a consumer reads, whose absence changes behaviour.
  *
- * 不失败:这些是人该做的决定,不是 bug。脚本的职责只是不让"默认关"保持隐形
- * —— 关着可以，但要是你选的，不是因为没人注意到。
+ * Reported, never failed: these are decisions, not defects. Off is fine as long
+ * as it was chosen rather than unnoticed.
  *
- * 行为取自 mastodon/app/services/activitypub/process_account_service.rb。
+ * Behaviour taken from Mastodon's ProcessAccountService.
  */
 const CHOICES = [
   ["discoverable", "缺席 ⇒ discoverable = false：账号不出现在目录与推荐里"],

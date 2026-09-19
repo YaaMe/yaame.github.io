@@ -1,17 +1,18 @@
 #!/usr/bin/env node
 /**
- * 写一条短文。
+ * Write a note.
  *
  *   make po test
  *   make po 今天读完了这本书 https://example.com
- *   make po T="正文里有 # 或 $ 时用这个"
+ *   make po T="use this when the text holds # or $"
  *
- * 追加到 src/content/notes/<当年>.json。正文当 markdown 看 —— 纯文字也是
- * 合法的 markdown,而带链接的短文不解析就只能显示裸 URL。
+ * Appended to src/content/notes/<year>.json. The body is read as markdown:
+ * plain text is valid markdown, and an unparsed link shows as a bare URL.
  *
- * 这是两条发布线里的**终端那条**:直接写 git,提交、部署之后可见。另一条是
- * 路由层登录后写 D1、立刻联邦可见、之后再提升回 git。两条最终都落在同一个
- * 地方,只是先后不同。
+ * This is the terminal half of publishing — straight into git, visible after a
+ * commit and a deploy. The other half writes D1 from the routing layer, is
+ * federated at once, and is promoted back into git afterwards. Both land in the
+ * same place.
  */
 import { mkdirSync, readFileSync, writeFileSync, existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
@@ -25,18 +26,20 @@ if (!text) {
 }
 
 /**
- * id 和时间是两回事。
+ * The id is not the time.
  *
- * 一天发几条都有可能,所以时间当不了身份。用非日期形状的短串,还有一个好处:
- * 长文的 slug 是日期形状(`2025-year`、`2023-07`),两者共用 `/users/…/notes/`
- * 这个命名空间也不会撞。
+ * Several notes in one day are ordinary, so a timestamp cannot be an identity.
+ * A non-date-shaped string also keeps this namespace clear of the long posts,
+ * whose slugs are date-shaped (`2025-year`, `2023-07`) and share
+ * `/users/…/notes/`.
  */
-const ALPHABET = "abcdefghijkmnpqrstuvwxyz23456789"; // 去掉 l/o/0/1，念出来不会错
+const ALPHABET = "abcdefghijkmnpqrstuvwxyz23456789"; // no l/o/0/1: read aloud without error
 const makeId = () =>
   Array.from({ length: 8 }, () => ALPHABET[Math.floor(Math.random() * ALPHABET.length)]).join("");
 
-// 所有年份里的 id 都读一遍。碰撞的概率可以忽略，但"可以忽略"和"检查过了"
-// 之间的差别，正是这个文件里唯一不可撤销的东西：id 一旦发布出去就是它的身份。
+// Every year's ids are read. A collision is negligible, and the difference
+// between negligible and checked is the one irreversible thing here: once an id
+// is published it is that note's identity.
 const taken = new Set();
 if (existsSync(DIR)) {
   for (const name of readdirSync(DIR)) {

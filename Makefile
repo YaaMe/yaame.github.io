@@ -1,4 +1,4 @@
-# 本站的全部操作入口。`make` 或 `make help` 看清单。
+# Every operation on this site. `make` or `make help` lists them.
 .DEFAULT_GOAL := help
 .PHONY: help install dev deploy deploy-site deploy-consumer ap-check promote tombstone build preview check frontmatter fix new po follow unfollow pin unpin newpost newtag tags urls links clean
 
@@ -24,10 +24,10 @@ deploy-consumer: ## 部署队列消费者（独立 Worker，需要 CF_KV_ID）
 	@node scripts/wrangler-config.mjs worker/wrangler.jsonc worker/wrangler.generated.jsonc
 	@cd worker && npx wrangler deploy -c wrangler.generated.jsonc
 
-# 两个 Worker 共享 src/integrations/activitypub/，所以它们一起部署。
-# 分开部署过一次：inbox 监听器只在 consumer 里执行，而诊断端点在站点
-# Worker 里，于是站点报告的是一个与实际执行者无关的世界 —— 连着三次
-# 「部署成功」改的都是没在跑的那份代码。
+# Both Workers are built from src/integrations/activitypub/, so they deploy
+# together. Shipping only the site leaves the inbox listeners running the old
+# code while the endpoints that report on them run the new one — every
+# diagnostic then describes a world nobody is executing.
 deploy: deploy-site deploy-consumer ## 部署站点与队列消费者（需要真实 CF_KV_ID）
 
 deploy-site: check ## 只部署站点 Worker
@@ -57,9 +57,10 @@ fix: ## 补全缺失的 description 和 tags（不覆盖已有的）
 new: ## 交互式新建（问你要建文章还是标签）
 	@node scripts/new.mjs
 
-# `make po 今天天气不错` —— 把 po 之后的词当正文。只在 po 是第一个目标时生效，
-# 并且只给那几个词建空规则，不用 `%:` 那种什么都吞的兜底（它会让别的目标写错
-# 时静默变成空操作）。正文里有 # 或 $ 这类 make 要插手的字符时，改用 T="…"。
+# `make po 今天天气不错` takes the words after `po` as the body. Only when `po`
+# is the first goal, and only those words get an empty rule — a catch-all `%:`
+# would turn every mistyped target into a silent no-op. Use T="…" when the text
+# holds # or $, which make reads itself.
 ifneq (,$(filter po follow unfollow pin unpin,$(firstword $(MAKECMDGOALS))))
   PO := $(wordlist 2,$(words $(MAKECMDGOALS)),$(MAKECMDGOALS))
   $(eval $(PO):;@:)

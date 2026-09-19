@@ -40,17 +40,8 @@ Object.defineProperty(platform, "queue", {
   },
 });
 
-// Small durable records of our own: the actor's key, the follower list.
-// Secrets arrive on the same `env` as the other bindings; what differs is that
-// the value is in no file here and cannot be read back out of Cloudflare. The
-// name is declared in the wrangler config, which is what puts it on `Env`.
-//
-// Looked up by name rather than read as a property, so the checked type is the
-// one thing left to establish: `env` also holds namespaces and queues, and a
-// mistyped name would otherwise hand one of those back as a key.
-// D1 speaks SQLite, so the table definitions are shared with the node build
-// rather than written twice. `false` when the binding is absent: the static
-// profile builds no Worker, and nothing there has a database.
+// `false` when the binding is absent: the static profile builds no Worker, and
+// nothing there has a database.
 Object.defineProperty(platform, "db", {
   enumerable: true,
   get(): Platform["db"] {
@@ -59,6 +50,12 @@ Object.defineProperty(platform, "db", {
   },
 });
 
+// A secret arrives on the same `env` as every other binding; what differs is
+// that its value is in no file here and cannot be read back out of Cloudflare.
+//
+// Looked up by name rather than read as a property, so the type check is the
+// one guard left: `env` also holds namespaces and queues, and a mistyped name
+// would otherwise hand one of those back as a key.
 platform.secret = (name) => {
   const value: unknown = Reflect.get(env as object, name);
   return typeof value === "string" ? value : undefined;

@@ -1,22 +1,23 @@
 #!/usr/bin/env node
 /**
- * 关注一个人,或取消关注。
+ * Follow someone, or stop.
  *
  *   make follow @someone@example.com
  *   make unfollow @someone@example.com
  *
- * 只写配置,不发任何东西。真正的 Follow 由 Worker 发出 —— 签名只能在那里发生,
- * 而终端没有密钥(这是有意的)。
+ * Writes the intent and sends nothing. The Follow itself goes out from the
+ * Worker after the next deploy, because signing needs the key and the terminal
+ * does not have it.
  *
- * 所以这里写的是**意图**:部署之后运行时会对账,git 里有而实际没关注的就发一条
- * Follow,git 里没有而实际关注着的就发 Undo。和评论那套是同一个形状 ——
- * 关注谁是我们自己的意思,该在 git 里;谁关注我们是外来的,在 KV 里。
+ * Who we follow is ours, so it lives in git; who follows us arrives from
+ * outside, so it lives in KV. See
+ * docs/decisions/0004-follow-reconciliation-pivots-on-what-was-sent.md.
  */
 import { readFileSync, writeFileSync } from "node:fs";
 
 const FILE = "src/integrations/activitypub/following.json";
-// --remove 由 make unfollow 传进来。不用「handle 前面加减号」那种写法：
-// make 会把开头的 - 当成自己的选项，命令根本到不了这里。
+// `--remove` rather than a leading `-` on the handle: make reads a leading
+// dash as one of its own options, and the command never arrives here.
 const args = process.argv.slice(2);
 const remove = args[0] === "--remove";
 const handle = args.slice(remove ? 1 : 0).join("").trim().replace(/^@/, "");

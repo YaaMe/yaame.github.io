@@ -1,12 +1,12 @@
 #!/usr/bin/env node
 /**
- * 交互式入口：问你要建什么，然后转给对应的脚本。
+ * Interactive entry point: asks what to create, then hands off.
  *
- *   make new          ← 这里
- *   make newpost P=…  直接建文章（脚本/肌肉记忆用）
- *   make newtag  …    直接建标签
+ *   make new          here
+ *   make newpost P=…  straight to a post
+ *   make newtag  …    straight to a tag
  *
- * 本身不含任何创建逻辑，只做分派 —— 两条路通向同一套实现。
+ * Dispatch only, no creation logic, so both routes reach one implementation.
  */
 import { createInterface } from "node:readline/promises";
 import { spawnSync } from "node:child_process";
@@ -18,12 +18,13 @@ if (!process.stdin.isTTY) {
 
 const rl = createInterface({ input: process.stdin, output: process.stdout });
 
-// Ctrl+C / Ctrl+D 干净退出：不留半截文件，不打堆栈。130 是 SIGINT 的惯例退出码。
+// Ctrl+C / Ctrl+D exit cleanly: no half-written file, no stack trace. 130 is
+// the conventional exit code for SIGINT.
 const abort = () => { console.log("\n  取消"); process.exit(130); };
 process.on("SIGINT", abort);
 rl.on("SIGINT", abort);
 rl.on("close", () => {});
-/** 读一行；输入 q 视为取消。 */
+/** Read one line; `q` cancels. */
 const ask = async (q) => {
   const a = (await rl.question(q)).trim();
   if (a === "q" || a === "Q") abort();

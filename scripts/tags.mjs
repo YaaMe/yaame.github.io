@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-/** 列出标签常量池，以及每个标签的实际使用数。 */
+/** The tag registry, with how many posts use each one. */
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 
@@ -10,8 +10,8 @@ const used = new Map();
 for (const dir of ["src/content/posts", "src/content/komorebi"]) {
   for (const f of readdirSync(dir).filter((x) => x.endsWith(".md"))) {
     const fm = readFileSync(join(dir, f), "utf8").split("---")[1] ?? "";
-    // 只取 tags: 块里的项 —— 否则会把别的字段（比如 Hexo 遗留的 type:）
-    // 底下的列表项也当成标签
+    // Items under `tags:` only: list items beneath any other field would
+    // otherwise be counted as tags.
     const block = fm.match(/^tags:\s*\n((?:\s+-\s*\w+\s*\n)+)/m);
     if (!block) continue;
     for (const m of block[1].matchAll(/-\s*(\w+)/g)) {

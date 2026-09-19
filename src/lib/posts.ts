@@ -21,14 +21,9 @@ export async function allPosts(): Promise<Post[]> {
   );
 }
 
-// URL contract: /posts/{slug}/
-//
-// Previously /YYYY/MM/DD/{slug}/, inherited from Hexo. Changed because:
-//   - the slugs here are already dates, so the year appeared twice
-//   - four path segments carried one document, and the middle ones were
-//     not browsable
-//   - work still in progress was pinned to a long-stale publication date
-// Old links are not redirected; confirmed as not worth preserving.
+// URL contract: /posts/{slug}/. Changing it breaks every external link, and
+// nothing redirects the old shape.
+// See docs/decisions/0008-post-urls-carry-the-slug-alone.md.
 export function href(p: Post) {
   return `/posts/${p.id}/`;
 }
@@ -66,7 +61,6 @@ export async function allTags(): Promise<Tag[]> {
   return [...t].sort();
 }
 
-// ── komorebi ────────────────────────────────────────────────
 
 export type Chapter = CollectionEntry<"komorebi">;
 
@@ -86,7 +80,6 @@ export async function chapterCount(): Promise<number> {
   return (n.body ?? "").match(/^[一二三四五六七八九十]+$/gm)?.length ?? 0;
 }
 
-// ── rendering ───────────────────────────────────────────────
 
 /** Render one entry. Wrapped so the design layer depends only on this module. */
 export async function content(entry: Post | Chapter) {

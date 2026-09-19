@@ -1,10 +1,7 @@
 /**
  * Boosts and likes, as they arrive and as they are counted.
  *
- * The only file that queries the reactions table. Until now these activities
- * reached the inbox and were dropped with "unsupported activity type" in a log —
- * the sender's server reported success, the person saw their boost, and nothing
- * here kept it.
+ * The only file that queries the reactions table.
  */
 import { and, count, eq, inArray, isNull } from "drizzle-orm";
 import { reactions } from "./schema";
@@ -67,9 +64,8 @@ export async function undo(
 /**
  * How many of each kind these objects carry.
  *
- * One grouped query for a whole page, for the same reason the reply counts are:
- * a page holds up to twenty posts and D1's free plan allows fifty queries per
- * invocation.
+ * One grouped query for a whole page: a page holds up to twenty posts, and
+ * D1's free plan allows fifty queries per invocation.
  */
 export async function counts(
   objectIds: string[],

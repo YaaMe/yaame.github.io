@@ -1,9 +1,8 @@
 /**
  * The tables, declared once for both hosts.
  *
- * Drizzle renders these into SQLite for D1 and for node:sqlite; the same
- * definitions carry to its postgres driver if a deployment ever brings its own
- * database. Nothing above this file writes SQL.
+ * Drizzle renders these into SQLite for D1 and for node:sqlite. Nothing above
+ * this file writes SQL.
  *
  * Times are ISO 8601 strings. SQLite has no date type, every dialect reads an
  * ISO string the same way, and a numeric epoch would have to be decoded by hand
@@ -100,9 +99,8 @@ export const reactions = sqliteTable(
  * claiming the same version with different shapes, and nothing reports it. To
  * change the schema, append.
  *
- * Hand-written for now. drizzle-kit generates these from a schema diff, and will
- * take over here once it can be installed — the npm cache on this machine is not
- * writable, which is a local problem rather than a decision.
+ * Hand-written rather than generated: drizzle-kit is not installed here, and
+ * these are meant to be replaced by its output when it is.
  */
 const MIGRATIONS: string[] = [
   `CREATE TABLE IF NOT EXISTS comments (

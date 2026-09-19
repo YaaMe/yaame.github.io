@@ -1,24 +1,26 @@
 #!/usr/bin/env node
 /**
- * 新建一篇文章，文件名和标签按类型自动推断。
+ * Create a post, with the filename and tags following from its kind.
  *
- *   node scripts/newpost.mjs              上一个月的月结（最常用，小结都是事后写的）
- *   node scripts/newpost.mjs 2026-09      指定月结
- *   node scripts/newpost.mjs 2026-year    年结
- *   node scripts/newpost.mjs 2026-09-15   单篇随笔（标签留空，由你决定）
+ *   node scripts/newpost.mjs              last month's summary (the common case,
+ *                                         since summaries are written after)
+ *   node scripts/newpost.mjs 2026-09      a given month
+ *   node scripts/newpost.mjs 2026-year    a year
+ *   node scripts/newpost.mjs 2026-09-15   an essay; tags left to you
  *   node scripts/newpost.mjs 2026-09-15 --title "标题"
- *   node scripts/newpost.mjs 2026-09-15 --no-interactive   跳过标签选择
- *   node scripts/newpost.mjs 2026-09-15 --pick              强制进入选择器（测试用）
+ *   node scripts/newpost.mjs 2026-09-15 --no-interactive   skip tag selection
+ *   node scripts/newpost.mjs 2026-09-15 --pick             force the selector
  *
- * 不写 description —— 正文写完之后跑 `make fix` 补，或者自己写一句更好的。
+ * No `description` is written: run `make fix` once the body exists, or write a
+ * better one by hand.
  */
 import { existsSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { createInterface } from "node:readline/promises";
 import { readFileSync } from "node:fs";
 
-// 标签从 src/tags.ts 的常量池读 —— 只有一份真相。
-// 不引 TS 编译器，直接从源码里抠出键名。
+// Tags come from the registry in src/tags.ts, which is the only truth. The key
+// names are read out of the source rather than pulling in a TypeScript compiler.
 const POOL = [...readFileSync("src/tags.ts", "utf8")
   .matchAll(/^\s{2}(\w+):\s*"([^"]+)"/gm)].map((m) => ({ slug: m[1], label: m[2] }));
 
@@ -81,7 +83,7 @@ function lastMonth() {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 }
 
-/** 往常量池里追加一条。插在 `} as const;` 之前，保持文件结构。 */
+/** Append to the registry, before `} as const;` so the structure holds. */
 function addToPool(slug, zh) {
   const f = "src/tags.ts";
   const src = readFileSync(f, "utf8");
@@ -127,19 +129,21 @@ if (existsSync(path)) {
   process.exit(1);
 }
 
-// 发布时间取此刻。小结的身份是文件名里的时段，这个只是元数据。
+// Published now. A summary's identity is the period in its filename, so this
+// is metadata and nothing more.
 const n = new Date();
 const p = (x) => String(x).padStart(2, "0");
 const stamp =
   `${n.getFullYear()}-${p(n.getMonth() + 1)}-${p(n.getDate())} ` +
   `${p(n.getHours())}:${p(n.getMinutes())}:${p(n.getSeconds())}${TZ}`;
 
-// 小结的标签能推断出来；单篇随笔交互式选，避免手打拼错。
+// A summary's tags follow from its name. An essay's are chosen interactively,
+// which is what keeps a typo out of the registry.
 let tags = k.tags;
-// --pick 强制进入选择器（不依赖 TTY），供测试和调试用
+// --pick forces the selector without a TTY, for tests and debugging
 if (!tags.length && (process.stdin.isTTY || args.includes("--pick")) && !args.includes("--no-interactive")) {
   const rl = createInterface({ input: process.stdin, output: process.stdout });
-  // Ctrl+C 在写文件之前中断 —— 不会留下半截文章
+  // Ctrl+C interrupts before the file is written: no half-created post
   const abort = () => { console.log("\n  取消，未创建任何文件"); process.exit(130); };
   process.on("SIGINT", abort);
   rl.on("SIGINT", abort);
@@ -153,7 +157,7 @@ if (!tags.length && (process.stdin.isTTY || args.includes("--pick")) && !args.in
   const picked = [];
   for (const tok of ans.split(/\s+/).filter(Boolean)) {
     if (tok === "n") {
-      // 池子仍是唯一真相，只是加一条不必切出去改代码
+      // The registry is still the only truth; this only saves a trip to edit it
       const slug = (await rl.question("    新标签的英文 slug: ")).trim();
       const zh = (await rl.question("    显示名（中文）: ")).trim();
       if (/^\w+$/.test(slug) && zh) {

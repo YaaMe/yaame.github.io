@@ -27,13 +27,15 @@ const stamped = z.coerce.date().transform((d) => {
 const base = {
   title: z.string(),
   /**
-   * 置顶。
+   * Pinned.
    *
-   * 放在文章自己身上,不是配置里列一串 slug —— 置顶是这篇文章的属性,而 slug
-   * 改名时这里会跟着走,配置里那份则会悄悄变成指向空处的一行。
+   * On the post rather than a list of slugs in a config: pinning is a property
+   * of this post, so a rename carries it along. The list would quietly become a
+   * line pointing at nothing.
    *
-   * 联邦那边读的是 actor 的 `featured` 集合,而那是**新访客一来就能看到内容的
-   * 唯一入口**:Mastodon 从不回补远端的 outbox,只有这个集合它会主动去抓。
+   * Federation reads this as the actor's `featured` collection, which is the
+   * only way a new visitor sees anything at once — Mastodon never backfills a
+   * remote outbox and fetches that collection when it processes the actor.
    */
   pinned: z.boolean().default(false),
   // Filled in by scripts/frontmatter.mjs; hand-written values are never overwritten
@@ -76,10 +78,10 @@ const comment = z.object({
   rootId: z.url(),
   actorId: z.url(),
   /**
-   * 纯文本,不是 HTML。
+   * Plain text, not HTML — extracted from the sender's markup on promotion.
+   * See docs/decisions/0006-promoted-comments-are-stored-as-text.md.
    *
-   * 提升时从对方给的 HTML 提取出来 —— 存 HTML 等于把别人的标记选择固化进我们
-   * 的内容,而文本把呈现权留给站点自己。撤回之后这个字段消失,记录留着。
+   * The field is gone once the comment is withdrawn; the record stays.
    */
   content: z.string().optional(),
   published: z.string(),
@@ -89,15 +91,17 @@ const comment = z.object({
 });
 
 /**
- * 短文 —— 自己写的、没有标题的那种。
+ * Notes — written here, and without titles.
  *
- * 按年一个文件,一条一个文件太碎;而短文没有标题、标签、正文结构,本来就更像
- * 记录而不是文档,JSON 比 markdown 文件合身。正文仍然当 markdown 看 ——
- * 纯文字也是合法的 markdown,而带链接的短文如果不解析就只能显示裸 URL。
+ * A file per year, because one file each would be a drift of fragments. With no
+ * title, tags or structure a note is closer to a record than a document, which
+ * is what JSON fits better than markdown. The body is still read as markdown:
+ * plain text is valid markdown, and an unparsed link shows as a bare URL.
  *
- * `id` 和时间分开:一天发几条都有可能,时间当不了身份。而且短文的 id 是
- * 非日期形状的短串,长文的 slug 是日期形状(`2025-year`、`2023-07`),两者
- * 共用 `/users/…/notes/` 这个命名空间也不会撞。
+ * `id` is separate from the time, because several notes in one day are ordinary
+ * and a timestamp cannot be an identity. A note's id is a non-date-shaped
+ * string and a long post's slug is date-shaped (`2025-year`, `2023-07`), so
+ * they share `/users/…/notes/` without colliding.
  */
 const notes = defineCollection({
   loader: glob({ base: "./src/content/notes", pattern: "**/*.json" }),

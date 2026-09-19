@@ -1,11 +1,9 @@
 import { getCollection } from "astro:content";
 
 /**
- * 短文,按年归档在一堆文件里,读出来是一条时间线。
+ * Notes, archived a file per year and read back as one timeline.
  *
- * 长文经过转译(标题 + 摘要 + 链接)之后也是一条短文 —— outbox 就是这一条
- * 时间线,不是两个分开的集合。所以这里只负责把年份文件摊平并排序,合并交给
- * 调用方。
+ * Flattening and sorting only: merging with the long posts is the caller's.
  */
 export type Note = {
   id: string;
@@ -13,7 +11,7 @@ export type Note = {
   content: string;
 };
 
-/** 新的在前,和长文一致 —— `OrderedCollection` 必须按时间倒序(AP §5)。 */
+/** Newest first, which `OrderedCollection` requires (ActivityPub §5). */
 export async function allNotes(): Promise<Note[]> {
   const years = await getCollection("notes");
   return years

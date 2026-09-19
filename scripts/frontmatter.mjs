@@ -1,17 +1,18 @@
 #!/usr/bin/env node
 /**
- * 补全文章 frontmatter 里的 description 和 tags。
+ * Fill in a post's missing `description` and `tags`.
  *
- *   node scripts/frontmatter.mjs            补缺失的，就地写入
- *   node scripts/frontmatter.mjs --dry-run  只看会改什么
- *   node scripts/frontmatter.mjs --check    有缺失就退出码 1（给 CI 用），不写
- *   node scripts/frontmatter.mjs --force    连已有的一起覆盖
+ *   node scripts/frontmatter.mjs            fill what is missing, in place
+ *   node scripts/frontmatter.mjs --dry-run  show what would change
+ *   node scripts/frontmatter.mjs --check    exit 1 if anything is missing (CI)
+ *   node scripts/frontmatter.mjs --force    overwrite what is already there
  *
- * 默认【只补缺失的】—— 手写的摘要永远不会被机器覆盖。
- * 自动摘要的质量只够当占位，写得好的那句该由人来写。
+ * Only what is missing, by default: a written description is never overwritten
+ * by a generated one, which is good enough to be a placeholder and no more.
  *
- * 注意：这里用正则处理 frontmatter，不是完整的 YAML 解析。
- * 只动 description 和 tags 两行，其余（含 +08:00 时区标记、带引号的 title）原样保留。
+ * Frontmatter is handled with regular expressions rather than parsed as YAML.
+ * Only the `description` and `tags` lines are touched, so everything else — a
+ * +08:00 offset, a quoted title — survives exactly as written.
  */
 import { readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -27,11 +28,11 @@ const dry = argv.has("--dry-run");
 const check = argv.has("--check");
 const force = argv.has("--force");
 
-/** 从正文取一句话当摘要：优先在句末标点处断，否则截断加省略号。 */
+/** One sentence from the body: cut at sentence punctuation, else truncate. */
 function makeDescription(body, fallback) {
   for (const raw of body.split("\n")) {
     const line = raw.trim();
-    // 跳过图片、标题、列表、引用、表格、分隔线
+    // Skip images, headings, lists, quotes, tables and rules
     if (!line || /^([!#>|]|[-+*]\s|-{3,}|\d+\.\s)/.test(line)) continue;
     const m = line.match(new RegExp(`^(.{4,${MAX}}?${SENTENCE_END.source})`));
     if (m) return m[1];
@@ -40,7 +41,7 @@ function makeDescription(body, fallback) {
   return fallback;
 }
 
-/** 从文件名推断标签。本站的命名约定：YYYY-year 是年结，YYYY-MM 是月结。 */
+/** Tags from the filename: YYYY-year is a yearly summary, YYYY-MM a monthly. */
 function inferTags(slug) {
   if (/^\d{4}-year$/.test(slug)) return ["summaries", "year"];
   if (/^\d{4}-\d{2}$/.test(slug)) return ["summaries", "month"];

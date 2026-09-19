@@ -1,9 +1,10 @@
 #!/usr/bin/env node
 /**
- * 从 wrangler.jsonc.template 生成 wrangler.jsonc。
+ * Generate wrangler.jsonc from wrangler.jsonc.template.
  *
- * 模板里的 ${VAR} 用同名环境变量替换。adapter 在构建期就要读 wrangler.jsonc，
- * 所以这一步必须在 astro build 之前跑。
+ * `${VAR}` is replaced by the environment variable of the same name. The
+ * adapter reads wrangler.jsonc during the build, so this must run before
+ * `astro build`.
  */
 import { readFileSync, writeFileSync } from "node:fs";
 

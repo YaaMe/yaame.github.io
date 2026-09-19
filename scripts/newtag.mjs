@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 /**
- * 往标签常量池 src/tags.ts 里加一条。
+ * Add an entry to the tag registry in src/tags.ts.
  *
  *   node scripts/newtag.mjs reading 读书
  *
- * 池子是唯一真相：不在里面的标签会让构建失败（见 src/content.config.ts）。
+ * The registry is the only truth: a tag that is not in it fails the build.
  */
 import { readFileSync, writeFileSync } from "node:fs";
 

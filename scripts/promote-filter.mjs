@@ -1,30 +1,30 @@
 /**
- * 决定哪些评论进 git。
+ * Which comments reach git.
  *
- * 这是**你编辑的文件**。默认只保留你回复过的那些线程 —— 保守,因为把陌生人的话
- * 放进公开仓库是一个不可撤销的承诺:git 是永久的、被索引的、全世界可读的,而
- * 对方写下那句话时并不知道会落到这里。
+ * **This file is yours to edit.** Putting a stranger's words into a public
+ * repository is irreversible — git is permanent, indexed and world-readable,
+ * and they did not know it would land there when they wrote it.
  *
- * filter 拿到的是**一整条线程**,不是单条评论。判断需要上下文:只看一条的话,
- * "保留整条回复链"根本表达不出来。返回要留的那些。
+ * A filter receives a whole thread, not one comment: "keep the entire reply
+ * chain" cannot be expressed from a single row. It returns what to keep.
  */
 
-/** 保留这些作者写的每一条。 */
+/** Keep everything these actors wrote. */
 export const byAuthor = (actors) => (thread) =>
   thread.filter((c) => actors.includes(c.actorId));
 
-/** 线程里有任意一条命中,整条都留。 */
+/** Keep the whole thread when any one comment matches. */
 export const wholeThread = (match) => (thread) =>
   thread.some(match) ? thread : [];
 
-/** 一条都不留。 */
+/** Keep nothing. */
 export const nothing = () => [];
 
 /**
- * 当前生效的规则。
+ * The rule in force.
  *
- * 默认 `nothing` —— 不是因为它有用,是因为**默认值不该替你做这个决定**。改成
- * 下面注释里的样子,或者写你自己的:
+ * `nothing` by default, not because it is useful but because a default must not
+ * make this decision for you. Replace it:
  *
  *   export default byAuthor(["https://mstdn.jp/users/someone"]);
  *   export default wholeThread((c) => c.actorId.startsWith("https://mstdn.jp/"));

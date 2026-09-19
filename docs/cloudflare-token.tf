@@ -1,22 +1,24 @@
 /**
- * CI 用的 Cloudflare API token —— 声明式的那一份。
+ * The CI Cloudflare API token, declared.
  *
- * **这份文件没有被 apply 过。** 它在 docs/ 下是文档,不是基础设施:目前 token 是
- * 在面板上手工建的。放在这里是因为那几项权限原本只存在于对话记录和报错里 ——
- * 每一项都是撞了一次墙才知道要加的,而墙上没写。
+ * **This file has never been applied.** Under docs/ it is documentation, not
+ * infrastructure: the token in use was created by hand in the dashboard. It is
+ * written down because otherwise the permission list exists only in error
+ * messages — each one was discovered by hitting a wall that did not name it.
  *
- * 要真的用它:
+ * To actually use it:
  *
  *   terraform init && terraform plan
  *
- * 权限组的名字必须和 Cloudflare 那边**逐字**一致,而下面这些是按惯例写的、
- * 没有逐一核对过。核对的办法:
+ * Permission group names must match Cloudflare's **exactly**, and these were
+ * written from convention rather than checked one by one. To check:
  *
  *   GET /accounts/{account_id}/tokens/permission_groups
  *
- * 或者让 plan 去报错 —— 名字对不上时数据源会返回空列表,索引 [0] 直接失败。
+ * Or let plan fail: a name that does not match returns an empty list, and the
+ * [0] index fails on it.
  *
- * 每一项后面记的是"不给它会怎样",因为那才是它存在的理由。
+ * Each entry records what breaks without it, which is the reason it is there.
  */
 
 terraform {
@@ -35,29 +37,30 @@ variable "account_id" {
 
 variable "zone_id" {
   type        = string
-  description = "yaame.dev 的 zone id"
+  description = "the yaame.dev zone id"
 }
 
 locals {
   account = "com.cloudflare.api.account.${var.account_id}"
   zone    = "com.cloudflare.api.zone.${var.zone_id}"
 
-  # 名字 → 为什么需要它
+  # name → what breaks without it
   account_permissions = {
-    # 缺它什么都发不出去
-    "Workers Scripts Write" = "上传两个 Worker 的代码与静态资源"
-    # AP_KV 绑定
-    "Workers KV Storage Write" = "关注者名单、actor 指纹、已投递记录"
-    # producer 与 consumer 两侧
-    "Queues Write" = "投递队列的绑定与消费者配置"
-    # 只读：Tombstones 那个 job 只 SELECT，写 promoted_at 是本地 make promote 做的
-    "D1 Read" = "Tombstones job 查「已进 git 而后被撤回」的评论"
+    # without it nothing ships at all
+    "Workers Scripts Write" = "upload both Workers' code and static assets"
+    # the AP_KV binding
+    "Workers KV Storage Write" = "follower list, actor digest, delivery record"
+    # both the producer and the consumer side
+    "Queues Write" = "the delivery queue binding and its consumer config"
+    # read only: the tombstones job only SELECTs, and promoted_at is written
+    # locally by make promote
+    "D1 Read" = "the tombstones job, finding comments withdrawn after promotion"
   }
 
   zone_permissions = {
-    # 部署带自定义域的 Worker 要动 zone。账号级的 Workers 权限盖不到这里，
-    # 这一项是单独撞出来的。
-    "Workers Routes Write" = "yaame.dev 与 blogu.yaame.dev 两个自定义域"
+    # Deploying a Worker with a custom domain touches the zone. The
+    # account-level Workers permissions do not reach it; this one is separate.
+    "Workers Routes Write" = "the yaame.dev and blogu.yaame.dev custom domains"
   }
 }
 
@@ -91,13 +94,16 @@ resource "cloudflare_api_token" "ci" {
 }
 
 /**
- * 不在这里的东西,以及为什么:
+ * What is deliberately absent, and why:
  *
- * - **D1 Write** —— 只有本地的 `make promote` 会写 `promoted_at`,用的是你自己的
- *   登录,不是这个 token。CI 只读。
- * - **User Details Read** —— wrangler 会提示缺它,那只影响它打印你的邮箱。
- * - **Memberships Read** —— 配了 `CLOUDFLARE_ACCOUNT_ID` 就不需要。**故意不给**:
- *   一旦 wrangler 需要去查 memberships,说明 account id 没配上,那正是该失败的
- *   时候;给了它,部署会成功,但发到一个没人声明过的账号上。
- * - **Secrets Store** —— 密钥用的是每个 Worker 自己的 secret,不走那个服务。
+ * - **D1 Write** — only the local `make promote` writes `promoted_at`, under
+ *   your own login rather than this token. CI reads.
+ * - **User Details Read** — wrangler warns without it; the effect is that it
+ *   cannot print your email address.
+ * - **Memberships Read** — unnecessary once `CLOUDFLARE_ACCOUNT_ID` is set, and
+ *   **withheld on purpose**: wrangler needing to look up memberships means the
+ *   account id did not arrive, which is exactly when the deploy should fail.
+ *   Granted, it would succeed instead, against an account nobody declared.
+ * - **Secrets Store** — the signing key is a per-Worker secret and does not go
+ *   through that service.
  */

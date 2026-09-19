@@ -25,33 +25,17 @@ const PUBLIC = new URL("https://www.w3.org/ns/activitystreams#Public");
 const window = () => (AP.published === 0 ? undefined : AP.published);
 
 /**
- * One post, as an ActivityPub object.
+ * One item on the timeline.
  *
- * Built in one place because two of them need it: the outbox inlines it, and
- * the object dispatcher answers with it when a remote server fetches the id.
- * Two constructions would be two definitions, and the drift between them would
- * show up as a remote copy that disagrees with ours about our own post.
- *
- * The id and the url are deliberately different addresses. The id is this
- * actor's object and lives with the actor; the url is the page a person reads,
- * and lives on the blog. They were the same address until now, which asked one
- * URL to be two resources — and the blog cannot answer as both: its pages are
- * static assets served ahead of the Worker, so a request for
- * application/activity+json gets HTML no matter what it asked for. Splitting
- * them costs nothing and leaves the blog's hot paths as plain files.
- */
-/**
- * 一条时间线上的一项。
- *
- * 长文经过转译(标题 + 摘要 + 链接)之后就是一条短文 —— outbox 不是两个集合,
- * 是一条时间线。所以这里只有一种结构,长文和短文都先变成它。
+ * A long post becomes a note once it is rendered down to title, description and
+ * link, so this is one collection rather than two.
  */
 type Item = {
   slug: string;
   published: string;
-  /** 已经是 HTML。长文是拼出来的,短文是 markdown 渲染出来的。 */
+  /** Already HTML. */
   content: string;
-  /** 人能看的地址。短文还没有页面 —— 絮语那一页做出来之前不假装有。 */
+  /** Where a person reads it. Notes have no page of their own yet. */
   url?: URL;
 };
 
@@ -71,11 +55,11 @@ const fromPost = (post: Post): Item => {
 const fromNote = (n: { id: string; published: string; content: string }): Item => ({
   slug: n.id,
   published: n.published,
-  // marked 而不是原样输出：短文里最常见的就是链接，不解析就只能显示裸 URL。
+  // Rendered, not passed through: an unparsed link shows as a bare URL.
   content: marked.parse(n.content, { async: false }) as string,
 });
 
-/** 两种合成一条,新的在前 —— `OrderedCollection` 必须倒序(AP §5)。 */
+/** Newest first, which `OrderedCollection` requires (ActivityPub §5). */
 async function timeline(): Promise<Item[]> {
   const [posts, notes] = await Promise.all([allPosts(), allNotes()]);
   return [...posts.map(fromPost), ...notes.map(fromNote)].sort((a, b) =>
@@ -83,6 +67,17 @@ async function timeline(): Promise<Item[]> {
   );
 }
 
+/**
+ * One item, as an ActivityPub object.
+ *
+ * Built in one place because the outbox, the featured collection and the object
+ * dispatcher all need it. Two constructions would drift, and the drift would
+ * surface as a remote copy that disagrees with ours about our own post.
+ *
+ * The id and the url are different addresses on purpose. The blog cannot answer
+ * as both: its pages are static assets served ahead of the Worker, so a request
+ * for application/activity+json gets HTML no matter what it asked for.
+ */
 const note = (ctx: Context<void>, item: Item, tally = { replies: 0, likes: 0, shares: 0 }) => {
   const id = ctx.getObjectUri(Note, { identifier: AP.user, slug: item.slug });
   return new Note({
@@ -93,37 +88,30 @@ const note = (ctx: Context<void>, item: Item, tally = { replies: 0, likes: 0, sh
     // Public posts are addressed to the followers as well, which is how every
     // other implementation spells "public, and my followers should see it".
     cc: ctx.getFollowersUri(AP.user),
-    // Without this a reader has no date to sort by, and a receiving server
-    // supplies one of its own — so the same post is dated differently on every
-    // instance that holds it.
-    // Two Temporals, one runtime. Fedify's signature names an ambient global
-    // that does not exist in either runtime we deploy to — it rejects a string
-    // and requires a real Instant — while the polyfill it bundles produces one
-    // that works. The assertion is where those two identities are reconciled;
-    // measured, not assumed: a string throws, this does not.
+    // Without this a receiving server supplies a date of its own, and the same
+    // post is dated differently on every instance that holds it.
+    //
+    // The assertion reconciles two Temporals: Fedify's signature names an
+    // ambient global that exists in neither runtime we deploy to, while the
+    // polyfill it bundles produces an Instant that works. A string throws.
     published: Temporal.Instant.from(item.published) as unknown as ConstructorParameters<
       typeof Note
     >[0]["published"],
-    // The conversation under the post, which until now existed only in our
-    // database: replies arrived, were stored, and nothing said so. A reference
-    // rather than the items, with the count inline — that is what a reader uses
-    // to decide whether the collection is worth fetching.
-    // OrderedCollection, matching what the endpoint actually serves. A reference
-    // that names a different type than the resource behind it is the kind of
+    // A reference with the count inline, not the items: that is what a reader
+    // uses to decide whether the collection is worth fetching. The type must
+    // match what the endpoint serves — a reference naming a different type is a
     // disagreement only a strict client notices, and only in production.
     replies: new OrderedCollection({
       id: new URL(`${id.href}/replies`),
       totalItems: tally.replies,
     }),
-    // Counts, with no id — there is no endpoint behind them and a link to one
-    // that does not exist is the defect this whole pass was about. The spec
-    // makes both collections a MAY and only obliges a server to add to them
-    // "if this collection is present"; Mastodon publishes the same counts and
-    // answers 404 for the collections themselves, which is the shape a reader
-    // already expects.
+    // Counts with no id: there is no endpoint behind them, and advertising one
+    // that 404s is worse than advertising nothing. AS2 makes both collections a
+    // MAY and obliges a server to add to them only "if this collection is
+    // present".
     //
-    // Who liked or boosted a post stays unpublished. That is a decision, not an
-    // omission: the members are held in the database either way.
+    // So who liked or boosted a post stays unpublished, though it is held in
+    // the database either way.
     likes: new OrderedCollection({ totalItems: tally.likes }),
     shares: new OrderedCollection({ totalItems: tally.shares }),
     content: item.content,
@@ -144,27 +132,21 @@ const DELIVERED = "ap:delivered";
 /**
  * Send what has not been sent.
  *
- * Called when the outbox is built, for the same reason the actor announces
- * itself when the actor document is built: that is the moment the thing exists,
- * and it needs no timer to notice. In practice the trigger is the conformance
- * check, which fetches the outbox after every deploy.
+ * Only the slice the outbox publishes is considered: delivering something the
+ * outbox does not offer leaves a follower holding a post they cannot find in
+ * the collection it supposedly came from.
  *
- * Only the slice the outbox publishes is considered. Delivering something the
- * outbox does not offer would leave a follower holding a post they cannot find
- * in the collection it supposedly came from.
+ * Runs when the outbox is built, which after every deploy is the conformance
+ * check fetching it. See
+ * docs/decisions/0003-the-actor-announces-itself-when-it-is-built.md.
  */
 async function publishPending(ctx: Context<void>, activities: Create[]): Promise<void> {
   const recorded = await platform.get<string[]>(DELIVERED);
 
   // Nothing recorded means this actor has never delivered anything, which is
-  // not the same as everything being new. Sixteen years of archive arriving in
-  // one burst is how an account introduces itself badly, so a first run marks
-  // the existing posts as sent and sends none of them. Only what is written
-  // after this point is delivered.
-  //
-  // The opposite of the rule for the actor document, deliberately: announcing a
-  // changed actor costs one message, and going quiet there would leave every
-  // follower holding a stale copy.
+  // not the same as everything being new. A first run marks the existing posts
+  // as sent and sends none of them, so the archive does not arrive in one
+  // burst; only what is written after that point is delivered.
   if (recorded === null) {
     await platform.put(DELIVERED, activities.flatMap((a) => (a.objectId ? [a.objectId.href] : [])));
     return;
@@ -175,9 +157,9 @@ async function publishPending(ctx: Context<void>, activities: Create[]): Promise
   if (pending.length === 0) return;
 
   for (const activity of pending) {
-    // Recorded before sending, like the actor digest: a delivery that fails is
-    // retried by the queue, and a record written afterwards would be lost on
-    // the throw — leaving the post to be delivered again on the next build.
+    // Recorded before sending: the queue retries a failed delivery, and a
+    // record written afterwards would be lost on the throw, leaving the post to
+    // be delivered again on the next build.
     sent.add(activity.objectId!.href);
   }
   await platform.put(DELIVERED, [...sent]);
@@ -283,8 +265,8 @@ federation
     // reader asking for page three must not decide which posts the followers
     // have been sent.
     await publishPending(ctx, all);
-    // 和投递同一个时刻对账：这是每次部署之后一致性检查必然命中的地方，而关注
-    // 意图的变化也只可能来自一次部署。
+    // Reconciled at the same moment as delivery: a change of intent can only
+    // arrive by deploy, and the check fetches this after every one.
     await reconcileFollowing(ctx);
     await announceEdits(ctx, notes);
     return page(all, cursor);
@@ -295,12 +277,11 @@ federation
   .setFirstCursor(FIRST);
 
 /**
- * 置顶。
+ * Pinned posts — the only content a stranger sees without following and without
+ * waiting for the next publish.
  *
- * 只有长文能置顶:短文没有标题,而置顶的用处正是"让第一次看到这个账号的人知道
- * 这里写什么",一条没有标题的絮语担不起这个。
- *
- * 顺带这也是唯一一个不需要对方关注、也不需要等我们发新东西就能看到内容的地方。
+ * Long posts only: a note has no title, and what pinning is for is telling a
+ * first-time visitor what is written here.
  */
 federation.setFeaturedDispatcher(`/users/{identifier}/featured`, async (ctx, identifier) => {
   if (identifier !== AP.user) return null;
@@ -353,10 +334,9 @@ federation.setObjectDispatcher(
 /**
  * The replies under one post.
  *
- * The other half of the `replies` reference above: the count says how many, and
- * this is where they are. Items are the reply objects' own ids — they live on
- * the servers that wrote them, and re-serving their content here would make us
- * a second, diverging copy of someone else's words.
+ * Items are the reply objects' own ids. They live on the servers that wrote
+ * them, and re-serving their content here would make us a second, diverging
+ * copy of someone else's words.
  */
 federation.setOrderedCollectionDispatcher(
   "replies",
@@ -379,15 +359,13 @@ federation.setOrderedCollectionDispatcher(
 /**
  * NodeInfo.
  *
- * Registered here rather than in federation.ts because the post count comes from
- * the content. It was previously not registered at all, which left
- * /.well-known/nodeinfo advertising an empty list of links while the route it
- * would have pointed at answered 404 — a discovery document that discovered
- * nothing.
+ * Lives here, not in federation.ts, so the reported counts sit beside the
+ * timeline and window that determine them — moving it apart lets the two drift
+ * with nothing comparing them. Unregistering it leaves
+ * /.well-known/nodeinfo advertising a link whose route answers 404.
+ * See docs/decisions/0002.
  */
 federation.setNodeInfoDispatcher("/nodeinfo/2.1", async () => ({
-  // Federating, and not finished: the inbox still drops replies, boosts and
-  // likes on the floor. 0.0.x says that without pretending otherwise.
   software: { name: "blogu", version: "0.0.1" },
   protocols: ["activitypub"],
   usage: {
@@ -395,8 +373,8 @@ federation.setNodeInfoDispatcher("/nodeinfo/2.1", async () => ({
     // What the outbox actually publishes, not what the archive holds. Reporting
     // sixteen here while the outbox offers one describes two different servers.
     localPosts: (await timeline()).slice(0, window()).length,
-    // Zero, and honestly so: nothing inbound is stored yet. The inbox listens
-    // for Follow, Undo and Delete, and a reply arriving here is dropped.
+    // Replies are recorded, and this still reports none: the count is not
+    // wired to the comment store.
     localComments: 0,
   },
 }));

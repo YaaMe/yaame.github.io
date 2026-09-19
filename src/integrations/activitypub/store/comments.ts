@@ -1,9 +1,9 @@
 /**
  * Replies, as they arrive and as they are read back.
  *
- * The only file that queries the comments table. Everything is expressed through
- * Drizzle against the definitions in schema.ts, so a deployment that brings its
- * own database changes the driver and not this.
+ * The only file that queries the comments table. Everything goes through
+ * Drizzle, so a deployment that brings its own database changes the driver and
+ * nothing here.
  */
 import { and, asc, count, eq, inArray, isNull } from "drizzle-orm";
 import { platform } from "../../../platform";

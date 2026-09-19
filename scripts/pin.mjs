@@ -1,12 +1,13 @@
 #!/usr/bin/env node
 /**
- * 置顶一篇文章,或取消。
+ * Pin a post, or unpin it.
  *
  *   make pin 2025-year
  *   make unpin 2025-year
  *
- * 只改 frontmatter 里的一行。**不做 YAML 往返** —— 那会把整块 frontmatter 按
- * 库的口味重排一遍,而你写的顺序、空行、引号都是有意的。
+ * Edits one line of the frontmatter. **No YAML round-trip**: that would reorder
+ * and requote the whole block to a library's taste, and the order, blank lines
+ * and quoting there are deliberate.
  */
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
 
@@ -46,8 +47,8 @@ if (remove) {
   if (at >= 0) {
     head[at] = "pinned: true";
   } else {
-    // 放在 title 之后：它是关于这篇文章本身的，和标题一类，不该混在
-    // tags 或 description 中间。
+    // After the title: this is a fact about the post itself, not something to
+    // sit among the tags or the description.
     const title = head.findIndex((line) => /^title\s*:/.test(line));
     head.splice(title < 0 ? head.length : title + 1, 0, "pinned: true");
   }

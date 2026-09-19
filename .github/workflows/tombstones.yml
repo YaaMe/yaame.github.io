@@ -1,17 +1,19 @@
 name: Tombstones
 
-# 把「已经进了 git 而后被要求删除」的评论改成墓碑，开一个 PR 交给人决定。
+# Turn comments that reached git and were later withdrawn into tombstones, and
+# open a pull request for a person to decide on.
 #
-# 为什么要有这道弯：运行时收到 Delete 的那一刻就停止呈现了，但它改不了 git。
-# 而 CI 有 git 令牌、没有别的权限——这个分隔是有意的，所以由这里来做，
-# 且只是提议，不是合并。
+# The runtime stops serving them the moment the Delete arrives, but it cannot
+# write git. CI holds a git token and nothing else, which is the deliberate
+# split — so the work happens here, and only as a proposal.
 #
-# 一周一次就够：即时的那一半已经由运行时承担，这里慢几天只影响仓库，
-# 而仓库那一步本来就要人看。
+# Weekly is enough: the immediate half is the runtime's, and a few days here
+# only affects the repository, where a person has to look anyway.
 
 on:
   schedule:
-    # 周一早上，不取整点——每个写 cron 的人都写 0，那一刻的调度最挤。
+    # Monday morning, off the hour: everyone writes 0, and that minute is the
+    # most contended one in the schedule.
     - cron: "37 1 * * 1"
   workflow_dispatch:
 
@@ -45,40 +47,45 @@ jobs:
           node scripts/wrangler-config.mjs >/dev/null
           node scripts/tombstone.mjs
 
-      # 没有改动就什么都不做。空 PR 每周一个，比没有提醒更糟——几次之后
-      # 就没人看了，真有内容的那次也一起被忽略。
+      # Nothing to do means nothing happens. A weekly empty pull request is
+      # worse than no reminder: after a few, the one with content in it is
+      # ignored along with the rest.
       - name: Open or update the pull request
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           if git diff --quiet -- src/content/comments; then
-            echo "  没有要立碑的"
+            echo "  nothing to tombstone"
             exit 0
           fi
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          # 固定分支：同一批待办更新同一个 PR，而不是每周开一个新的。
+          # A fixed branch, so one batch updates one pull request instead of
+          # opening a new one every week.
           #
-          # 裸 --force，而仓库的规矩是永远不用它。这里是例外，因为这个分支不是
-          # 有人在上面工作的分支：它每次都从 main 重新生成同样的内容，内容本身
-          # 来自数据库，丢了再跑一次就有。
+          # A bare --force, where the standing rule is never to use one. The
+          # exception is narrow: nobody works on this branch. It is regenerated
+          # from main on every run out of data held in D1, so losing it costs
+          # one re-run.
           #
-          # --force-with-lease 在这里不但没保护到什么，还坏事：租约要和远端跟踪
-          # 引用比对，而 checkout 只拉了 main，没有那个引用时它失败关闭，报
-          # "stale info" —— 和有没有人改过那个分支毫无关系。
+          # --force-with-lease is worse than useless here: the lease compares
+          # against a remote-tracking ref, the checkout fetched only main, and
+          # without that ref it fails closed with "stale info" — which has
+          # nothing to do with anyone having touched the branch.
           #
-          # 代价说清楚：如果有人在合并前手动改了这个分支上的墓碑，下一次运行会
-          # 把它冲掉。真要改，改在 main 上。
+          # The cost, stated: a tombstone edited by hand on this branch before
+          # the merge is overwritten on the next run. Edit main instead.
           git switch -c comments/tombstones
           git add src/content/comments
           git commit -m "chore(comments): tombstone what has been withdrawn"
           git push --force origin comments/tombstones
 
-          # 「打开的」PR，不是「任何」PR。gh pr view 连已关闭的也找得到，于是一次
-          # 关闭之后这里就再也不开新的了 —— 分支照常推，PR 永远不出现，而这个
-          # job 报成功。
+          # Open pull requests, not any pull request. `gh pr view` finds closed
+          # ones too, so after a single close this would never open another:
+          # the branch still moves, no pull request appears, and the job
+          # reports success.
           open=$(gh pr list --head comments/tombstones --state open --json number --jq 'length')
           if [ "$open" = "0" ]; then
             gh pr create \
@@ -86,5 +93,5 @@ jobs:
               --title "Comments withdrawn by their authors" \
               --body-file .github/tombstone-pr.md
           else
-            echo "  已有打开的 PR，分支已更新"
+            echo "  an open pull request already exists; branch updated"
           fi
