@@ -1,7 +1,7 @@
 import { createFederation, importJwk, type RequestContext } from "@fedify/fedify";
 // The vocabulary classes live on their own subpath — the root entry re-exports
 // the machinery, not the ActivityStreams types.
-import { Person, Follow, Undo, Accept, Announce, Create, Delete, Like, Note, Update, Endpoints, Image, PropertyValue } from "@fedify/fedify/vocab";
+import { Person, Follow, Undo, Accept, Announce, Create, Delete, Like, Note, Reject, Update, Endpoints, Image, PropertyValue } from "@fedify/fedify/vocab";
 import { configure, getConsoleSink } from "@logtape/logtape";
 import { platform } from "../../platform";
 import { AP } from "./config";
@@ -242,6 +242,9 @@ const readFollowers = async (): Promise<Follower[]> => {
   return stored.map((f) => (typeof f === "string" ? { id: f, inbox: `${f}/inbox` } : f));
 };
 
+const readFollowing = async (): Promise<string[]> =>
+  (await platform.get<string[]>("ap:following")) ?? [];
+
 federation
   .setInboxListeners(`/users/{identifier}/inbox`, "/inbox")
   // Fedify has already verified the signature and that the sender speaks for
@@ -359,8 +362,12 @@ federation
     // The account itself. Without this the follower stays on the list for good,
     // and every post is delivered to an inbox that no longer exists.
     if (del.objectId.href === del.actorId.href) {
-      const list = await readFollowers();
-      await platform.put("ap:followers", list.filter((f) => f.id !== del.actorId!.href));
+      const gone = del.actorId.href;
+      // 两边都要摘。只摘 followers 的话，我们会继续对外声称关注着一个已经不
+      // 存在的人，而那个集合是公开的。
+      const [followers, following] = await Promise.all([readFollowers(), readFollowing()]);
+      await platform.put("ap:followers", followers.filter((f) => f.id !== gone));
+      await platform.put("ap:following", following.filter((href) => href !== gone));
       return;
     }
 
@@ -368,6 +375,34 @@ federation
     // representation; the row survives as a record that something was here, and
     // if it was carried into git the removal there is raised against it.
     await remove(del.objectId.href, del.actorId.href);
+  })
+  // 对方同意了我们的关注请求。
+  //
+  // 这半边缺了的话，`ap:following` 永远是空的 —— 我们发得出 Follow，却记不下
+  // 谁答应了，于是那个集合对外撒谎。
+  .on(Accept, async (ctx, accept) => {
+    const object = await accept.getObject();
+    if (!(object instanceof Follow) || !accept.actorId) return;
+
+    // 被同意的必须是**我们发出的**那条 Follow。少了这一句，任何人都能发一条
+    // Accept 让我们把陌生人记成「已关注」。
+    if (object.actorId?.href !== ctx.getActorUri(AP.user).href) return;
+    // 而且同意的人得是被关注的那一个：签名者说了算，但它要和 Follow 的对象一致，
+    // 否则就是甲替乙答应。
+    if (object.objectId && object.objectId.href !== accept.actorId.href) return;
+
+    const list = await readFollowing();
+    if (list.includes(accept.actorId.href)) return;
+    await platform.put("ap:following", [accept.actorId.href, ...list]);
+  })
+  // 拒绝，或者事后收回同意。两种都是「别把我算进去」，处理成同一件事。
+  .on(Reject, async (ctx, reject) => {
+    const object = await reject.getObject();
+    if (!(object instanceof Follow) || !reject.actorId) return;
+    if (object.actorId?.href !== ctx.getActorUri(AP.user).href) return;
+
+    const list = await readFollowing();
+    await platform.put("ap:following", list.filter((href) => href !== reject.actorId!.href));
   })
   .on(Undo, async (_ctx, undo) => {
     const object = await undo.getObject();
@@ -427,9 +462,6 @@ federation.setFollowersDispatcher(`/users/{identifier}/followers`, async (_ctx, 
  * handler would one day write means the answer stops being empty on its own,
  * rather than needing this to be found and changed.
  */
-
-const readFollowing = async (): Promise<string[]> =>
-  (await platform.get<string[]>("ap:following")) ?? [];
 
 federation
   .setFollowingDispatcher(`/users/{identifier}/following`, async (_ctx, identifier, cursor) => {
