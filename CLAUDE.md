@@ -92,26 +92,93 @@ make tags      the registry and its usage counts
 
 ## Language
 
-**Commit messages and code comments in English. UI text and documentation in
-Chinese** — the site is Chinese, so nav labels, tag labels, pagination and
-prose stay as they are.
+**English for everything the repository says about itself** — commit messages,
+code comments, `docs/`, this file. **Chinese for everything the site says to a
+reader** — nav labels, tag labels, pagination, and the prose in
+`src/content/`.
+
+The split is by audience, not by file type: a reader of the blog gets Chinese,
+a reader of the repository gets English.
+
+## Where a piece of information belongs
+
+Four channels, and a fact belongs to exactly one. The question is always *who
+needs this, and what do they lose if it is missing*.
+
+| Channel | Reader | Answers | Rots into |
+|---|---|---|---|
+| `README.md` | a person, arriving | what this is, how to run it | nobody can start |
+| `CLAUDE.md` | an agent, every session | what must not be done, and where the boundaries are | the rule is broken every time |
+| `docs/decisions/` | either, before reworking an area | why the rejected option was rejected | a settled argument is reopened |
+| a code comment | whoever edits this line | what breaks if the line changes | the next editor breaks it |
+
+An agent starts every session with no memory of this repository and cannot see
+the running site. Anything it must not do, and anything only visible at
+runtime, has to be written down or it does not exist.
+
+**Before adding to `CLAUDE.md`, ask whether the code already says it.** Commands
+live in the `Makefile`; structure lives in the tree. This file is for what
+cannot be derived — the two architectural rules are the model: nothing reports
+a violation, so the rule has to be stated.
+
+## Comments
+
+**Default to none.** Names and types say *what*; the code says *how*. A comment
+earns its place only by saying what the next editor cannot see:
+
+- **Consequence** — what breaks, and where it surfaces. *"The two documents must
+  agree. Changing either means changing both."*
+- **Constraint** — an invariant the compiler does not enforce.
+- **An absence** — why something expected is not here. *"No `actorId` constant
+  here on purpose: a second copy would agree today and diverge the moment the
+  route pattern changes, without anything reporting it."*
+
+**Do not argue design in code.** Which pattern was chosen, what was tried first,
+which alternative was weighed — that is `docs/decisions/`. A comment may state
+the consequence of the decision; the reasoning behind it belongs where it can be
+read whole and superseded cleanly.
+
+Four things never go in a comment:
+
+1. **The code's own history.** "Used to be", "previously", "no longer
+   registered" — true only until the next change, and stale silently. Describe
+   the constraint as it stands. *Runtime state that no longer holds — an inbox
+   that no longer exists — is not history; it is the consequence, and belongs.*
+2. **A named call site.** "Mirrors the X hook", "matches the Y selector" — the
+   name changes and the comment becomes a false lead. Describe the constraint,
+   not the caller.
+3. **Section dividers.** `// ---- helpers ----` is navigation noise. Needing one
+   means the file should be split.
+4. **Narration.** Restating the line below it, or the assertion in a test.
+
+Before keeping one: *remove it — does the next reader lose something the code
+does not contain?* If not, drop it.
 
 ## Commit messages
 
-Follow the house style:
+Conventional Commits, and the subject is a sentence saying what is now true:
 
 ```
-[Domain]: A sentence saying what changed
-
-One or two paragraphs on why, when the why is not obvious.
+feat(ap): pinned posts, which is what a stranger sees first
+fix(ap): unfollow is its own target
+docs: record the one bare force-push and why
 ```
 
-`Domain` is the area touched — `Content`, `Design`, `Data`, `Build`, `Docs`,
-`Chore`. The subject is a sentence, not an imperative fragment.
+`type` is `feat`, `fix`, `docs`, `chore`, `ci`, `build`, `refactor` or `test`;
+`scope` is optional and names the area (`ap`, `ci`, `comments`). **Not an
+imperative fragment** — `fix: unfollow is its own target`, not `fix: fix the
+unfollow target`.
 
 **Keep it short.** A subject alone is usually enough; two or three lines of body
 when the reason is not visible in the diff. The commit says why, not what — the
 diff already says what, and at length it stops being read.
+
+**Never let `close`, `fix` or `resolve`, in any inflection, sit immediately
+before an issue reference you do not mean to close.** GitHub matches the two
+adjacent tokens anywhere in the body and reads no negation and no possessive, so
+a sentence explaining why an issue must stay open will close it. Write *Filed,
+not addressed here: `#<n>`*, and put a word between the keyword and the number.
+Scan before posting: `rg -n -i '(clos|fix|resolv)\w*:?\s+#\d'`.
 
 Staging discipline is mandatory: name every path, never `git add -A/./-u`,
 and read `git diff --cached --stat` before committing.
