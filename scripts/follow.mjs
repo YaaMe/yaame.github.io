@@ -3,7 +3,7 @@
  * 关注一个人,或取消关注。
  *
  *   make follow @someone@example.com
- *   make follow -@someone@example.com    前面加减号表示取关
+ *   make unfollow @someone@example.com
  *
  * 只写配置,不发任何东西。真正的 Follow 由 Worker 发出 —— 签名只能在那里发生,
  * 而终端没有密钥(这是有意的)。
@@ -15,15 +15,16 @@
 import { readFileSync, writeFileSync } from "node:fs";
 
 const FILE = "src/integrations/activitypub/following.json";
-const arg = process.argv.slice(2).join("").trim();
+// --remove 由 make unfollow 传进来。不用「handle 前面加减号」那种写法：
+// make 会把开头的 - 当成自己的选项，命令根本到不了这里。
+const args = process.argv.slice(2);
+const remove = args[0] === "--remove";
+const handle = args.slice(remove ? 1 : 0).join("").trim().replace(/^@/, "");
 
-if (!arg) {
-  console.error("  用法：make follow @someone@example.com   （前面加 - 表示取关）");
+if (!handle) {
+  console.error("  用法：make follow @someone@example.com   /   make unfollow @someone@example.com");
   process.exit(1);
 }
-
-const remove = arg.startsWith("-");
-const handle = arg.replace(/^-/, "").replace(/^@/, "");
 
 if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(handle)) {
   console.error(`  不像一个 handle：${handle}`);
