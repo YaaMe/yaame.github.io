@@ -22,7 +22,7 @@ const ROLE: Record<string, string> = {
   guest: "访客",
 };
 ---
-<Base title={`登录 · ${site.title}`}>
+<Base title={`login · ${site.title}`}>
   <h1>login</h1>
 
   {error && <p class="error">{WHY[error] ?? "登录没有完成。"}</p>}
@@ -30,17 +30,16 @@ const ROLE: Record<string, string> = {
   {session ? (
     <div class="who">
       <p>
-        已登录为 <strong>{session.name ?? session.login}</strong>
+        <strong>{session.name ?? session.login}</strong>
         <span class="at">@{session.login}</span>
+        <span class="role">{ROLE[session.role]}</span>
       </p>
-      <p class="role">{ROLE[session.role]}</p>
       <form method="post" action="/auth/logout">
         <button type="submit">登出</button>
       </form>
     </div>
   ) : (
     <div class="who">
-      <p class="lede">登录只用来确认你是谁。除了站长和名单内的人，其余一切照旧。</p>
       <a class="button" href="/auth/github">用 GitHub 登录</a>
     </div>
   )}
@@ -48,9 +47,8 @@ const ROLE: Record<string, string> = {
   <style>
     h1 { margin: 0 0 1.5em; font-size: 1.8em; }
     .who p { margin: 0 0 .8em; }
-    .lede { color: var(--muted); }
     .at { margin-inline-start: .5em; color: var(--muted); }
-    .role { color: var(--muted); font-size: .9em; }
+    .role { margin-inline-start: .8em; color: var(--muted); font-size: .9em; }
     .error { margin: 0 0 1.5em; padding: .8em 1em; border: 1px solid var(--rule);
              color: var(--muted); }
     .button, button { display: inline-block; margin-block-start: .5em;
