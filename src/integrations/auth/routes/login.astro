@@ -59,4 +59,12 @@ const ROLE: Record<string, string> = {
                       text-decoration: none; cursor: pointer; }
     .button:hover, button:hover { border-color: var(--accent); color: var(--accent); }
   </style>
+  <script is:inline set:html={`
+    // The authoritative page writes what the others read. A session that ends
+    // server-side leaves this behind until the next visit here, which is why
+    // it decides nothing.
+    try {
+      ${session ? `localStorage.setItem("session", ${JSON.stringify(session.login)})` : 'localStorage.removeItem("session")'};
+    } catch {}
+  `} />
 </Base>

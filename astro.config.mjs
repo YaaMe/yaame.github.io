@@ -45,13 +45,6 @@ export default defineConfig({
     resolve: {
       alias: {
         "virtual:platform": `/src/platform/${TARGET}.ts`,
-        // The static profile gets the component that renders nothing. Guarding
-        // the island with a condition would leave it in the module graph, and
-        // a `server:defer` anywhere in the graph makes the build emit a server
-        // entry — which that profile is defined by not having.
-        "virtual:session": PROFILE === "full"
-          ? "/src/integrations/auth/Session.astro"
-          : "/src/integrations/auth/Session.off.astro",
       },
     },
   },

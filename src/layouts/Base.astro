@@ -1,7 +1,6 @@
 ---
 import "../styles/tokens.css";
 import { site, nav, social, features, other } from "../site.config";
-import Session from "virtual:session";
 interface Props { title: string; description?: string }
 const { title, description } = Astro.props;
 
@@ -35,7 +34,26 @@ const canonical = new URL(
       <a class="brand" href="/">{site.title}</a>
       <nav>
         {nav.slice(1).map((n) => <a href={n.href}>{n.label}</a>)}
-        <Session />
+        {features.auth && (
+          <>
+            <a id="session" href="/login">login</a>
+            <script is:inline>
+              // Inline and immediately after the element, so it runs while the
+              // header is being parsed and before anything is painted — the
+              // same reason the theme script is where it is. Deferring this,
+              // or fetching it, is what made every navigation flash `login`
+              // before the name arrived.
+              //
+              // Written by /login, which is the only page that knows. This is
+              // a display hint and nothing reads it as evidence of anything:
+              // every privileged path asks the server, which asks the session.
+              try {
+                const who = localStorage.getItem("session");
+                if (who) document.getElementById("session").textContent = "@" + who;
+              } catch {}
+            </script>
+          </>
+        )}
         {features.darkMode && <button id="theme" type="button" aria-label="切换明暗">◐</button>}
       </nav>
     </header>
