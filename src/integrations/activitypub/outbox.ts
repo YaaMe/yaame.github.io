@@ -374,8 +374,10 @@ federation.setNodeInfoDispatcher("/nodeinfo/2.1", async () => ({
     // What the outbox actually publishes, not what the archive holds. Reporting
     // sixteen here while the outbox offers one describes two different servers.
     localPosts: (await timeline()).slice(0, window()).length,
-    // Replies are recorded, and this still reports none: the count is not
-    // wired to the comment store.
+    // Zero because the field counts comments written by users registered
+    // here, and the one account here writes posts rather than comments. Every
+    // row in the comments table was written by someone on another server, and
+    // counting those would report another server's users as ours.
     localComments: 0,
   },
 }));
