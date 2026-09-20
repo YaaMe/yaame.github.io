@@ -13,12 +13,6 @@ export const prerender = false;
  * session the visitor never asked for.
  */
 export const GET: APIRoute = ({ request }) => {
-  if (!AUTH.clientId) {
-    // Refusing beats redirecting to a GitHub page that explains our
-    // misconfiguration to the visitor.
-    return new Response("登录未配置：AUTH.clientId 是空的", { status: 503 });
-  }
-
   const state = crypto.randomUUID();
   const authorize = new URL("https://github.com/login/oauth/authorize");
   authorize.searchParams.set("client_id", AUTH.clientId);

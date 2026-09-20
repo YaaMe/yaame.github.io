@@ -34,8 +34,9 @@ The decision cannot be made correctly here, so it is not made here at all.
 ## Consequences
 
 - A deploy with the secret unset fails loudly and immediately, which is the
-  intent. `scripts/secrets.mjs` checks for it ahead of the deploy so the failure
-  arrives before the Worker is replaced rather than after.
+  intent. `wrangler.jsonc.template` declares it under `secrets.required`, so
+  wrangler refuses to deploy a Worker that cannot sign instead of shipping one
+  that fails on its first request.
 - Rotating the key is a deliberate act with a known cost: every follower must
   re-fetch the actor. There is no path that does it by accident.
 - No automation may write this secret. Nothing in CI has it, and nothing in the

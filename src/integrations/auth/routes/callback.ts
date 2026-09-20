@@ -35,8 +35,10 @@ export const GET: APIRoute = async ({ request }) => {
   if (!state || !expected || state !== expected) return fail("state");
   if (!code) return fail("code");
 
+  // The client id is a literal in this repository; the secret is placed by
+  // hand on the Worker and is the half that can actually be missing.
   const secret = platform.secret("GITHUB_CLIENT_SECRET");
-  if (!AUTH.clientId || !secret) return fail("config");
+  if (!secret) return fail("config");
 
   let token: string | undefined;
   try {

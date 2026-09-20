@@ -1,15 +1,11 @@
 ---
 import Base from "../../../layouts/Base.astro";
 import { site } from "../../../site.config";
-import { AUTH } from "../config";
 import { current } from "../session";
 
 export const prerender = false;
 
 const session = await current(Astro.request);
-// No client id means no OAuth App yet. Saying so beats a button that leads to
-// a 503, and beats one that leads to GitHub explaining our misconfiguration.
-const ready = AUTH.clientId !== "";
 const error = Astro.url.searchParams.get("error");
 
 const WHY: Record<string, string> = {
@@ -45,9 +41,7 @@ const ROLE: Record<string, string> = {
   ) : (
     <div class="who">
       <p class="lede">登录只用来确认你是谁。除了站长和名单内的人，其余一切照旧。</p>
-      {ready
-        ? <a class="button" href="/auth/github">用 GitHub 登录</a>
-        : <p class="error">登录还没有配置完成，暂时进不来。</p>}
+      <a class="button" href="/auth/github">用 GitHub 登录</a>
     </div>
   )}
 

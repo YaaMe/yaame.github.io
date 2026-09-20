@@ -16,7 +16,7 @@ export const AUTH = {
    * matters is `GITHUB_CLIENT_SECRET`, which is a Worker secret and is in no
    * file here.
    */
-  clientId: "",
+  clientId: "Ov23liS07tFJ9uUm7g3n",
 
   /**
    * Identified by number, never by login.

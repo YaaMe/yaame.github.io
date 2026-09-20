@@ -14,7 +14,7 @@
   //
   // The value is placed by hand with `wrangler secret put`; nothing that builds
   // or deploys this ever reads it.
-  "secrets": { "required": ["AP_KEY_JWK"] },
+  "secrets": { "required": ["AP_KEY_JWK", "GITHUB_CLIENT_SECRET"] },
 
   "assets": { "directory": "./dist/client", "binding": "ASSETS" },
 
