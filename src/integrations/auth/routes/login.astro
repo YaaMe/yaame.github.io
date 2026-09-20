@@ -30,8 +30,7 @@ const ROLE: Record<string, string> = {
   {session ? (
     <div class="who">
       <p>
-        <strong>{session.name ?? session.login}</strong>
-        <span class="at">@{session.login}</span>
+        <strong>@{session.login}</strong>
         <span class="role">{ROLE[session.role]}</span>
       </p>
       <form method="post" action="/auth/logout">
@@ -47,7 +46,6 @@ const ROLE: Record<string, string> = {
   <style>
     h1 { margin: 0 0 1.5em; font-size: 1.8em; }
     .who p { margin: 0 0 .8em; }
-    .at { margin-inline-start: .5em; color: var(--muted); }
     .role { margin-inline-start: .8em; color: var(--muted); font-size: .9em; }
     .error { margin: 0 0 1.5em; padding: .8em 1em; border: 1px solid var(--rule);
              color: var(--muted); }

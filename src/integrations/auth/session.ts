@@ -1,11 +1,17 @@
 import { platform } from "../../platform";
 import { AUTH, roleOf, type Role } from "./config";
 
+/**
+ * Only what is used.
+ *
+ * GitHub also hands back a real name and an avatar. Neither is shown, and
+ * keeping a person's legal name because it arrived is collecting it for no
+ * reason. The avatar costs nothing to drop either: its address is derivable
+ * from the id.
+ */
 export type Session = {
   userId: number;
   login: string;
-  name?: string;
-  avatar?: string;
   createdAt: string;
   expiresAt: string;
 };
@@ -60,20 +66,13 @@ export const clearStateCookie = () => `${STATE}=; ${attrs(0, "/auth")}`;
 export const readStateCookie = (req: Request) =>
   cookie(req.headers.get("cookie"), STATE);
 
-export async function create(user: {
-  id: number;
-  login: string;
-  name?: string;
-  avatar?: string;
-}): Promise<string> {
+export async function create(user: { id: number; login: string }): Promise<string> {
   const id = token();
   const now = new Date();
   const expires = new Date(now.getTime() + AUTH.sessionDays * 86400_000);
   const session: Session = {
     userId: user.id,
     login: user.login,
-    ...(user.name ? { name: user.name } : {}),
-    ...(user.avatar ? { avatar: user.avatar } : {}),
     createdAt: now.toISOString(),
     expiresAt: expires.toISOString(),
   };

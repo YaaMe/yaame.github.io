@@ -61,7 +61,7 @@ export const GET: APIRoute = async ({ request }) => {
   }
   if (!token) return fail("exchange");
 
-  let user: { id: number; login: string; name?: string; avatar_url?: string };
+  let user: { id: number; login: string };
   try {
     const res = await fetch("https://api.github.com/user", {
       headers: {
@@ -78,12 +78,7 @@ export const GET: APIRoute = async ({ request }) => {
   }
   if (typeof user.id !== "number" || !user.login) return fail("user");
 
-  const id = await create({
-    id: user.id,
-    login: user.login,
-    ...(user.name ? { name: user.name } : {}),
-    ...(user.avatar_url ? { avatar: user.avatar_url } : {}),
-  });
+  const id = await create({ id: user.id, login: user.login });
 
   // Two cookies: the session is set and the state is spent. A state left
   // behind is a second chance at a replay it already survived.
