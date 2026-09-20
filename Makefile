@@ -78,8 +78,8 @@ follow: ## 关注一个人。make follow @someone@example.com
 unfollow: ## 取关。make unfollow @someone@example.com
 	@node scripts/follow.mjs --remove $(filter-out $@,$(MAKECMDGOALS)) $(if $(T),"$(T)",)
 
-po: ## 写一条短文。make po 正文 / make po T="正文"
-	@node scripts/note.mjs $(if $(T),"$(T)",$(PO))
+po: ## 写一条短文。make po 正文 / T="正文" / F=draft.md（APPLY=1 才动手）
+	@node scripts/note.mjs $(if $(T),"$(T)",$(PO)) $(if $(F),--file "$(F)",)
 
 newpost: ## 新建文章。P=2026-year / P=2026-09 / P=2026-09-15，T=标题
 	@node scripts/newpost.mjs $(P) $(if $(T),--title "$(T)",)
