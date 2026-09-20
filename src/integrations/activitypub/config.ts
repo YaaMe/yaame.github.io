@@ -37,6 +37,35 @@ export const AP = {
   published: 0,
 
   /**
+   * When this actor came into being.
+   *
+   * Absent, every server substitutes the moment it first fetched us, so the
+   * same account shows a different join date on each one — a server that
+   * discovers us in 2028 says we joined in 2028.
+   *
+   * The value is the first successful deploy rather than the first commit or
+   * the key's creation: before that the document could not be fetched, and an
+   * actor nobody can fetch does not yet exist.
+   *
+   * Named `since` because `published` above is taken, and means something
+   * unrelated — the outbox window.
+   */
+  since: "2026-09-17T08:40:50Z",
+
+  /**
+   * Whether a follow has to be approved.
+   *
+   * `false`, and the inbox agrees with it: every Follow is answered with an
+   * Accept as it arrives.
+   *
+   * TODO: `true` is not a configuration change. It needs the automatic Accept
+   * removed, the pending requests stored, and some way to approve them.
+   * Without those this advertises a lock that is not on the door, and a
+   * follower waits for an approval nothing will ever ask for.
+   */
+  manuallyApprovesFollowers: false,
+
+  /**
    * The blog this actor points at.
    *
    * Fixed rather than taken from site.url, which follows the build profile:

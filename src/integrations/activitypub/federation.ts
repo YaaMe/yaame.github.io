@@ -1,4 +1,5 @@
 import { createFederation, importJwk, type RequestContext } from "@fedify/fedify";
+import { Temporal } from "@js-temporal/polyfill";
 import { Person, Follow, Undo, Accept, Announce, Create, Delete, Like, Note, Reject, Update, Endpoints, Image, PropertyValue, isActor, type Actor } from "@fedify/fedify/vocab";
 import { configure, getConsoleSink } from "@logtape/logtape";
 import { platform } from "../../platform";
@@ -266,6 +267,14 @@ federation
       outbox: ctx.getOutboxUri(identifier),
       discoverable: AP.discoverable,
       indexable: AP.indexable,
+      // The assertion reconciles two Temporals, as the notes' `published` does:
+      // Fedify's signature names an ambient global that exists in neither
+      // runtime we deploy to, while the polyfill it bundles produces an Instant
+      // that works. A string throws.
+      published: Temporal.Instant.from(AP.since) as unknown as ConstructorParameters<
+        typeof Person
+      >[0]["published"],
+      manuallyApprovesFollowers: AP.manuallyApprovesFollowers,
       // The only way a new visitor sees anything at once: Mastodon never
       // backfills a remote outbox, and fetches this collection when it
       // processes the actor.
