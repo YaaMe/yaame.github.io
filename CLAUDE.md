@@ -9,7 +9,7 @@ Two, and they are the same shape: put what changes behind one door, so the rest
 of the tree does not have to know it changed.
 
 **One — the design layer must not import `astro:content`.** It reads from
-`src/lib/posts.ts` and nothing else.
+`src/lib/` and nothing else.
 
 ```
 data layer — untouched by a redesign
@@ -17,7 +17,8 @@ data layer — untouched by a redesign
   src/content.config.ts   field definitions, tag validation
   src/tags.ts             the tag registry
   src/site.config.ts      identity, navigation, links
-  src/lib/posts.ts        the only data export
+  src/lib/posts.ts        posts, tags, the novel
+  src/lib/notes.ts        notes, and the permalink they publish
   scripts/*.mjs           fill, check, create
   Makefile
 
@@ -243,8 +244,18 @@ invocation.
 
 ## URL contract
 
-`/posts/{slug}/`, `/tags/{tag}/`, `/komorebi/`. Trailing slashes always.
-Changing these is an externally breaking change, not a refactor.
+`/posts/{slug}/`, `/tags/{tag}/`, `/komorebi/`, `/notes/`, `/notes/{year}/`.
+Trailing slashes always. Changing these is an externally breaking change, not
+a refactor.
+
+`/notes/{year}/#{id}` is stricter than the rest: it is the `url` a note
+publishes to the fediverse, so it is in other people's databases and cannot be
+taken back. Notes may be added to a year; nothing already in one may move.
+See `docs/decisions/0009`.
+
+**A post has a title and a note does not** — that, not length, is the line
+between the two collections, and `content.config.ts` enforces it. A short
+titled piece is a post.
 
 ## Not in version control
 

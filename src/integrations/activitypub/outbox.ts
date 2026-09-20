@@ -16,8 +16,9 @@ import { counts as reactionCounts } from "./store/reactions";
 import { FIRST, page } from "./paging";
 import { AP } from "./config";
 import { allPosts, href, type Post } from "../../lib/posts";
-import { allNotes } from "../../lib/notes";
-import { marked } from "marked";
+// Aliased: `Note` here is Fedify's protocol object, and the content entry that
+// becomes one needs a different name.
+import { allNotes, noteHref, noteHtml, type Note as NoteEntry } from "../../lib/notes";
 
 const PUBLIC = new URL("https://www.w3.org/ns/activitystreams#Public");
 
@@ -35,8 +36,8 @@ type Item = {
   published: string;
   /** Already HTML. */
   content: string;
-  /** Where a person reads it. Notes have no page of their own yet. */
-  url?: URL;
+  /** Where a person reads it. */
+  url: URL;
 };
 
 const fromPost = (post: Post): Item => {
@@ -52,11 +53,11 @@ const fromPost = (post: Post): Item => {
   };
 };
 
-const fromNote = (n: { id: string; published: string; content: string }): Item => ({
+const fromNote = (n: NoteEntry): Item => ({
   slug: n.id,
   published: n.published,
-  // Rendered, not passed through: an unparsed link shows as a bare URL.
-  content: marked.parse(n.content, { async: false }) as string,
+  content: noteHtml(n),
+  url: new URL(noteHref(n), AP.blogUrl),
 });
 
 /** Newest first, which `OrderedCollection` requires (ActivityPub §5). */
@@ -83,7 +84,7 @@ const note = (ctx: Context<void>, item: Item, tally = { replies: 0, likes: 0, sh
   return new Note({
     id,
     attribution: ctx.getActorUri(AP.user),
-    ...(item.url ? { url: item.url } : {}),
+    url: item.url,
     to: PUBLIC,
     // Public posts are addressed to the followers as well, which is how every
     // other implementation spells "public, and my followers should see it".

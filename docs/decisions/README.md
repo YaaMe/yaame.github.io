@@ -68,3 +68,4 @@ as they are. New decisions land here.
 | [0006](0006-promoted-comments-are-stored-as-text.md) | Promoted comments are stored as text, not as the sender's markup |
 | [0007](0007-interactions-live-in-a-database-the-host-provides.md) | Interactions live in a database the host provides |
 | [0008](0008-post-urls-carry-the-slug-alone.md) | Post URLs carry the slug alone |
+| [0009](0009-note-urls-are-a-year-archive-and-an-anchor.md) | A note's address is a year archive and an anchor |

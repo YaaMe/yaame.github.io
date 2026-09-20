@@ -1,9 +1,11 @@
 ---
 import Base from "../layouts/Base.astro";
 import { allPosts, href, periodYear, chapterCount } from "../lib/posts";
+import { allNotes } from "../lib/notes";
 import { site, hero } from "../site.config";
 
 const posts = await allPosts();
+const notes = await allNotes();
 
 // Summaries, grouped by the year in the filename — the period covered, not
 // the publication date. Sorted within a group by the same key, so the order
@@ -35,6 +37,7 @@ const chapters = await chapterCount();
       {others.length > 0 && <>、<a href="#others">{others.length} 篇随笔</a></>}
       {chapters > 0 && <>，和一部 <a href="/komorebi/">{chapters} 章</a>还在写的小说</>}
       。
+      {notes.length > 0 && <>另有 <a href="/notes/">{notes.length} 条</a>没有标题的短文。</>}
     </p>
   </section>
 

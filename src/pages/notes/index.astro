@@ -1,0 +1,42 @@
+---
+import Base from "../../layouts/Base.astro";
+import NoteList from "../../components/NoteList.astro";
+import { allNotes, noteYears } from "../../lib/notes";
+import { site } from "../../site.config";
+
+const LATEST = 20;
+
+const notes = await allNotes();
+const years = await noteYears();
+const shown = notes.slice(0, LATEST);
+
+// No anchors here, and no pagination. The permalink a note publishes points
+// into its year archive, so this page is free to change shape without
+// stranding an address that is already in someone else's database.
+const archived = years.length > 1 || notes.length > shown.length;
+---
+<Base title={`notes · ${site.title}`}>
+  <h1>notes</h1>
+  <p class="lede">没有标题的那些。也投递给关注者。</p>
+
+  {notes.length === 0
+    ? <p class="empty">还没有。</p>
+    : <NoteList notes={shown} />}
+
+  {archived && (
+    <nav class="years" aria-label="归档">
+      {years.map((y) => <a href={`/notes/${y}/`}>{y}</a>)}
+    </nav>
+  )}
+
+  <style>
+    h1 { margin: 0 0 .3em; font-size: 1.8em; }
+    .lede { margin: 0 0 2em; color: var(--muted); }
+    .empty { color: var(--muted); }
+    .years { display: flex; flex-wrap: wrap; gap: 1.2em; margin-block-start: 2.5em;
+             font-variant-numeric: tabular-nums; }
+    .years a { color: var(--muted); text-decoration: none;
+               border-bottom: 1px solid var(--rule); }
+    .years a:hover { color: var(--accent); border-color: var(--accent); }
+  </style>
+</Base>

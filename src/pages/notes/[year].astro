@@ -1,0 +1,27 @@
+---
+import Base from "../../layouts/Base.astro";
+import NoteList from "../../components/NoteList.astro";
+import { allNotes, noteYears } from "../../lib/notes";
+
+export async function getStaticPaths() {
+  const notes = await allNotes();
+  return (await noteYears()).map((year) => ({
+    params: { year },
+    props: { year, notes: notes.filter((n) => n.year === year) },
+  }));
+}
+
+const { year, notes } = Astro.props;
+---
+<Base title={`notes ${year}`}>
+  <h1>notes <span>{year}</span></h1>
+  <NoteList notes={notes} anchors />
+  <p class="back"><a href="/notes/">← 全部</a></p>
+  <style>
+    h1 { margin: 0 0 1.5em; font-size: 1.8em; }
+    h1 span { color: var(--muted); font-variant-numeric: tabular-nums; }
+    .back { margin-block-start: 2.5em; }
+    .back a { color: var(--muted); text-decoration: none; }
+    .back a:hover { color: var(--accent); }
+  </style>
+</Base>
