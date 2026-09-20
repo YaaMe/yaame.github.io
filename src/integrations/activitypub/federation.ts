@@ -90,6 +90,31 @@ const OURS = `https://${AP.actorHost}/users/${AP.user}/notes/`;
 const ours = (id: string) => id.startsWith(OURS);
 
 /**
+ * Why a follower is no longer on the list.
+ *
+ * A removal otherwise leaves only a log line, and a log expires. "The follower
+ * count dropped" then has three answers — written off, account deleted,
+ * unfollowed — and no way to tell which, which is exactly the question that
+ * gets asked and cannot be answered.
+ *
+ * Capped, because this grows without anything trimming it and only the recent
+ * entries answer anything. Read-modify-write on a KV key is not atomic and two
+ * departures in the same instant can lose one; that is the same race the
+ * follower list itself already runs, and a lost diagnostic costs less than the
+ * lost follower it describes.
+ */
+type Departure = { id: string; reason: "unreachable" | "deleted" | "unfollowed"; at: string; detail?: string };
+
+const DEPARTURES = "ap:departures";
+const KEEP = 50;
+
+async function recordDeparture(id: string, reason: Departure["reason"], detail?: string): Promise<void> {
+  const seen: Departure[] = (await platform.get<Departure[]>(DEPARTURES)) ?? [];
+  const entry: Departure = { id, reason, at: new Date().toISOString(), ...(detail ? { detail } : {}) };
+  await platform.put(DEPARTURES, [entry, ...seen].slice(0, KEEP));
+}
+
+/**
  * Drop a follower whose inbox has been written off (ActivityPub §7.5).
  *
  * Without this the follower stays on the list and every later publish spends
@@ -100,11 +125,12 @@ const ours = (id: string) => id.startsWith(OURS);
  * particular follower — pruning on it would turn a remote outage into a silent
  * loss of the audience.
  */
-export async function dropFollowerByInbox(inbox: string): Promise<string | null> {
+export async function dropFollowerByInbox(inbox: string, reason?: string): Promise<string | null> {
   const list = await readFollowers();
   const gone = list.find((f) => f.inbox === inbox);
   if (!gone) return null;
   await platform.put("ap:followers", list.filter((f) => f.inbox !== inbox));
+  await recordDeparture(gone.id, "unreachable", reason);
   return gone.id;
 }
 
@@ -119,7 +145,7 @@ export async function dropFollowerByInbox(inbox: string): Promise<string | null>
  * The retry ceiling covers the other shape, an address that keeps timing out.
  */
 federation.setOutboxPermanentFailureHandler(async (_ctx, { reason, inbox, activity }) => {
-  const dropped = await dropFollowerByInbox(inbox.href);
+  const dropped = await dropFollowerByInbox(inbox.href, String(reason));
   console.warn("permanent delivery failure", {
     reason,
     inbox: inbox.href,
@@ -430,6 +456,7 @@ federation
       // Both lists. Dropping only from followers leaves us publicly claiming to
       // follow someone who no longer exists.
       const [followers, following] = await Promise.all([readFollowers(), readFollowing()]);
+      if (followers.some((f) => f.id === gone)) await recordDeparture(gone, "deleted");
       await platform.put("ap:followers", followers.filter((f) => f.id !== gone));
       await platform.put("ap:following", following.filter((href) => href !== gone));
       return;
@@ -479,7 +506,9 @@ federation
 
     if (object instanceof Follow) {
       const list = await readFollowers();
-      await platform.put("ap:followers", list.filter((f) => f.id !== undo.actorId!.href));
+      const who = undo.actorId.href;
+      if (list.some((f) => f.id === who)) await recordDeparture(who, "unfollowed");
+      await platform.put("ap:followers", list.filter((f) => f.id !== who));
       return;
     }
 
