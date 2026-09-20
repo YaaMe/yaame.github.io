@@ -24,7 +24,7 @@
  */
 import { execFileSync } from "node:child_process";
 import { readFileSync, existsSync, rmSync } from "node:fs";
-import { append, newId } from "./notes-store.mjs";
+import { append, newId, yearOf } from "./notes-store.mjs";
 
 const APPLY = process.env.APPLY === "1";
 const FORCE = process.env.FORCE === "1";
@@ -142,7 +142,7 @@ const from = source ? await fromFile(source) : { body: text, when: new Date(), d
 // while being an hour earlier. The outbox is an OrderedCollection, so the order
 // is the specification's business rather than a presentation choice.
 const published = from.when.toISOString().replace(/\.\d{3}Z$/, "Z");
-const year = from.when.getUTCFullYear();
+const year = yearOf(from.when);
 const id = newId();
 
 if (source) {

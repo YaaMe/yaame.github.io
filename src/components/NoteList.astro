@@ -7,14 +7,12 @@ interface Props {
   anchors?: boolean;
 }
 const { notes, anchors = false } = Astro.props;
-
-const stamp = (iso: string) => iso.slice(0, 10);
 ---
 <ul>
   {notes.map((n) => (
     <li id={anchors ? n.id : undefined}>
       <a class="stamp" href={noteHref(n)}>
-        <time datetime={n.published}>{stamp(n.published)}</time>
+        <time datetime={n.published}>{n.date.y}-{n.date.mo}-{n.date.d}</time>
       </a>
       <div class="body" set:html={noteHtml(n)} />
     </li>

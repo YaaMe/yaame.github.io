@@ -1,26 +1,41 @@
 import { getCollection } from "astro:content";
 import { marked } from "marked";
+import { site } from "../site.config";
+
+// Same formatter the posts use, so a note and a post written in the same hour
+// never show different dates.
+const ymd = new Intl.DateTimeFormat("en-CA", {
+  timeZone: site.timezone, year: "numeric", month: "2-digit", day: "2-digit",
+});
 
 /**
  * Notes, archived a file per year and read back as one stream.
  *
- * `year` is the archive it came from, not a year derived from `published`.
- * The two can disagree: a note written just after local midnight on 1 January
- * carries a UTC timestamp from the year before. Only the file is authoritative,
- * because the file is what the permalink is built from.
+ * `published` is stored UTC, which is the only form that sorts by string
+ * comparison; everything a reader sees is rendered in the site's timezone
+ * instead. `year` is the archive the note came from, and the writer files it by
+ * that same timezone — so the date on the page and the archive holding it never
+ * disagree, which they would at either end of a year if one of them used UTC.
  */
 export type Note = {
   id: string;
   published: string;
   content: string;
   year: string;
+  /** Rendered in `site.timezone`, like a post's. */
+  date: { y: string; mo: string; d: string };
 };
 
 /** Newest first, which `OrderedCollection` requires (ActivityPub §5). */
 export async function allNotes(): Promise<Note[]> {
   const years = await getCollection("notes");
   return years
-    .flatMap((year) => year.data.notes.map((n) => ({ ...n, year: year.id })))
+    .flatMap((year) =>
+      year.data.notes.map((n) => {
+        const [y, mo, d] = ymd.format(new Date(n.published)).split("-");
+        return { ...n, year: year.id, date: { y, mo, d } };
+      }),
+    )
     .sort((a, b) => b.published.localeCompare(a.published));
 }
 
