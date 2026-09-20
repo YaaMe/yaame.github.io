@@ -11,21 +11,6 @@ import { join } from "node:path";
 export const DIR = "src/content/notes";
 
 /**
- * The year an instant falls in, in the site's timezone.
- *
- * Read out of site.config.ts rather than imported: that file is TypeScript, and
- * pulling in a compiler to learn one string costs more than this. Failing when
- * it cannot be found is deliberate — a default would file notes under a zone
- * nobody chose, and the year decides the permalink.
- */
-export function yearOf(at) {
-  const src = readFileSync("src/site.config.ts", "utf8");
-  const zone = src.match(/timezone:\s*"([^"]+)"/)?.[1];
-  if (!zone) throw new Error("site.config.ts 里读不出 timezone");
-  return new Intl.DateTimeFormat("en-CA", { timeZone: zone, year: "numeric" }).format(at);
-}
-
-/**
  * The id is not the time.
  *
  * Several notes in one day are ordinary, so a timestamp cannot be an identity.
@@ -61,7 +46,6 @@ export function newId(taken = takenIds()) {
  *
  * `year` is the caller's to choose, and it decides the permalink: the site
  * builds `/notes/{year}/#{id}` from the filename, never from the timestamp.
- * Use `yearOf`, so the archive agrees with the date the page will show.
  */
 export function append(note, year) {
   const file = join(DIR, `${year}.json`);

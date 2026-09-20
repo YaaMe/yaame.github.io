@@ -11,11 +11,14 @@ const ymd = new Intl.DateTimeFormat("en-CA", {
 /**
  * Notes, archived a file per year and read back as one stream.
  *
- * `published` is stored UTC, which is the only form that sorts by string
- * comparison; everything a reader sees is rendered in the site's timezone
- * instead. `year` is the archive the note came from, and the writer files it by
- * that same timezone — so the date on the page and the archive holding it never
- * disagree, which they would at either end of a year if one of them used UTC.
+ * `published` is stored UTC, the only form that sorts by string comparison,
+ * and everything a reader sees is rendered in the site's timezone instead.
+ *
+ * `year` is the archive the note came from, and the writer files by the UTC
+ * year rather than that timezone — the address must not depend on a setting
+ * that can be edited. The two therefore disagree for a note written in the
+ * first hours of 1 January local time: it shows next year's date while living
+ * in this year's archive. See docs/decisions/0009.
  */
 export type Note = {
   id: string;

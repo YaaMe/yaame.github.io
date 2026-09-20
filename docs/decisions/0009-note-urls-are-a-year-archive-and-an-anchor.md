@@ -43,10 +43,16 @@ dangerous option rather than merely the wrong one.
 - Appending to a year is safe; moving anything already in one is not. A note
   may never be renumbered, re-dated into another archive, or paginated within
   its year.
-- The archive year comes from the filename, never from `published`. Deriving
-  it from the timestamp would put a note written just after local midnight on
-  1 January into the previous year, because the stored timestamp is UTC — a
-  permalink that breaks for one note a year, silently.
+- The archive year is the UTC year of `published`, chosen once when the note
+  is written and never recomputed afterwards. UTC rather than `site.timezone`,
+  because an address that outlives every other decision here must not be
+  derived from a setting that can be edited — a timezone that moves would
+  leave the archives asking to be reorganised, and reorganising them is the
+  one thing this record forbids.
+- The cost is a visible oddity in an eight-hour window once a year: a note
+  written between midnight and 08:00 local on 1 January displays next year's
+  date while sitting in this year's archive. Dates shown to a reader are
+  rendered in `site.timezone`, and only the filing is UTC.
 - `/notes/` may be redesigned, paginated or reordered freely.
 - Adding `url` to an already-delivered note changes the digest that
   `announceEdits` keeps, so an `Update{Note}` goes out. That is correct: the
