@@ -5,6 +5,7 @@ import node from "@astrojs/node";
 import { features, site } from "./src/site.config";
 import activitypub from "./src/integrations/activitypub";
 import auth from "./src/integrations/auth";
+import dynamicRoutes from "./src/integrations/dynamic-routes";
 
 // Chosen before the build, not branched on at runtime: the other target's
 // implementation never enters the module graph, so its host-only imports never
@@ -29,7 +30,13 @@ export default defineConfig({
 
   // Absent from the array when the feature is off, so nothing it pulls in —
   // Fedify included — is ever reached by the bundler.
-  integrations: [features.activitypub && activitypub(), features.auth && auth()].filter(Boolean),
+  integrations: [
+    features.activitypub && activitypub(),
+    features.auth && auth(),
+    // Always on: it records whatever the other two left behind, and writes
+    // nothing when they left nothing.
+    dynamicRoutes(),
+  ].filter(Boolean),
 
   vite: {
     // One value, one source. Without this the page-side copy of site.config

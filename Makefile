@@ -45,6 +45,15 @@ preview: build ## 构建后本地预览产物
 check: wrangler frontmatter types build links ## 全量校验：配置 → frontmatter → 类型 → 构建 → 链接（CI 跑这个）
 	@echo "  ✓ 全部通过"
 
+# 推之前跑这个，而不是 make check。
+#
+# check 只构建 BUILD_PROFILE 指定的那一个，默认 static —— 于是只在 full 下存在的
+# 东西（动态路由、服务端岛）本地一次也没被检查过，第一次看见它们的是 CI 的部署。
+# 以 static 收尾是有意的：Deploy Pages 那个 job 会上传 make check 之后的 dist/。
+both: ## 两个 profile 都过一遍（推之前跑）
+	@BUILD_PROFILE=full $(MAKE) --no-print-directory check
+	@BUILD_PROFILE=static $(MAKE) --no-print-directory check
+
 types: ## 类型检查（astro build 不做这件事）
 	@npx astro check
 
