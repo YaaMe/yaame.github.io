@@ -1,6 +1,7 @@
 ---
 import "../styles/tokens.css";
 import { site, nav, social, features, other } from "../site.config";
+import Session from "virtual:session";
 interface Props { title: string; description?: string }
 const { title, description } = Astro.props;
 
@@ -34,6 +35,7 @@ const canonical = new URL(
       <a class="brand" href="/">{site.title}</a>
       <nav>
         {nav.slice(1).map((n) => <a href={n.href}>{n.label}</a>)}
+        <Session />
         {features.darkMode && <button id="theme" type="button" aria-label="切换明暗">◐</button>}
       </nav>
     </header>

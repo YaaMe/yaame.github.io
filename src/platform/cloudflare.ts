@@ -62,7 +62,13 @@ platform.secret = (name) => {
 };
 
 platform.get = (key) => (env as { AP_KV: KVNamespace }).AP_KV.get(key, "json");
-platform.put = (key, value) =>
-  (env as { AP_KV: KVNamespace }).AP_KV.put(key, JSON.stringify(value));
+platform.put = (key, value, opts) =>
+  (env as { AP_KV: KVNamespace }).AP_KV.put(key, JSON.stringify(value), {
+    // KV refuses anything under 60 seconds, so a shorter request is dropped
+    // rather than rounded — the record then lives until something deletes it,
+    // which is why expiry is also checked on read.
+    ...(opts?.ttl && opts.ttl >= 60 ? { expirationTtl: opts.ttl } : {}),
+  });
+platform.remove = (key) => (env as { AP_KV: KVNamespace }).AP_KV.delete(key);
 
 export { platform };

@@ -1,0 +1,68 @@
+---
+import Base from "../../../layouts/Base.astro";
+import { site } from "../../../site.config";
+import { AUTH } from "../config";
+import { current } from "../session";
+
+export const prerender = false;
+
+const session = await current(Astro.request);
+// No client id means no OAuth App yet. Saying so beats a button that leads to
+// a 503, and beats one that leads to GitHub explaining our misconfiguration.
+const ready = AUTH.clientId !== "";
+const error = Astro.url.searchParams.get("error");
+
+const WHY: Record<string, string> = {
+  state: "请求没有带上我们发出的凭据，登录已中止。重新点一次即可。",
+  code: "GitHub 没有回传授权码。",
+  exchange: "跟 GitHub 换令牌失败，可能是授权码过期了。",
+  user: "换到了令牌，但读不到你的账号信息。",
+  config: "这一侧还没配置好，不是你的问题。",
+};
+
+const ROLE: Record<string, string> = {
+  owner: "站长",
+  allowed: "名单内",
+  guest: "访客",
+};
+---
+<Base title={`登录 · ${site.title}`}>
+  <h1>登录</h1>
+
+  {error && <p class="error">{WHY[error] ?? "登录没有完成。"}</p>}
+
+  {session ? (
+    <div class="who">
+      <p>
+        已登录为 <strong>{session.name ?? session.login}</strong>
+        <span class="at">@{session.login}</span>
+      </p>
+      <p class="role">{ROLE[session.role]}</p>
+      <form method="post" action="/auth/logout">
+        <button type="submit">登出</button>
+      </form>
+    </div>
+  ) : (
+    <div class="who">
+      <p class="lede">登录只用来确认你是谁。除了站长和名单内的人，其余一切照旧。</p>
+      {ready
+        ? <a class="button" href="/auth/github">用 GitHub 登录</a>
+        : <p class="error">登录还没有配置完成，暂时进不来。</p>}
+    </div>
+  )}
+
+  <style>
+    h1 { margin: 0 0 1.5em; font-size: 1.8em; }
+    .who p { margin: 0 0 .8em; }
+    .lede { color: var(--muted); }
+    .at { margin-inline-start: .5em; color: var(--muted); }
+    .role { color: var(--muted); font-size: .9em; }
+    .error { margin: 0 0 1.5em; padding: .8em 1em; border: 1px solid var(--rule);
+             color: var(--muted); }
+    .button, button { display: inline-block; margin-block-start: .5em;
+                      padding: .6em 1.1em; border: 1px solid var(--rule);
+                      background: none; color: var(--fg); font: inherit;
+                      text-decoration: none; cursor: pointer; }
+    .button:hover, button:hover { border-color: var(--accent); color: var(--accent); }
+  </style>
+</Base>

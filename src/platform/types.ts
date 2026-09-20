@@ -18,7 +18,14 @@ export interface Platform {
   queue: MessageQueue | false;
   /** Small JSON records of our own: the follower list. */
   get<T>(key: string): Promise<T | null>;
-  put(key: string, value: unknown): Promise<void>;
+  /**
+   * `ttl` is seconds, and is a request rather than a guarantee: a host that
+   * can expire a key does, and one that cannot ignores it. Nothing may depend
+   * on it — a record that must stop being valid carries its own expiry and is
+   * checked when read.
+   */
+  put(key: string, value: unknown, opts?: { ttl?: number }): Promise<void>;
+  remove(key: string): Promise<void>;
 
   /**
    * A database, or `false` where this host has none.

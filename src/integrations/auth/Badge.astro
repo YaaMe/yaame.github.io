@@ -1,0 +1,10 @@
+---
+import { current } from "./session";
+
+// Rendered per request, which is why the page around it does not have to be.
+const session = await current(Astro.request);
+---
+<a class="session" href="/login">{session ? `@${session.login}` : "登录"}</a>
+<style>
+  .session { overflow-wrap: anywhere; }
+</style>

@@ -1,6 +1,6 @@
 import { MemoryKvStore } from "@fedify/fedify";
 import { DatabaseSync } from "node:sqlite";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { drizzle } from "drizzle-orm/node-sqlite";
 import type { Platform } from "./types";
@@ -42,10 +42,16 @@ platform.get = async <T>(key: string): Promise<T | null> => {
   }
 };
 
+// `ttl` is dropped: nothing here sweeps files. A record that expires says so
+// in its own contents, and the reader is what enforces it.
 platform.put = async (key: string, value: unknown): Promise<void> => {
   const file = path(key);
   await mkdir(dirname(file), { recursive: true });
   await writeFile(file, JSON.stringify(value));
+};
+
+platform.remove = async (key: string): Promise<void> => {
+  await rm(path(key), { force: true });
 };
 
 export { platform };
