@@ -19,10 +19,19 @@ const ROOT = `https://${AP.actorHost}/users/${AP.user}/notes/`;
 export async function commentsFor(slug: string): Promise<Comment[]> {
   const rootId = ROOT + slug;
   const files = await getCollection("comments");
-  return files
+  const under = files
     .flatMap((f) => f.data.comments)
     .filter((c) => c.rootId === rootId)
     .sort((a, b) => a.published.localeCompare(b.published));
+
+  // A withdrawn comment is shown only when something replies to it, where the
+  // reply below would otherwise answer nothing. Unreferenced, there is nothing
+  // to hold up and a line saying someone spoke here is still a record of them.
+  //
+  // The tombstone job removes those from git on its own schedule; this does
+  // not wait for it to have run.
+  const answered = new Set(under.map((c) => c.replyToId).filter(Boolean));
+  return under.filter((c) => c.content !== undefined || answered.has(c.objectId));
 }
 
 /**
