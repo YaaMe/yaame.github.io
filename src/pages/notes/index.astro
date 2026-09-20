@@ -17,7 +17,6 @@ const archived = years.length > 1 || notes.length > shown.length;
 ---
 <Base title={`notes · ${site.title}`}>
   <h1>notes</h1>
-  <p class="lede">没有标题的那些。也投递给关注者。</p>
 
   {notes.length === 0
     ? <p class="empty">还没有。</p>
@@ -30,8 +29,7 @@ const archived = years.length > 1 || notes.length > shown.length;
   )}
 
   <style>
-    h1 { margin: 0 0 .3em; font-size: 1.8em; }
-    .lede { margin: 0 0 2em; color: var(--muted); }
+    h1 { margin: 0 0 1.5em; font-size: 1.8em; }
     .empty { color: var(--muted); }
     .years { display: flex; flex-wrap: wrap; gap: 1.2em; margin-block-start: 2.5em;
              font-variant-numeric: tabular-nums; }
