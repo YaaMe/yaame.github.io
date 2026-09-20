@@ -116,6 +116,31 @@ for (const r of rows) {
 
 console.log(`  待提升 ${rows.length} 条，分属 ${threads.size} 条线程`);
 
+/**
+ * What an actor calls itself, at the moment of promotion.
+ *
+ * Fetched here rather than recorded by the inbox: this is the step where a
+ * comment stops being staging and becomes part of the repository, so it is
+ * the honest moment to take a copy. An actor that has since gone leaves no
+ * name, and the page falls back to the handle.
+ */
+const names = new Map();
+async function nameOf(actorId) {
+  if (names.has(actorId)) return names.get(actorId);
+  let name;
+  try {
+    const res = await fetch(actorId, { headers: { accept: "application/activity+json" } });
+    if (res.ok) {
+      const a = await res.json();
+      name = typeof a.name === "string" && a.name.trim() ? a.name.trim() : a.preferredUsername;
+    }
+  } catch {
+    // Unreachable, gone, or not answering ActivityPub. The handle is enough.
+  }
+  names.set(actorId, name);
+  return name;
+}
+
 const writes = new Map();
 const promoted = [];
 
@@ -137,7 +162,8 @@ for (const [rootId, thread] of threads) {
   const seen = new Set(existing.map((c) => c.activityId));
   for (const c of keep) {
     if (seen.has(c.activityId)) continue;
-    existing.push(c);
+    const name = await nameOf(c.actorId);
+    existing.push(name ? { ...c, name } : c);
     promoted.push(c.activityId);
   }
   existing.sort((a, b) => a.published.localeCompare(b.published));

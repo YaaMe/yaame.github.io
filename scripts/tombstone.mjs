@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Turn comments that reached git and were later withdrawn into tombstones.
+ * Remove comments that reached git and were later withdrawn.
  *
  *   node scripts/tombstone.mjs          show what would change
  *   APPLY=1 node scripts/tombstone.mjs  write it
@@ -10,13 +10,16 @@
  * git, so this reads the pair out, rewrites the files and opens a pull request
  * for a person to decide on.
  *
- * **History is not rewritten.** After the merge the content is gone and the
- * record stays: written by X at T1, withdrawn at T2. The promise was never that
- * it did not exist, but that the record says it was withdrawn — and the commit
- * is that record.
+ * The entry goes, rather than being blanked. Withdrawal means the words go,
+ * and a row saying someone spoke here is still a record of them. The one
+ * exception is a comment something else replies to: that keeps a tombstone,
+ * because the reply below it would otherwise be answering nothing.
+ *
+ * **History is not rewritten.** The commit is the record — the promise was
+ * never that it did not exist, but that it is gone now.
  */
 import { execFileSync } from "node:child_process";
-import { readFileSync, writeFileSync, readdirSync, statSync } from "node:fs";
+import { readFileSync, writeFileSync, readdirSync, statSync, rmSync } from "node:fs";
 import { join } from "node:path";
 
 const APPLY = process.env.APPLY === "1";
@@ -63,29 +66,64 @@ if (pending.length === 0) {
 const when = new Map(pending.map((r) => [r.activity_id, r.deleted_at]));
 let changed = 0;
 
+/**
+ * Applied to a fixed point: removing a reply can leave the tombstone above it
+ * with nothing left to hold up, so a leaf's departure can make its parent a
+ * leaf in turn.
+ *
+ * An existing `deletedAt` marks one already dealt with. Judged from the file
+ * itself — a column recording whether git was updated would disagree with
+ * git's actual contents sooner or later.
+ */
+function rewrite(comments) {
+  let list = comments;
+  for (;;) {
+    const answered = new Set(list.map((c) => c.replyToId).filter(Boolean));
+    const next = [];
+    let moved = false;
+    for (const c of list) {
+      const at = when.get(c.activityId);
+      if (at === undefined && c.deletedAt === undefined) {
+        next.push(c);
+        continue;
+      }
+      if (!answered.has(c.objectId)) {
+        moved = true;
+        continue;
+      }
+      if (c.deletedAt === undefined) {
+        const { content, ...rest } = c;
+        next.push({ ...rest, deletedAt: at });
+        moved = true;
+      } else {
+        next.push(c);
+      }
+    }
+    if (!moved) return list;
+    list = next;
+  }
+}
+
 for (const file of files(DIR)) {
   const doc = JSON.parse(readFileSync(file, "utf8"));
-  let touched = false;
+  const after = rewrite(doc.comments);
+  if (JSON.stringify(after) === JSON.stringify(doc.comments)) continue;
 
-  for (const comment of doc.comments) {
-    const at = when.get(comment.activityId);
-    // An existing `deletedAt` means this one is already a tombstone. Judged
-    // from the file itself: a column recording whether git was updated would
-    // disagree with git's actual contents sooner or later.
-    if (!at || comment.deletedAt) continue;
-    delete comment.content;
-    comment.deletedAt = at;
-    touched = true;
-    changed++;
-    console.log(`  ${file}：${comment.activityId}`);
-  }
+  const gone = doc.comments.length - after.length;
+  const stones = after.filter((c) => c.deletedAt !== undefined).length;
+  changed += gone + stones;
+  console.log(`  ${file}：移除 ${gone} 条，留下 ${stones} 块墓碑（有回复指向）`);
 
-  if (touched && APPLY) writeFileSync(file, `${JSON.stringify(doc, null, 2)}\n`);
+  if (!APPLY) continue;
+  // An empty file describes a conversation that is not there. `git add` on the
+  // directory stages the removal the same as an edit.
+  if (after.length === 0) rmSync(file);
+  else writeFileSync(file, `${JSON.stringify({ ...doc, comments: after }, null, 2)}\n`);
 }
 
 if (changed === 0) {
-  console.log("  都已经立过碑了");
+  console.log("  都已经处理过了");
   process.exit(0);
 }
 
-console.log(`\n  ${changed} 条${APPLY ? "已改成墓碑" : "会被改成墓碑（加 APPLY=1 才动手）"}`);
+console.log(`\n  ${changed} 条${APPLY ? "已处理" : "会被处理（加 APPLY=1 才动手）"}`);

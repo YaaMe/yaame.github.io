@@ -13,7 +13,10 @@ const stamp = (iso: string) => iso.slice(0, 10);
       {comments.map((c) => (
         <li>
           <p class="who">
-            <a href={c.actorId} rel="nofollow ugc">{handle(c.actorId)}</a>
+            <a href={c.actorId} rel="nofollow ugc">
+              {c.name ?? handle(c.actorId)}
+            </a>
+            {c.name && <span class="at">{handle(c.actorId)}</span>}
             <a class="when" href={c.objectId} rel="nofollow ugc">
               <time datetime={c.published}>{stamp(c.published)}</time>
             </a>
@@ -49,6 +52,7 @@ const stamp = (iso: string) => iso.slice(0, 10);
          font-size: .9em; }
   .who > a { color: var(--fg); text-decoration: none; overflow-wrap: anywhere; }
   .who > a:hover { color: var(--accent); }
+  .at { color: var(--muted); font-size: .9em; overflow-wrap: anywhere; }
   .when { color: var(--muted); font-variant-numeric: tabular-nums; margin-inline-start: auto; }
   /* Single newlines inside a paragraph are the author's, and survive without
      any markup being generated for them. */

@@ -78,6 +78,16 @@ const comment = z.object({
   rootId: z.url(),
   actorId: z.url(),
   /**
+   * What the author called themselves when this was promoted.
+   *
+   * A copy, and knowingly one: it is theirs to change and this will not follow.
+   * Kept anyway, because the alternative on a page is `@name@host` for
+   * everyone, and a name is how a conversation reads as people rather than
+   * addresses. Absent when the actor could not be reached at promotion, and
+   * the handle stands in.
+   */
+  name: z.string().optional(),
+  /**
    * Plain text, not HTML — extracted from the sender's markup on promotion.
    * See docs/decisions/0006-promoted-comments-are-stored-as-text.md.
    *
