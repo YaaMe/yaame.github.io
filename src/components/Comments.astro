@@ -1,0 +1,61 @@
+---
+import { handle, paragraphs, segments, type Comment } from "../lib/comments";
+
+interface Props { comments: Comment[] }
+const { comments } = Astro.props;
+
+const stamp = (iso: string) => iso.slice(0, 10);
+---
+{comments.length > 0 && (
+  <section class="comments">
+    <h2>回应</h2>
+    <ol>
+      {comments.map((c) => (
+        <li>
+          <p class="who">
+            <a href={c.actorId} rel="nofollow ugc">{handle(c.actorId)}</a>
+            <a class="when" href={c.objectId} rel="nofollow ugc">
+              <time datetime={c.published}>{stamp(c.published)}</time>
+            </a>
+          </p>
+          {c.content === undefined ? (
+            <p class="gone">
+              已由作者删除{c.deletedAt && <> · {stamp(c.deletedAt)}</>}
+            </p>
+          ) : (
+            paragraphs(c.content).map((para) => (
+              <p class="body">
+                {segments(para).map((s) =>
+                  s.url ? <a href={s.url} rel="nofollow ugc">{s.url}</a> : s.text,
+                )}
+              </p>
+            ))
+          )}
+        </li>
+      ))}
+    </ol>
+    <p class="from">来自联邦宇宙，由我挑选后留在这里。</p>
+  </section>
+)}
+<style>
+  .comments { margin-block-start: 4em; padding-block-start: 2em;
+              border-top: 1px solid var(--rule); }
+  h2 { margin: 0 0 1.5em; font-size: .9em; font-weight: 600;
+       letter-spacing: .12em; color: var(--muted); }
+  ol { list-style: none; padding: 0; margin: 0; }
+  li { padding-block: 1.2em; border-bottom: 1px solid var(--rule); }
+  li:first-child { border-top: 1px solid var(--rule); }
+  .who { display: flex; gap: .8em; align-items: baseline; margin: 0 0 .5em;
+         font-size: .9em; }
+  .who > a { color: var(--fg); text-decoration: none; overflow-wrap: anywhere; }
+  .who > a:hover { color: var(--accent); }
+  .when { color: var(--muted); font-variant-numeric: tabular-nums; margin-inline-start: auto; }
+  /* Single newlines inside a paragraph are the author's, and survive without
+     any markup being generated for them. */
+  .body { margin: 0 0 .7em; line-height: 1.8; white-space: pre-wrap;
+          overflow-wrap: anywhere; }
+  .body:last-of-type { margin-bottom: 0; }
+  .body a { color: var(--accent); }
+  .gone { margin: 0; color: var(--muted); font-size: .9em; font-style: italic; }
+  .from { margin-block-start: 1.5em; color: var(--muted); font-size: .85em; }
+</style>

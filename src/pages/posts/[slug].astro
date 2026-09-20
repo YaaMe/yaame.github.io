@@ -1,6 +1,9 @@
 ---
 import { allPosts, content } from "../../lib/posts";
+import { commentsFor } from "../../lib/comments";
+import Comments from "../../components/Comments.astro";
 import Base from "../../layouts/Base.astro";
+import { features } from "../../site.config";
 
 export async function getStaticPaths() {
   const posts = await allPosts();
@@ -10,6 +13,7 @@ export async function getStaticPaths() {
 const { entry } = Astro.props;
 const { Content } = await content(entry);
 const { y, mo, d, iso } = entry.data.date;
+const comments = features.comments ? await commentsFor(entry.id) : [];
 ---
 <Base title={entry.data.title} description={entry.data.description}>
   <article>
@@ -20,6 +24,7 @@ const { y, mo, d, iso } = entry.data.date;
     </p>
     <Content />
   </article>
+  <Comments comments={comments} />
   <style>
     .meta { display: flex; gap: 1em; color: var(--muted); font-size: .9em; margin-block: -.5em 2em; }
     .meta a { color: var(--muted); text-decoration: none; }

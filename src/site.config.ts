@@ -21,9 +21,11 @@ const PROFILE =
   (typeof process !== "undefined" ? process.env.BUILD_PROFILE : undefined) ??
   "static";
 
+// Comments are on in both profiles: they are read from git, not from the
+// database, so the static site can show exactly what the full one shows.
 export const features = PROFILE === "full"
-  ? { darkMode: true, activitypub: true, comments: false, search: false }
-  : { darkMode: true, activitypub: false, comments: false, search: false };
+  ? { darkMode: true, activitypub: true, comments: true, search: false }
+  : { darkMode: true, activitypub: false, comments: true, search: false };
 
 export const profile = PROFILE;
 
