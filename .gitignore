@@ -17,3 +17,6 @@ docs/identity.md
 worker-configuration.d.ts
 worker/wrangler.generated.jsonc
 .data/
+
+# Visual prototypes — not part of the site
+prototypes/
