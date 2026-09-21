@@ -19,16 +19,16 @@ const { notes, anchors = false } = Astro.props;
   ))}
 </ul>
 <style>
-  ul { list-style: none; padding: 0; margin: 0; border-top: 1px solid var(--rule); }
+  ul { list-style: none; padding: 0; margin: 0; border-top: 1px solid var(--border-subtle); }
   /* The header is not sticky today. This is what stops a note arriving by
      fragment from sitting flush against the top of the viewport. */
-  li { padding-block: 1.4em; border-bottom: 1px solid var(--rule); scroll-margin-block-start: 2em; }
-  li:target { background: color-mix(in srgb, var(--accent) 7%, transparent); }
-  .stamp { color: var(--muted); font-size: .85em; text-decoration: none;
+  li { padding-block: 1.4em; border-bottom: 1px solid var(--border-subtle); scroll-margin-block-start: 2em; }
+  li:target { background: var(--bg-marked); }
+  .stamp { color: var(--fg-secondary); font-size: .85em; text-decoration: none;
            font-variant-numeric: tabular-nums; }
-  .stamp:hover { color: var(--accent); }
+  .stamp:hover { color: var(--link); }
   .body { margin-block-start: .5em; line-height: 1.8; }
   .body :global(p) { margin: 0 0 .8em; }
   .body :global(p:last-child) { margin-bottom: 0; }
-  .body :global(a) { color: var(--accent); overflow-wrap: anywhere; }
+  .body :global(a) { color: var(--link); overflow-wrap: anywhere; }
 </style>

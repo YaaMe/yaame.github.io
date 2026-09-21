@@ -46,14 +46,14 @@ const ROLE: Record<string, string> = {
   <style>
     h1 { margin: 0 0 1.5em; font-size: 1.8em; }
     .who p { margin: 0 0 .8em; }
-    .role { margin-inline-start: .8em; color: var(--muted); font-size: .9em; }
-    .error { margin: 0 0 1.5em; padding: .8em 1em; border: 1px solid var(--rule);
-             color: var(--muted); }
+    .role { margin-inline-start: .8em; color: var(--fg-secondary); font-size: .9em; }
+    .error { margin: 0 0 1.5em; padding: .8em 1em; border: 1px solid var(--border-subtle);
+             color: var(--fg-secondary); }
     .button, button { display: inline-block; margin-block-start: .5em;
-                      padding: .6em 1.1em; border: 1px solid var(--rule);
-                      background: none; color: var(--fg); font: inherit;
+                      padding: .6em 1.1em; border: 1px solid var(--border-subtle);
+                      background: none; color: var(--fg-primary); font: inherit;
                       text-decoration: none; cursor: pointer; }
-    .button:hover, button:hover { border-color: var(--accent); color: var(--accent); }
+    .button:hover, button:hover { border-color: var(--link); color: var(--link); }
   </style>
   <script is:inline set:html={`
     // The authoritative page writes what the others read. A session that ends

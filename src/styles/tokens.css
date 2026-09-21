@@ -1,12 +1,57 @@
-/* Design tokens. Framework-independent: unchanged by a switch of renderer. */
+/*
+ * Design tokens. Framework-independent: unchanged by a switch of renderer.
+ *
+ * Two layers, and the order matters. Literal colours appear once, at the top,
+ * named for what they are. Everything below names what a colour is *for*, and
+ * only that second layer is used outside this file — so "what colour is a date
+ * stamp" has one answer, and changing it is one edit rather than a search.
+ *
+ * A third layer, one token per component, is what a design tool's export would
+ * add. It is not here: there is no such pipeline, and inventing one for ten
+ * components would be ceremony.
+ *
+ * See docs/decisions/0011-colour-tokens-name-a-role-not-a-value.md.
+ */
 :root {
   color-scheme: light dark;
 
-  --bg:     light-dark(#fdfdfc, #1a1a19);
-  --fg:     light-dark(#2b2b28, #e3e3e0);
-  --muted:  light-dark(#6b6b66, #9a9a95);
-  --rule:   light-dark(#e5e5e1, #333330);
-  --accent: light-dark(#3a5a7a, #8fb4d4);
+  /* ---- the only literals ---- */
+  --paper:        #fdfdfc;
+  --paper-raised: #f4f4f1;
+  --ink:          #2b2b28;
+  --ink-soft:     #6b6b66;
+  --hair-light:   #e5e5e1;
+  --steel:        #3a5a7a;
+
+  --night:        #1a1a19;
+  --night-raised: #232321;
+  --chalk:        #e3e3e0;
+  --chalk-soft:   #9a9a95;
+  --hair-dark:    #333330;
+  --sky:          #8fb4d4;
+
+  /* ---- what each one is for ---- */
+  --bg-page:       light-dark(var(--paper), var(--night));
+  --bg-raised:     light-dark(var(--paper-raised), var(--night-raised));
+
+  --fg-primary:    light-dark(var(--ink), var(--chalk));
+  --fg-secondary:  light-dark(var(--ink-soft), var(--chalk-soft));
+
+  /*
+   * Text on an accent-coloured ground.
+   *
+   * Here so the question has an answer before it is asked. Without it the
+   * first coloured button takes whatever looked right that afternoon, and the
+   * dark theme gets it backwards — the accent inverts between themes and the
+   * text on it has to invert the other way.
+   */
+  --fg-on-accent:  light-dark(var(--paper), var(--night));
+
+  --border-subtle: light-dark(var(--hair-light), var(--hair-dark));
+
+  --link:          light-dark(var(--steel), var(--sky));
+  /* A fragment arriving at a note, and anything else marked for the reader. */
+  --bg-marked:     color-mix(in srgb, var(--link) 7%, transparent);
 
   --font: system-ui, "PingFang SC", "Noto Sans CJK SC", "Hiragino Sans GB", sans-serif;
   --size: 17px;

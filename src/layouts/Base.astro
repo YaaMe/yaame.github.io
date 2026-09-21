@@ -79,7 +79,7 @@ const canonical = new URL(
     </script>
     <style is:global>
       body {
-        background: var(--bg); color: var(--fg);
+        background: var(--bg-page); color: var(--fg-primary);
         font-family: var(--font); font-size: var(--size); line-height: var(--lh);
         text-autospace: normal;        /* CJK-Latin spacing, handled natively */
         margin: 0;
@@ -88,24 +88,24 @@ const canonical = new URL(
       header { display: flex; flex-wrap: wrap; gap: 1em 1.4em; align-items: baseline; }
       header nav { display: flex; gap: 1.2em; align-items: baseline; }
       #theme { background: none; border: 0; padding: 0; cursor: pointer;
-               color: var(--muted); font-size: 1em; line-height: 1; }
-      #theme:hover { color: var(--fg); }
-      .brand { color: var(--fg); text-decoration: none; font-weight: 600; letter-spacing: .04em; }
-      footer { border-top: 1px solid var(--rule); margin-block-start: 4em; padding-block: 1.5em 3em; font-size: .9em; }
+               color: var(--fg-secondary); font-size: 1em; line-height: 1; }
+      #theme:hover { color: var(--fg-primary); }
+      .brand { color: var(--fg-primary); text-decoration: none; font-weight: 600; letter-spacing: .04em; }
+      footer { border-top: 1px solid var(--border-subtle); margin-block-start: 4em; padding-block: 1.5em 3em; font-size: .9em; }
       footer p { display: flex; gap: 1.2em; margin-block: .4em; }
-      .muted { color: var(--muted); }
+      .muted { color: var(--fg-secondary); }
       header { padding-block: 2rem 1rem; }
-      header nav a, footer a { color: var(--muted); text-decoration: none; }
+      header nav a, footer a { color: var(--fg-secondary); text-decoration: none; }
       h1, h2, h3 { line-height: 1.4; text-wrap: balance; }
       p { margin-block: 1.4em; }
-      a { color: var(--accent); text-underline-offset: .2em; }
+      a { color: var(--link); text-underline-offset: .2em; }
       img { max-width: 100%; height: auto; }
       blockquote {
-        border-inline-start: 2px solid var(--rule);
-        padding-inline-start: 1em; margin-inline: 0; color: var(--muted);
+        border-inline-start: 2px solid var(--border-subtle);
+        padding-inline-start: 1em; margin-inline: 0; color: var(--fg-secondary);
       }
-      time { color: var(--muted); font-size: .9em; }
-      hr { border: 0; border-top: 1px solid var(--rule); margin-block: 2.5em; }
+      time { color: var(--fg-secondary); font-size: .9em; }
+      hr { border: 0; border-top: 1px solid var(--border-subtle); margin-block: 2.5em; }
     </style>
   </body>
 </html>

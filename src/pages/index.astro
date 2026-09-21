@@ -75,25 +75,25 @@ const chapters = await chapterCount();
   )}
 
   <style>
-    .hero { padding-block: .5em 2em; border-bottom: 1px solid var(--rule); }
+    .hero { padding-block: .5em 2em; border-bottom: 1px solid var(--border-subtle); }
     .hero h1 { margin: 0 0 .4em; font-size: 1.8em; }
-    .intro { margin: 0 0 1.2em; color: var(--muted); }
-    .toc { margin: 0; color: var(--muted); }
-    .toc a { color: var(--fg); text-decoration: none;
-             border-bottom: 1px solid var(--rule); }
-    .toc a:hover { color: var(--accent); border-color: var(--accent); }
+    .intro { margin: 0 0 1.2em; color: var(--fg-secondary); }
+    .toc { margin: 0; color: var(--fg-secondary); }
+    .toc a { color: var(--fg-primary); text-decoration: none;
+             border-bottom: 1px solid var(--border-subtle); }
+    .toc a:hover { color: var(--link); border-color: var(--link); }
     .block { margin-block: 3em; }
     .block-title { margin: 0 0 1.2em; font-size: .9em; font-weight: 600;
-                   letter-spacing: .12em; color: var(--muted); }
+                   letter-spacing: .12em; color: var(--fg-secondary); }
     .year { margin-block: 2em; }
-    .year h3 { margin: 0 0 .5em; font-size: 1em; font-weight: 600; color: var(--muted);
+    .year h3 { margin: 0 0 .5em; font-size: 1em; font-weight: 600; color: var(--fg-secondary);
                font-variant-numeric: tabular-nums; letter-spacing: .06em; }
-    ul { list-style: none; padding: 0; margin: 0; border-top: 1px solid var(--rule); }
-    li { padding-block: 1.1em; border-bottom: 1px solid var(--rule); }
-    li > a { font-size: 1.05em; font-weight: 600; color: var(--fg); text-decoration: none; }
-    li > a:hover { color: var(--accent); }
-    time { margin-inline-start: .8em; color: var(--muted); font-size: .85em;
+    ul { list-style: none; padding: 0; margin: 0; border-top: 1px solid var(--border-subtle); }
+    li { padding-block: 1.1em; border-bottom: 1px solid var(--border-subtle); }
+    li > a { font-size: 1.05em; font-weight: 600; color: var(--fg-primary); text-decoration: none; }
+    li > a:hover { color: var(--link); }
+    time { margin-inline-start: .8em; color: var(--fg-secondary); font-size: .85em;
            font-variant-numeric: tabular-nums; }
-    li p { margin: .35em 0 0; color: var(--muted); font-size: .95em; line-height: 1.7; }
+    li p { margin: .35em 0 0; color: var(--fg-secondary); font-size: .95em; line-height: 1.7; }
   </style>
 </Base>

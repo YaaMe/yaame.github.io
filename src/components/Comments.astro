@@ -41,23 +41,23 @@ const stamp = (iso: string) => iso.slice(0, 10);
 )}
 <style>
   .comments { margin-block-start: 4em; padding-block-start: 2em;
-              border-top: 1px solid var(--rule); }
+              border-top: 1px solid var(--border-subtle); }
   h2 { margin: 0 0 1.5em; font-size: .9em; font-weight: 600;
-       letter-spacing: .12em; color: var(--muted); }
+       letter-spacing: .12em; color: var(--fg-secondary); }
   ol { list-style: none; padding: 0; margin: 0; }
-  li { padding-block: 1.2em; border-bottom: 1px solid var(--rule); }
-  li:first-child { border-top: 1px solid var(--rule); }
+  li { padding-block: 1.2em; border-bottom: 1px solid var(--border-subtle); }
+  li:first-child { border-top: 1px solid var(--border-subtle); }
   .who { display: flex; gap: .8em; align-items: baseline; margin: 0 0 .5em;
          font-size: .9em; }
-  .who > a { color: var(--fg); text-decoration: none; overflow-wrap: anywhere; }
-  .who > a:hover { color: var(--accent); }
-  .at { color: var(--muted); font-size: .9em; overflow-wrap: anywhere; }
-  .when { color: var(--muted); font-variant-numeric: tabular-nums; margin-inline-start: auto; }
+  .who > a { color: var(--fg-primary); text-decoration: none; overflow-wrap: anywhere; }
+  .who > a:hover { color: var(--link); }
+  .at { color: var(--fg-secondary); font-size: .9em; overflow-wrap: anywhere; }
+  .when { color: var(--fg-secondary); font-variant-numeric: tabular-nums; margin-inline-start: auto; }
   /* Single newlines inside a paragraph are the author's, and survive without
      any markup being generated for them. */
   .body { margin: 0 0 .7em; line-height: 1.8; white-space: pre-wrap;
           overflow-wrap: anywhere; }
   .body:last-of-type { margin-bottom: 0; }
-  .body a { color: var(--accent); }
-  .gone { margin: 0; color: var(--muted); font-size: .9em; font-style: italic; }
+  .body a { color: var(--link); }
+  .gone { margin: 0; color: var(--fg-secondary); font-size: .9em; font-style: italic; }
 </style>
