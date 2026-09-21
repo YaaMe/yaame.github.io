@@ -1,6 +1,6 @@
 # 0012. The progress bar carries a bird
 
-Status: accepted, not yet in the site
+Status: accepted
 Date: 2026-09-21
 
 ## Context
@@ -100,4 +100,6 @@ answer to this particular problem, however right it is for Tufte or gwern.
   because those are different kinds of motion.
 - Support was verified in Chrome 153 only. Safari is the engine on iPhone,
   which is exactly where the bottom strip matters, and it is untested.
-- The working page is `prototypes/bird.html`. **It is not in the site yet.**
+- `src/components/Progress.astro` carries it, dropped into `Base.astro` after
+  `<main>`, so it is on every page. `prototypes/bird.html` stays as the place
+  to look at it without the site around it.

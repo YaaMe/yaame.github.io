@@ -10,6 +10,7 @@ const canonical = new URL(
   Astro.url.pathname.endsWith("/") ? Astro.url.pathname : Astro.url.pathname + "/",
   site.url,
 );
+import Progress from "../components/Progress.astro";
 ---
 <!doctype html>
 <html lang={site.lang}>
@@ -58,6 +59,7 @@ const canonical = new URL(
       </nav>
     </header>
     <main><slot /></main>
+    <Progress />
     <footer>
       <p>{social.map((s) => <a href={s.href}>{s.label}</a>)}</p>
       <p class="muted">

@@ -54,6 +54,8 @@
   --bg-marked:     color-mix(in srgb, var(--link) 7%, transparent);
 
   --font: system-ui, "PingFang SC", "Noto Sans CJK SC", "Hiragino Sans GB", sans-serif;
+  /* Character art needs a grid; a proportional font collapses it. */
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
   --size: 17px;
   --lh: 1.85;          /* Chinese needs more than Latin; 1.5 is cramped */
   --measure: 34em;     /* ~34 Han characters per line */

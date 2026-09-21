@@ -1,0 +1,76 @@
+---
+/*
+ * How far you have read, and the only decoration on the site.
+ *
+ * Six characters standing on a line. The bird's position along the line is
+ * the scroll position — decoration and function are one object rather than
+ * an ornament sitting beside a progress bar.
+ *
+ * See docs/decisions/0012-the-progress-bar-carries-a-bird.md, which carries
+ * the numbers below and why each was measured rather than chosen.
+ */
+---
+<div class="track" aria-hidden="true">
+  <pre class="bird">(<span class="eye"><b>o</b><b>-</b></span>)&gt;
+ ''</pre>
+</div>
+
+<style is:global>
+  :root { --bar: 2.6rem; }
+
+  /* The bar's own height, so the footer is not permanently under the bird. */
+  body { padding-block-end: var(--bar); }
+
+  .track {
+    position: fixed; bottom: 0; inset-inline: 0; z-index: 5;
+    height: var(--bar);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    background: var(--bg-page);    /* opaque: text scrolls under, not through */
+  }
+  /*
+   * The line sits where the feet land, not at the top of the bar — a bird
+   * hanging below a rule is not a bird on a wire.
+   *
+   * .55rem is measured, not tuned: an apostrophe's ink stops 4.0px above the
+   * <pre>'s bottom edge (canvas actualBoundingBoxDescent at 12.8px mono), and
+   * the bird sits at .3rem = 4.8px, so the feet land at 8.8px. Eyeballing it
+   * first gave .44rem — 5.8px low. Re-measure if --size or --mono changes.
+   */
+  .track::before {
+    content: ""; position: absolute; inset-inline: 0;
+    bottom: calc(.55rem + env(safe-area-inset-bottom, 0px));
+    border-top: 1px solid var(--border-subtle);
+  }
+
+  .bird {
+    position: absolute; left: 0;
+    bottom: calc(.3rem + env(safe-area-inset-bottom, 0px));
+    margin: 0;
+    font-family: var(--mono);
+    line-height: 1;                /* 1.85 would stretch the art to twice its height */
+    font-size: .8rem;
+    white-space: pre;
+    color: var(--fg-secondary);
+    user-select: none;             /* or a select-all pastes it into the text */
+    pointer-events: none;
+    animation: fly linear both;
+    animation-timeline: scroll(root block);
+  }
+  @keyframes fly { from { left: var(--gutter); } to { left: calc(100% - 5ch - var(--gutter)); } }
+  @supports not (animation-timeline: scroll()) { .bird { animation: none; left: var(--gutter); } }
+
+  .eye { position: relative; display: inline-block; }
+  .eye b { font-weight: inherit; }
+  .eye b:nth-child(2) { position: absolute; left: 0; top: 0; opacity: 0; }
+
+  /*
+   * The blink is the bird's own movement and stops here. The travel does not:
+   * it follows the scroll, which is the reader's own hand.
+   */
+  @media (prefers-reduced-motion: no-preference) {
+    .eye b:nth-child(1) { animation: eye-open 4.3s steps(1) infinite; }
+    .eye b:nth-child(2) { animation: eye-shut 4.3s steps(1) infinite; }
+  }
+  @keyframes eye-open { 0%, 94%, 100% { opacity: 1 } 94.5%, 99.5% { opacity: 0 } }
+  @keyframes eye-shut { 0%, 94%, 100% { opacity: 0 } 94.5%, 99.5% { opacity: 1 } }
+</style>
