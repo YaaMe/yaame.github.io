@@ -71,3 +71,4 @@ as they are. New decisions land here.
 | [0009](0009-note-urls-are-a-year-archive-and-an-anchor.md) | A note's address is a year archive and an anchor |
 | [0010](0010-a-session-is-not-a-privilege.md) | A session says who you are, and nothing about what you may do |
 | [0011](0011-colour-tokens-name-a-role-not-a-value.md) | Colour tokens name a role, not a value |
+| [0012](0012-the-progress-bar-carries-a-bird.md) | The progress bar carries a bird |

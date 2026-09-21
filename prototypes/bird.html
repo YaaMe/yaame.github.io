@@ -1,0 +1,86 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>鸟 · 底部进度条</title>
+<style>
+:root{
+  color-scheme:light dark;
+  --bg-page:light-dark(#fdfdfc,#1a1a19);
+  --fg-primary:light-dark(#2b2b28,#e3e3e0);
+  --fg-secondary:light-dark(#6b6b66,#9a9a95);
+  --border-subtle:light-dark(#e5e5e1,#333330);
+  --link:light-dark(#3a5a7a,#8fb4d4);
+  --font:system-ui,"PingFang SC","Noto Sans CJK SC",sans-serif;
+  --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  --size:17px; --lh:1.85; --measure:34em; --gutter:1.2rem;
+  --bar:2.6rem;
+}
+body{background:var(--bg-page);color:var(--fg-primary);font-family:var(--font);
+     font-size:var(--size);line-height:var(--lh);margin:0}
+main{max-width:var(--measure);margin-inline:auto;padding-inline:var(--gutter);
+     padding-block:3rem calc(var(--bar) + 3rem)}
+h1{line-height:1.4} h2{font-size:1.05em;margin-block:2.2em .4em}
+p{margin-block:1.4em} code{font-family:var(--mono);font-size:.9em}
+
+/* 线画在爪子落脚的高度，不是条的顶边 —— 鸟要站在线上，不是吊在线下。
+   0.55rem 是量出来的，不是试出来的：撇号的墨迹下缘在 pre 底边上方 4.0px
+   （canvas actualBoundingBoxDescent），鸟的 bottom 是 0.3rem = 4.8px，
+   所以爪底在 8.8px = 0.55rem。早先目测的 0.44rem 差了 5.8px。 */
+.track{position:fixed;bottom:0;inset-inline:0;z-index:5;height:var(--bar);
+  padding-bottom:env(safe-area-inset-bottom,0px);background:var(--bg-page)}
+.track::before{content:"";position:absolute;inset-inline:0;
+  bottom:calc(.55rem + env(safe-area-inset-bottom,0px));
+  border-top:1px solid var(--border-subtle)}
+body.inset .track{inset-inline:max(var(--gutter),calc((100vw - var(--measure))/2))}
+
+.bird{position:absolute;bottom:calc(.3rem + env(safe-area-inset-bottom,0px));left:0;
+  margin:0;font-family:var(--mono);line-height:1;font-size:.8rem;white-space:pre;
+  color:var(--fg-secondary);user-select:none;pointer-events:none;
+  animation:fly linear both;animation-timeline:scroll(root block)}
+@keyframes fly{from{left:0}to{left:calc(100% - 6ch)}}
+@supports not (animation-timeline:scroll()){.bird{animation:none}}
+
+.sw{position:relative;display:inline-block}
+.sw b{font-weight:inherit} .sw b:nth-child(2){position:absolute;left:0;top:0;opacity:0}
+@media (prefers-reduced-motion:no-preference){
+  .eye  b:nth-child(1){animation:bkO var(--eye) steps(1) infinite}
+  .eye  b:nth-child(2){animation:bkC var(--eye) steps(1) infinite}
+}
+@keyframes swA{0%,49%{opacity:1}50%,100%{opacity:0}}
+@keyframes swB{0%,49%{opacity:0}50%,100%{opacity:1}}
+@keyframes bkO{0%,94%,100%{opacity:1}94.5%,99.5%{opacity:0}}
+@keyframes bkC{0%,94%,100%{opacity:0}94.5%,99.5%{opacity:1}}
+
+.bird{--eye:4.3s}
+
+.panel{position:fixed;top:.6rem;right:.6rem;z-index:9;display:flex;gap:.4rem}
+.panel button{font-family:var(--mono);font-size:.72rem;color:var(--fg-secondary);
+  background:var(--bg-page);border:1px solid var(--border-subtle);
+  border-radius:3px;padding:.35em .7em;cursor:pointer}
+</style>
+
+<div class="panel">
+ <button onclick="document.body.classList.toggle('inset');this.textContent=
+   document.body.classList.contains('inset')?'线·内容宽':'线·满宽'">线·满宽</button>
+</div>
+
+<div class="track" aria-hidden="true">
+ <pre class="bird">(<span class="sw eye"><b>o</b><b>-</b></span>)&gt;
+ ''</pre>
+</div>
+
+<main>
+<h1>鸟 · 底部进度条</h1>
+<p>右上角按钮切换线的宽度：满宽给整页一个底座，内容宽更克制。</p>
+<h2>该怎么看</h2>
+<p>不要盯着鸟。往下读这些字，用余光感觉它 —— 真实使用时它一直在视野边缘，而你在读正文。盯着看的话两个都有趣，余光里才分得出哪个在干扰。</p>
+<p>剪影完全不动，只在 4.3 秒的周期里眨一次，每次占 6% —— 也就是 <strong>94% 的时间它是静止的</strong>。那一下才是「有趣」，而不是一直在动。</p>
+<h2>机制</h2>
+<p><code>animation-timeline: scroll()</code>，零 JavaScript。鸟的横向位置直接绑在滚动进度上，没有监听器、不会卡。不支持的浏览器里鸟停在起点，页面照常。</p>
+<p>眨眼用两个字符叠加切换（<code>o</code> / <code>-</code>），不是逐帧图。整只鸟就是四个字符加两个撇号，跟着 <code>currentColor</code> 自动适配明暗主题。</p>
+</main>
+<script>
+const m=document.querySelector("main");
+for(let i=1;i<=26;i++){const p=document.createElement("p");
+ p.textContent=`第 ${i} 段。`+"用来撑出滚动高度的占位文字，没有实际内容。".repeat(3);m.appendChild(p);}
+</script>

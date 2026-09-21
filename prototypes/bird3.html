@@ -1,0 +1,77 @@
+<!doctype html><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1"><title>鸟 · 定稿候选</title><style>
+:root{color-scheme:light dark;--bg:light-dark(#fdfdfc,#1a1a19);--fg:light-dark(#2b2b28,#e3e3e0);
+--soft:light-dark(#6b6b66,#9a9a95);--hair:light-dark(#e5e5e1,#333330);
+--mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace}
+body{background:var(--bg);color:var(--fg);margin:0;padding:2rem 1.2rem 5rem;
+font:17px/1.8 system-ui,"PingFang SC",sans-serif;max-width:44em;margin-inline:auto}
+h1{font-size:1.35em}
+.row{border-top:1px solid var(--hair);padding-block:1.6rem}
+.name{font-size:.92em;margin-bottom:1rem} .dim{color:var(--soft);font-size:.88em}
+.sizes{display:flex;gap:3rem;align-items:flex-end;margin-bottom:1.2rem}
+.b{margin:0;font-family:var(--mono);line-height:1;white-space:pre;user-select:none;color:var(--soft)}
+.big{font-size:2.6rem;color:var(--fg);font-weight:600} .mid{font-size:1.25rem;color:var(--fg)}
+.real{font-size:.8rem}
+.sw{position:relative;display:inline-block}
+.sw b{font-weight:inherit} .sw b:nth-child(2){position:absolute;left:0;top:0;opacity:0}
+@keyframes swA{0%,49%{opacity:1}50%,100%{opacity:0}}
+@keyframes swB{0%,49%{opacity:0}50%,100%{opacity:1}}
+@keyframes bkO0{0%,94%,100%{opacity:1}94.5%,99.5%{opacity:0}}
+@keyframes bkC0{0%,94%,100%{opacity:0}94.5%,99.5%{opacity:1}}
+@keyframes bkO1{0%,94%,100%{opacity:1}94.5%,99.5%{opacity:0}}
+@keyframes bkC1{0%,94%,100%{opacity:0}94.5%,99.5%{opacity:1}}
+@keyframes bkO2{0%,94%,100%{opacity:1}94.5%,99.5%{opacity:0}}
+@keyframes bkC2{0%,94%,100%{opacity:0}94.5%,99.5%{opacity:1}}
+@keyframes bkO3{0%,94%,100%{opacity:1}94.5%,99.5%{opacity:0}}
+@keyframes bkC3{0%,94%,100%{opacity:0}94.5%,99.5%{opacity:1}}
+.lane{position:relative;height:3em;border-bottom:1px solid var(--hair)}
+.mover{position:absolute;bottom:0;left:0;animation:fly 8s linear infinite}
+@keyframes fly{from{left:0}to{left:calc(100% - 6ch)}}
+@media(prefers-reduced-motion:reduce){.sw b{animation:none!important}
+ .sw b:nth-child(2){opacity:0}.mover{animation:none}}
+</style>
+<h1>鸟 · 定稿候选</h1>
+<p style="color:var(--soft);font-size:.92em">
+改了两处：<strong>身体闭合</strong>（<code>(o)</code> 而不是 <code>(o</code>）、<strong>短爪</strong>（<code>''</code> 而不是 <code>||</code>）。<br>
+尾巴和眼睛各自独立周期，眨眼只占 6%。最下面那条在走 —— <strong>别盯着看，用余光感觉</strong>。</p>
+<div class="row"><div class="name">A 逗尾·双爪<span class="dim">
+ — 尾 1.7s / 眼 5.3s</span></div>
+<div class="sizes">
+ <pre class="b big"><span class="sw"><b style="animation:swA 1.7s steps(1) infinite">,</b><b style="animation:swB 1.7s steps(1) infinite">'</b></span>(<span class="sw"><b style="animation:bkO0 5.3s steps(1) infinite">o</b><b style="animation:bkC0 5.3s steps(1) infinite">-</b></span>)&gt;
+  ''</pre>
+ <pre class="b mid"><span class="sw"><b style="animation:swA 1.7s steps(1) infinite">,</b><b style="animation:swB 1.7s steps(1) infinite">'</b></span>(<span class="sw"><b style="animation:bkO0 5.3s steps(1) infinite">o</b><b style="animation:bkC0 5.3s steps(1) infinite">-</b></span>)&gt;
+  ''</pre>
+ <pre class="b real"><span class="sw"><b style="animation:swA 1.7s steps(1) infinite">,</b><b style="animation:swB 1.7s steps(1) infinite">'</b></span>(<span class="sw"><b style="animation:bkO0 5.3s steps(1) infinite">o</b><b style="animation:bkC0 5.3s steps(1) infinite">-</b></span>)&gt;
+  ''</pre></div>
+<div class="lane"><pre class="b real mover"><span class="sw"><b style="animation:swA 1.7s steps(1) infinite">,</b><b style="animation:swB 1.7s steps(1) infinite">'</b></span>(<span class="sw"><b style="animation:bkO0 5.3s steps(1) infinite">o</b><b style="animation:bkC0 5.3s steps(1) infinite">-</b></span>)&gt;
+  ''</pre></div></div><div class="row"><div class="name">B 无尾·双爪<span class="dim">
+ — 尾 不动 / 眼 4.3s</span></div>
+<div class="sizes">
+ <pre class="b big">(<span class="sw"><b style="animation:bkO1 4.3s steps(1) infinite">o</b><b style="animation:bkC1 4.3s steps(1) infinite">-</b></span>)&gt;
+ ''</pre>
+ <pre class="b mid">(<span class="sw"><b style="animation:bkO1 4.3s steps(1) infinite">o</b><b style="animation:bkC1 4.3s steps(1) infinite">-</b></span>)&gt;
+ ''</pre>
+ <pre class="b real">(<span class="sw"><b style="animation:bkO1 4.3s steps(1) infinite">o</b><b style="animation:bkC1 4.3s steps(1) infinite">-</b></span>)&gt;
+ ''</pre></div>
+<div class="lane"><pre class="b real mover">(<span class="sw"><b style="animation:bkO1 4.3s steps(1) infinite">o</b><b style="animation:bkC1 4.3s steps(1) infinite">-</b></span>)&gt;
+ ''</pre></div></div><div class="row"><div class="name">C 逗尾·单爪<span class="dim">
+ — 尾 1.3s / 眼 6.1s</span></div>
+<div class="sizes">
+ <pre class="b big"><span class="sw"><b style="animation:swA 1.3s steps(1) infinite">,</b><b style="animation:swB 1.3s steps(1) infinite">'</b></span>(<span class="sw"><b style="animation:bkO2 6.1s steps(1) infinite">o</b><b style="animation:bkC2 6.1s steps(1) infinite">-</b></span>)&gt;
+  '</pre>
+ <pre class="b mid"><span class="sw"><b style="animation:swA 1.3s steps(1) infinite">,</b><b style="animation:swB 1.3s steps(1) infinite">'</b></span>(<span class="sw"><b style="animation:bkO2 6.1s steps(1) infinite">o</b><b style="animation:bkC2 6.1s steps(1) infinite">-</b></span>)&gt;
+  '</pre>
+ <pre class="b real"><span class="sw"><b style="animation:swA 1.3s steps(1) infinite">,</b><b style="animation:swB 1.3s steps(1) infinite">'</b></span>(<span class="sw"><b style="animation:bkO2 6.1s steps(1) infinite">o</b><b style="animation:bkC2 6.1s steps(1) infinite">-</b></span>)&gt;
+  '</pre></div>
+<div class="lane"><pre class="b real mover"><span class="sw"><b style="animation:swA 1.3s steps(1) infinite">,</b><b style="animation:swB 1.3s steps(1) infinite">'</b></span>(<span class="sw"><b style="animation:bkO2 6.1s steps(1) infinite">o</b><b style="animation:bkC2 6.1s steps(1) infinite">-</b></span>)&gt;
+  '</pre></div></div><div class="row"><div class="name">D 逗尾·静眼<span class="dim">
+ — 尾 1.9s / 眼 不眨</span></div>
+<div class="sizes">
+ <pre class="b big"><span class="sw"><b style="animation:swA 1.9s steps(1) infinite">,</b><b style="animation:swB 1.9s steps(1) infinite">'</b></span>(<span class="sw"><b>o</b></span>)&gt;
+  ''</pre>
+ <pre class="b mid"><span class="sw"><b style="animation:swA 1.9s steps(1) infinite">,</b><b style="animation:swB 1.9s steps(1) infinite">'</b></span>(<span class="sw"><b>o</b></span>)&gt;
+  ''</pre>
+ <pre class="b real"><span class="sw"><b style="animation:swA 1.9s steps(1) infinite">,</b><b style="animation:swB 1.9s steps(1) infinite">'</b></span>(<span class="sw"><b>o</b></span>)&gt;
+  ''</pre></div>
+<div class="lane"><pre class="b real mover"><span class="sw"><b style="animation:swA 1.9s steps(1) infinite">,</b><b style="animation:swB 1.9s steps(1) infinite">'</b></span>(<span class="sw"><b>o</b></span>)&gt;
+  ''</pre></div></div>
