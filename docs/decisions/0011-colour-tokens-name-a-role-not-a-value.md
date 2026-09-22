@@ -59,6 +59,21 @@ muted colour stops being muted.
   variant — the theme button flips `color-scheme` and that is all. This holds
   only while every difference between themes is a colour. A shadow or a border
   width that differs would need a second mechanism, and then both exist.
+- **This depends on a build setting that is nowhere near it.** Below a target
+  of chrome123 / safari17.5 / firefox120 / edge123 the CSS pipeline rewrites
+  `light-dark()` into a `--lightningcss-light` / `--lightningcss-dark` pair
+  set only inside `@media (prefers-color-scheme)`. That polyfill follows the
+  OS and never reads the `color-scheme` property, so the theme button goes on
+  writing a value that nothing consumes — and the failure is silent, because
+  following the OS still looks correct. `vite.build.cssTarget` in
+  `astro.config.mjs` holds the line; it has to move with any change of bundler
+  or of Astro.
+- The alternative is a `.night` class, and the cost is measured: the same
+  eight tokens go from 15 non-blank lines to 37, and each semantic token is
+  declared three times — once light, once under the media query, once under
+  the class — with the last two duplicating each other line for line and
+  nothing to catch a divergence. That is the trade this records choosing
+  against, for as long as every theme difference is a colour.
 - The layering is plain CSS custom properties, so it survives a change of
   renderer. Tailwind v4's `@theme` compiles to exactly this, which is why
   adopting it later would not undo this decision.

@@ -42,6 +42,14 @@ export default defineConfig({
     // One value, one source. Without this the page-side copy of site.config
     // would read an undefined process.env and silently fall back.
     define: { __BUILD_PROFILE__: JSON.stringify(PROFILE) },
+
+    // Keep light-dark() intact. Below this target the CSS pipeline rewrites it
+    // into a --lightningcss-light/--lightningcss-dark pair driven only by
+    // `@media (prefers-color-scheme)` — which follows the OS and ignores the
+    // `color-scheme` property, so the theme button set a value nothing read.
+    // The whole dark theme is one light-dark() per token, so this is load
+    // bearing rather than a nicety. These four are where the function shipped.
+    build: { cssTarget: ["chrome123", "safari17.5", "firefox120", "edge123"] },
     resolve: {
       alias: {
         "virtual:platform": `/src/platform/${TARGET}.ts`,
