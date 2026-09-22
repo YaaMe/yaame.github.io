@@ -1,23 +1,34 @@
 ---
 import Base from "../layouts/Base.astro";
-import { allPosts, href, periodYear } from "../lib/posts";
+import { allPosts, href, periodYear, period } from "../lib/posts";
 import { site, hero } from "../site.config";
 
 const posts = await allPosts();
 
-// Summaries, grouped by the year in the filename — the period covered, not
-// the publication date. Sorted within a group by the same key, so the order
-// never surprises.
-const summaries = new Map<string, typeof posts>();
-for (const p of [...posts].sort((a, b) => b.id.localeCompare(a.id))) {
-  if (!p.data.tags.includes("summaries")) continue;
-  const y = periodYear(p);
-  if (!summaries.has(y)) summaries.set(y, []);
-  summaries.get(y)!.push(p);
-}
+// 一条时间轴,不是两个列表。小结和散文的区别不需要小标题去讲 —— 左边那一格
+// 印不印「日」已经说了:`年结`、`02 月` 没有日,`10-18` 有。
+//
+// 粗的在前,因为「结」是那一段时间的结尾,所以它列在那一段的开头:年份下面
+// 第一条是年结,月结也排在自己那个月的最前面。于是从上往下扫的时候,每一个
+// 时段标记都在给它下面的东西当表头 —— 夹在 `10 月` 和 `09 月` 之间的散文会
+// 自然读成十月的。
+//
+// 但散文自己仍然带月份(`10-18`,不是 `18`)。上面那个表头不保证存在:那个月
+// 的月结不一定写过,没写就没有 `10 月` 这一行,只剩一个日吊在年份底下。
+// 顺序能帮读者省一次推断,不能替代那一格自己说清楚。
+//
+// 文件名倒序已经把年结排在月份前面(`2022-year` 的 `y` 大于 `2022-06` 的 `0`),
+// 唯一要单拎出来的是前缀关系:`2022-06-15` 字符串更长,倒序会把它排到
+// `2022-06` 前面,而它应该在后面。
+const coarseFirst = (a: string, b: string) =>
+  a.startsWith(b) ? 1 : b.startsWith(a) ? -1 : b.localeCompare(a);
 
-// Everything else. One post for now, newest first.
-const others = posts.filter((p) => !p.data.tags.includes("summaries"));
+const byYear = new Map<string, typeof posts>();
+for (const p of [...posts].sort((a, b) => coarseFirst(a.id, b.id))) {
+  const y = periodYear(p);
+  if (!byYear.has(y)) byYear.set(y, []);
+  byYear.get(y)!.push(p);
+}
 ---
 <Base title={site.title}>
   {/* Guarded whole, not just its contents: a section with only a rule and
@@ -28,54 +39,60 @@ const others = posts.filter((p) => !p.data.tags.includes("summaries"));
     </section>
   )}
 
-  <section class="block" id="summaries">
-    <h2 class="block-title">小结</h2>
-    {[...summaries].map(([year, items]) => (
+  {/*
+      日期在左、开篇第一句在右。这里的文章没有标题 —— frontmatter 的 title
+      就是文件名的日期 —— 所以承担标题职责的是 description。把 title 再印一遍
+      只会在每一行上重复右边那列已经说过的事。
+  */}
+  <section class="archive">
+    {[...byYear].map(([year, items]) => (
       <div class="year">
-        <h3>{year}</h3>
-        <ul>
-          {items.map((p) => (
-            <li>
-              <a href={href(p)}>{p.data.title}</a>
-              <time datetime={p.data.date.iso}>{p.data.date.y}-{p.data.date.mo}-{p.data.date.d} 发</time>
-              {p.data.description && <p>{p.data.description}</p>}
-            </li>
-          ))}
-        </ul>
+        <h2><b>{year}</b><i /></h2>
+        {items.map((p) => (
+          <a class="entry" href={href(p)}>
+            <time datetime={period(p).datetime}>{period(p).label}</time>
+            <span>{p.data.description || p.data.title}</span>
+          </a>
+        ))}
       </div>
     ))}
   </section>
 
-  {others.length > 0 && (
-    <section class="block" id="others">
-      <h2 class="block-title">其它</h2>
-      <ul>
-        {others.map((p) => (
-          <li>
-            <a href={href(p)}>{p.data.title}</a>
-            <time datetime={p.data.date.iso}>{p.data.date.y}-{p.data.date.mo}-{p.data.date.d}</time>
-            {p.data.description && <p>{p.data.description}</p>}
-          </li>
-        ))}
-      </ul>
-    </section>
-  )}
-
   <style>
     .hero { padding-block: .5em 2em; border-bottom: 1px solid var(--border-subtle); }
     .hero h1 { margin: 0; font-size: 1.8em; }
-    .block { margin-block: 3em; }
-    .block-title { margin: 0 0 1.2em; font-size: .9em; font-weight: 600;
-                   letter-spacing: .12em; color: var(--fg-secondary); }
-    .year { margin-block: 2em; }
-    .year h3 { margin: 0 0 .5em; font-size: 1em; font-weight: 600; color: var(--fg-secondary);
-               font-variant-numeric: tabular-nums; letter-spacing: .06em; }
-    ul { list-style: none; padding: 0; margin: 0; border-top: 1px solid var(--border-subtle); }
-    li { padding-block: 1.1em; border-bottom: 1px solid var(--border-subtle); }
-    li > a { font-size: 1.05em; font-weight: 600; color: var(--fg-primary); text-decoration: none; }
-    li > a:hover { color: var(--link); }
-    time { margin-inline-start: .8em; color: var(--fg-secondary); font-size: .85em;
-           font-variant-numeric: tabular-nums; }
-    li p { margin: .35em 0 0; color: var(--fg-secondary); font-size: .95em; line-height: 1.7; }
+    .archive { margin-block: 3em; }
+    /* 年份是骨架:等宽等距的数字,再一条细线横到右边。 */
+    .year { margin-block: 2.2em; }
+    .year h2 { display: flex; align-items: baseline; gap: .9em; margin: 0 0 .9em; }
+    .year h2 b { font: 600 1.35em/1 var(--mono); color: var(--fg-secondary);
+                 font-variant-numeric: tabular-nums; letter-spacing: .02em; }
+    .year h2 i { flex: 1; height: 1px; background: var(--border-subtle); }
+
+    /*
+     * 一行两列。日期用等宽等距数字排成一列 —— 整列对齐,读的时候是坐标而不是
+     * 内容;右边那句话才是这一行的正文,所以只有它拿主色。
+     *
+     * 整行可点,不只是其中一个词:这一行没有「标题」那样一个天然的把手。
+     */
+    .entry { display: grid; grid-template-columns: 4.6em 1fr; gap: 0 1.2em;
+             padding-block: .8em; border-bottom: 1px solid var(--border-subtle);
+             color: inherit; text-decoration: none; }
+    .year h2 + .entry { border-top: 1px solid var(--border-subtle); }
+    /*
+     * 不用等宽了:这一格现在印的是「年结」「02 月」,是标签而不是时间戳,
+     * 里面的汉字在 --mono 下会掉到别的字体去。数字仍然等距,所以月份那一列
+     * 照样对齐。
+     */
+    .entry time { font-size: .82em; line-height: 1.9; color: var(--fg-secondary);
+                  font-variant-numeric: tabular-nums; }
+    .entry span { line-height: 1.7; }
+    .entry:hover span { color: var(--link); }
+
+    /* 窄到放不下两列就改成上下两行 —— 日期不能把那句话挤成一字一行。 */
+    @media (max-width: 26em) {
+      .entry { grid-template-columns: 1fr; gap: .1em; }
+      .entry time { line-height: 1.4; }
+    }
   </style>
 </Base>

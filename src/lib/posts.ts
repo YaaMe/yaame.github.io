@@ -49,6 +49,27 @@ export function periodYear(p: Post): string {
 }
 
 /**
+ * 这一篇管哪一段时间,连同印出来的样子和机器可读的值。
+ *
+ * 一根轴,三种粗细:年结管一年,月结管一个月,散文管它写下的那一天。所以索引
+ * 左边那一格印到哪一级,取决于这篇有多细 —— `年结` / `02 月` / `10-18` ——
+ * 而年份只需要从文件名里取一次(见 periodYear),不必为散文再带一份。
+ *
+ * 来源是文件名,不是发表日,理由和 periodYear 一样:2025 的年结发在 2026-02,
+ * 印发表日会和它左边的年份骨架当场打架。年结与月结的区别在 tags 里也有一份
+ * (`year` / `month`),这里不读它 —— 两处只认一个来源,免得哪天对不上。
+ *
+ * 文件名里没有日期的,退回它自己的发表日:那仍然是同一根轴上的一天。
+ */
+export function period(p: Post): { label: string; datetime: string } {
+  const m = /^(\d{4})(?:-(\d{2}|year)(?:-(\d{2}))?)?$/.exec(p.id);
+  if (m?.[2] === "year") return { label: "年结", datetime: m[1] };
+  if (m?.[2] && m[3]) return { label: `${m[2]}-${m[3]}`, datetime: p.id };
+  if (m?.[2]) return { label: `${m[2]} 月`, datetime: p.id };
+  return { label: `${p.data.date.mo}-${p.data.date.d}`, datetime: p.data.date.iso };
+}
+
+/**
  * Tags in use, narrowed to the registry rather than widened to `string`.
  *
  * content.config.ts already rejects unregistered tags at build time, so every
