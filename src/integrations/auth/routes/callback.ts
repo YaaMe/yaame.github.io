@@ -1,14 +1,22 @@
 import type { APIRoute } from "astro";
 import { platform } from "../../../platform";
 import { AUTH } from "../config";
-import { clearStateCookie, create, readStateCookie, setSessionCookie } from "../session";
+import { clearStateCookie, create, readStateCookie, safeReturn, setSessionCookie } from "../session";
 
 export const prerender = false;
 
-/** Back to the page that sent them, with something to read. */
-const back = (request: Request, error?: string) => {
+/**
+ * Where to go next.
+ *
+ * A failure goes to /login, which is the only page that can explain one. A
+ * success goes back to whatever page the visitor left — carried through the
+ * round trip in the state cookie, and refused by `safeReturn` unless it is a
+ * path on this site.
+ */
+const back = (request: Request, to: string) => new URL(to, request.url).href;
+const failTo = (request: Request, error: string) => {
   const to = new URL("/login", request.url);
-  if (error) to.searchParams.set("error", error);
+  to.searchParams.set("error", error);
   return to.href;
 };
 
@@ -24,12 +32,26 @@ export const GET: APIRoute = async ({ request }) => {
   const url = new URL(request.url);
   const code = url.searchParams.get("code");
   const state = url.searchParams.get("state");
-  const expected = readStateCookie(request);
+  // The cookie carries the state and the page to return to, in that order.
+  const carried = readStateCookie(request);
+  const seam = carried ? carried.indexOf(".") : -1;
+  const expected = seam < 0 ? carried : carried!.slice(0, seam);
+  let carriedFrom = "/";
+  if (seam >= 0) {
+    // One decode, undoing the one encode the start route applied. What comes
+    // out is still a percent-encoded path, which is what `safeReturn` wants.
+    try {
+      carriedFrom = decodeURIComponent(carried!.slice(seam + 1));
+    } catch {
+      carriedFrom = "/";
+    }
+  }
+  const from = safeReturn(carriedFrom);
 
   const fail = (why: string) =>
     new Response(null, {
       status: 302,
-      headers: { location: back(request, why), "set-cookie": clearStateCookie() },
+      headers: { location: failTo(request, why), "set-cookie": clearStateCookie() },
     });
 
   if (!state || !expected || state !== expected) return fail("state");
@@ -82,7 +104,7 @@ export const GET: APIRoute = async ({ request }) => {
 
   // Two cookies: the session is set and the state is spent. A state left
   // behind is a second chance at a replay it already survived.
-  const headers = new Headers({ location: back(request) });
+  const headers = new Headers({ location: back(request, from) });
   headers.append("set-cookie", setSessionCookie(id));
   headers.append("set-cookie", clearStateCookie());
   return new Response(null, { status: 302, headers });
