@@ -22,6 +22,7 @@
   --ink-soft:     #6b6b66;
   --hair-light:   #e5e5e1;
   --steel:        #3a5a7a;
+  --rust:         #9d5a2a;
 
   --night:        #1a1a19;
   --night-raised: #232321;
@@ -29,6 +30,7 @@
   --chalk-soft:   #9a9a95;
   --hair-dark:    #333330;
   --sky:          #8fb4d4;
+  --ember:        #dda063;
 
   /* ---- what each one is for ---- */
   --bg-page:       light-dark(var(--paper), var(--night));
@@ -50,8 +52,21 @@
   --border-subtle: light-dark(var(--hair-light), var(--hair-dark));
 
   --link:          light-dark(var(--steel), var(--sky));
+
+  /*
+   * 整套色里唯一的暖调。全冷没有鲜明感,但暖色一旦也去当链接,两种蓝橙就都
+   * 只是「可以点」的同义词,谁也不鲜明了。所以分工:
+   *
+   *   --link     这是一个链接（读的时候看到的）
+   *   --active   你正在动它，或者你选中了它（hover、菜单展开、片段命中）
+   *
+   * 量过,不是挑的:亮色 #9d5a2a 对 --paper 是 5.25，暗色 #dda063 对 --night
+   * 是 7.70（--sky 是 8.00）——和冷色同一个份量，鲜明来自色相而不是响度。
+   */
+  --active:        light-dark(var(--rust), var(--ember));
+
   /* A fragment arriving at a note, and anything else marked for the reader. */
-  --bg-marked:     color-mix(in srgb, var(--link) 7%, transparent);
+  --bg-marked:     color-mix(in srgb, var(--active) 7%, transparent);
 
   --font: system-ui, "PingFang SC", "Noto Sans CJK SC", "Hiragino Sans GB", sans-serif;
   /* Character art needs a grid; a proportional font collapses it. */

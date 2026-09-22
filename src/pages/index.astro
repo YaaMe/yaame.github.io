@@ -86,8 +86,20 @@ for (const p of [...posts].sort((a, b) => coarseFirst(a.id, b.id))) {
      */
     .entry time { font-size: .82em; line-height: 1.9; color: var(--fg-secondary);
                   font-variant-numeric: tabular-nums; }
-    .entry span { line-height: 1.7; }
-    .entry:hover span { color: var(--link); }
+    /*
+     * 一条一行。这一格是这篇的标题(文章本身没有标题),所以它应该像标题那样
+     * 占一行、整列左端对齐 —— 折成两行的那几条会把整张表的节奏打断。
+     *
+     * min-width: 0 是必须的:grid 的子项默认 min-width: auto,不肯缩到内容
+     * 宽度以下,于是 overflow 永远不触发、ellipsis 永远不出现,而那一格会
+     * 把日期那列挤走。
+     *
+     * description 本来就截到 28 字左右且自带「…」,所以多数行根本到不了这里;
+     * ellipsis 只在真的放不下时才出现,不会和原文的省略号叠一块。
+     */
+    .entry span { line-height: 1.7; min-width: 0;
+                  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .entry:hover span { color: var(--active); }
 
     /* 窄到放不下两列就改成上下两行 —— 日期不能把那句话挤成一字一行。 */
     @media (max-width: 26em) {
