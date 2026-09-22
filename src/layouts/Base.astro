@@ -76,14 +76,19 @@ import Progress from "../components/Progress.astro";
               try {
                 const d = document.getElementById("session");
                 const summary = d.querySelector("summary");
+                const panel = d.querySelector(".panel");
                 const who = localStorage.getItem("session");
+
+                // The signed-out panel as the server sent it, kept so that
+                // signing out can put it back rather than ask for the page
+                // again. Cloned before anything below touches the live one.
+                const markup = panel.cloneNode(true);
 
                 if (who) {
                   // The glyph gains a name; `aria-label` is untouched, so the
                   // control keeps announcing itself as the menu it still is.
                   summary.textContent = "@" + who;
 
-                  const panel = d.querySelector(".panel");
                   panel.textContent = "";
 
                   // Not a link: the summary above already says this, and
@@ -96,27 +101,33 @@ import Progress from "../components/Progress.astro";
 
                   // POST, because a GET gets issued unasked — a prefetch of
                   // this very item would log you out before it was clicked.
-                  // The route answers 204 and clears the cookie; where to go
-                  // next is this side's business, not the route's.
+                  // The route destroys the record and clears the cookie, and
+                  // that is the logout; everything below is only the bar
+                  // catching up with it.
                   const out = document.createElement("button");
                   out.type = "button";
                   out.textContent = "登出";
                   out.addEventListener("click", async () => {
                     out.disabled = true;
-                    // The key goes only on a 2xx. It is the bar's display hint
-                    // and decides nothing, so clearing it after a request that
-                    // never landed would show a logged-out bar over a session
-                    // still open on the server — the one lie this must not
-                    // tell. A 204 is the client learning authoritatively that
-                    // the session is over, which is what lets it write a key
-                    // it otherwise only reads.
                     try {
+                      // Only on a 2xx. The key is a display hint and decides
+                      // nothing, so clearing it after a request that never
+                      // landed would show a signed-out bar over a session
+                      // still open on the server — the one lie this must not
+                      // tell. A 204 is the client learning, authoritatively,
+                      // that the session is gone.
                       const res = await fetch("/auth/logout", { method: "POST" });
-                      if (res.ok) localStorage.removeItem("session");
-                    } catch {}
-                    // Stay where you were. Nothing about this page depended on
-                    // being signed in, so a reload is the whole update.
-                    location.reload();
+                      if (!res.ok) { out.disabled = false; return; }
+                      localStorage.removeItem("session");
+
+                      // No reload. Nothing on these pages is rendered from the
+                      // session — they are static files, and the bar is drawn
+                      // from the hint above — so there is nothing to fetch
+                      // again. Put back the markup the server sent, which is
+                      // the signed-out state by definition.
+                      summary.textContent = "@";
+                      panel.replaceChildren(...markup.cloneNode(true).childNodes);
+                    } catch { out.disabled = false; }
                   });
 
                   // Built as nodes rather than markup: the handle comes back
