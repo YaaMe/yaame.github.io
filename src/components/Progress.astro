@@ -21,12 +21,30 @@
   /* The bar's own height, so the footer is not permanently under the bird. */
   body { padding-block-end: var(--bar); }
 
+  /*
+   * Hidden on a page with nothing to be a progress bar for.
+   *
+   * A scroll timeline whose scroller cannot scroll is *inactive*, and an
+   * animation on an inactive timeline produces no output — fill included — so
+   * the `opacity: 0` below shows through. The moment the page is long enough
+   * to scroll, the timeline activates and the keyframe takes over. No
+   * listener, no measurement, no JavaScript.
+   *
+   * `body`'s bottom padding deliberately does NOT get the same treatment. It
+   * is part of what makes the page tall enough to scroll, so animating it
+   * would let the bar remove the scroll that summons it, and the two would
+   * oscillate. It costs one bar's height of empty space on a short page.
+   */
   .track {
     position: fixed; bottom: 0; inset-inline: 0; z-index: 5;
     height: var(--bar);
     padding-bottom: env(safe-area-inset-bottom, 0px);
     background: var(--bg-page);    /* opaque: text scrolls under, not through */
+    visibility: hidden;           /* not opacity: a transparent bar still eats clicks */
+    animation: bar linear both;
+    animation-timeline: scroll(root block);
   }
+  @keyframes bar { from, to { visibility: visible } }
   /*
    * The line sits where the feet land, not at the top of the bar — a bird
    * hanging below a rule is not a bird on a wire.
@@ -57,7 +75,12 @@
     animation-timeline: scroll(root block);
   }
   @keyframes fly { from { left: var(--gutter); } to { left: calc(100% - 5ch - var(--gutter)); } }
-  @supports not (animation-timeline: scroll()) { .bird { animation: none; left: var(--gutter); } }
+  /* Without scroll timelines there is no inactive-timeline signal either, so
+     the bar is shown unconditionally rather than never. */
+  @supports not (animation-timeline: scroll()) {
+    .track { visibility: visible; animation: none; }
+    .bird { animation: none; left: var(--gutter); }
+  }
 
   .eye { position: relative; display: inline-block; }
   .eye b { font-weight: inherit; }
