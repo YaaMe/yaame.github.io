@@ -33,7 +33,6 @@ const chapters = await chapterCount();
     <p class="toc">
       这里有 <a href="#summaries">{sumCount} 篇小结</a>
       （{sumYears[0]}–{sumYears.at(-1)}）
-      {others.length > 0 && <>、<a href="#others">{others.length} 篇随笔</a></>}
       {chapters > 0 && <>，和一部 <a href="/komorebi/">{chapters} 章</a>还在写的小说</>}
       。
       {notes.length > 0 && <>另有 <a href="/notes/">{notes.length} 条</a>没有标题的短文。</>}
