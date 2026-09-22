@@ -1,7 +1,14 @@
 import type { APIRoute } from "astro";
 import { platform } from "../../../platform";
 import { AUTH } from "../config";
-import { clearStateCookie, create, readStateCookie, safeReturn, setSessionCookie } from "../session";
+import {
+  clearStateCookie,
+  create,
+  readStateCookie,
+  safeReturn,
+  setSessionCookie,
+  setWhoCookie,
+} from "../session";
 
 export const prerender = false;
 
@@ -102,10 +109,12 @@ export const GET: APIRoute = async ({ request }) => {
 
   const id = await create({ id: user.id, login: user.login });
 
-  // Two cookies: the session is set and the state is spent. A state left
-  // behind is a second chance at a replay it already survived.
+  // Three cookies in one response: the session is set, the bar is told whose
+  // it is, and the state is spent. A state left behind is a second chance at
+  // a replay it already survived.
   const headers = new Headers({ location: back(request, from) });
   headers.append("set-cookie", setSessionCookie(id));
+  headers.append("set-cookie", setWhoCookie(user.login));
   headers.append("set-cookie", clearStateCookie());
   return new Response(null, { status: 302, headers });
 };

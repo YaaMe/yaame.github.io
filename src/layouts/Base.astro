@@ -67,17 +67,21 @@ import Progress from "../components/Progress.astro";
               // Inline and immediately after the element, so it runs while the
               // header is being parsed and before anything is painted — the
               // same reason the theme script is where it is. Deferring this,
-              // or fetching it, is what made every navigation flash `login`
-              // before the name arrived.
+              // or fetching it, is what made every navigation flash the
+              // signed-out bar before the name arrived.
               //
-              // Written by /login, which is the only page that knows. This is
-              // a display hint and nothing reads it as evidence of anything:
-              // every privileged path asks the server, which asks the session.
+              // Read from a cookie the server writes beside the session and
+              // clears beside it. This side never writes it: a hint one page
+              // wrote and every page read went stale the moment sign-in
+              // stopped landing on that page. It is a display hint and no
+              // path treats it as evidence — every privileged one asks the
+              // server, which asks the session.
               try {
                 const d = document.getElementById("session");
                 const summary = d.querySelector("summary");
                 const panel = d.querySelector(".panel");
-                const who = localStorage.getItem("session");
+                const hint = document.cookie.match(/(?:^|;\s*)who=([^;]*)/);
+                const who = hint ? decodeURIComponent(hint[1]) : null;
 
                 // The signed-out panel as the server sent it, kept so that
                 // signing out can put it back rather than ask for the page
@@ -118,13 +122,13 @@ import Progress from "../components/Progress.astro";
                       // that the session is gone.
                       const res = await fetch("/auth/logout", { method: "POST" });
                       if (!res.ok) { out.disabled = false; return; }
-                      localStorage.removeItem("session");
 
-                      // No reload. Nothing on these pages is rendered from the
-                      // session — they are static files, and the bar is drawn
-                      // from the hint above — so there is nothing to fetch
-                      // again. Put back the markup the server sent, which is
-                      // the signed-out state by definition.
+                      // The 204 carried the cleared cookies, so the hint is
+                      // already gone. No reload: nothing on these pages is
+                      // rendered from the session — they are static files, and
+                      // the bar is drawn from that hint — so there is nothing
+                      // to fetch again. Put back the markup the server sent,
+                      // which is the signed-out state by definition.
                       summary.textContent = "@";
                       panel.replaceChildren(...markup.cloneNode(true).childNodes);
                     } catch { out.disabled = false; }

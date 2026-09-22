@@ -1,5 +1,5 @@
 import type { APIRoute } from "astro";
-import { clearSessionCookie, destroy } from "../session";
+import { clearSessionCookie, clearWhoCookie, destroy } from "../session";
 
 export const prerender = false;
 
@@ -28,8 +28,8 @@ export const POST: APIRoute = async ({ request }) => {
   // copy of it — one taken from a shared machine, say — working until it
   // expires on its own.
   await destroy(request);
-  return new Response(null, {
-    status: 204,
-    headers: { "set-cookie": clearSessionCookie() },
-  });
+  const headers = new Headers();
+  headers.append("set-cookie", clearSessionCookie());
+  headers.append("set-cookie", clearWhoCookie());
+  return new Response(null, { status: 204, headers });
 };

@@ -54,13 +54,10 @@ const ROLE: Record<string, string> = {
     .button:hover, button:hover { border-color: var(--link); color: var(--link); }
   </style>
   <script is:inline set:html={`
-    // The authoritative page writes what the others read. A session that ends
-    // server-side leaves this behind until the next visit here, which is why
-    // it decides nothing.
-    try {
-      ${session ? `localStorage.setItem("session", ${JSON.stringify(session.login)})` : 'localStorage.removeItem("session")'};
-    } catch {}
-
+    // Nothing to write here any more: the server sets the bar's hint beside
+    // the session and clears it beside the logout, so this page is a reader
+    // like every other.
+    //
     // Same call the menu makes: POST, so that nothing issues it unasked, and
     // a reload rather than a redirect from the route — this page renders from
     // the session, so re-rendering it is what shows the result.

@@ -19,6 +19,7 @@ export type Session = {
 const KEY = (id: string) => `auth:session:${id}`;
 const COOKIE = "session";
 const STATE = "oauth_state";
+const WHO = "who";
 
 /**
  * Opaque, and from the platform's own generator.
@@ -65,6 +66,26 @@ export const setStateCookie = (value: string) =>
 export const clearStateCookie = () => `${STATE}=; ${attrs(0, "/auth")}`;
 export const readStateCookie = (req: Request) =>
   cookie(req.headers.get("cookie"), STATE);
+
+/**
+ * The head bar's display hint.
+ *
+ * Not HttpOnly, and that is the whole point: the inline script in the head
+ * reads it synchronously, before anything is painted, which is what keeps the
+ * bar from flashing the signed-out state on every navigation. It carries a
+ * public GitHub handle and nothing else, and no path treats it as evidence —
+ * every privileged one asks the server, which asks the session.
+ *
+ * Written by the server, in the same response that sets the session and
+ * cleared in the same response that ends it. That is what a key written by
+ * one page and read by all of them could not do: sign-in used to land on
+ * /login, which wrote it, and the moment the round trip started returning
+ * people to the page they left, nothing wrote it at all.
+ */
+const visible = (maxAge: number) => `Path=/; Secure; SameSite=Lax; Max-Age=${maxAge}`;
+export const setWhoCookie = (login: string) =>
+  `${WHO}=${encodeURIComponent(login)}; ${visible(AUTH.sessionDays * 86400)}`;
+export const clearWhoCookie = () => `${WHO}=; ${visible(0)}`;
 
 /**
  * A path on this site, or "/".
