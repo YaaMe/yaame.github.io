@@ -1,0 +1,290 @@
+<title>三种读法</title>
+<style>
+/*
+ * 主题原型:一套调色板,三种排版。
+ *
+ * 调色板一个字没改 —— tokens.css 原样搬来,新字面量零个。这套色本身没有
+ * 问题,重画一遍只是搅动。唯一新增的角色 token 是 --serif,理由和当初
+ * --mono 一样:字符画要网格,小说要衬线,都是排版需要而不是装饰。
+ *
+ * 设计的依据来自内容本身,不是风格词。三个流宣告自己的方式各不相同:
+ *
+ *   记录   posts/ 里每篇的 title 就是日期,没有真标题。所以索引不可能是
+ *          标题列表 —— 承担标题职责的是 frontmatter 的 description,也就是
+ *          开篇那一句。于是日期退成坐标(mono、tabular-nums、次级色),
+ *          首句升成正文级。
+ *   故事   komorebi 有题、有「一 二 三」。中文小说的排版约定是首行缩进两字、
+ *          段间不留空 —— 换上它,对话密集的文本一眼就读成小说而不是随笔。
+ *   短文   notes 只有时间戳。所以是日志:行距收紧、行宽收窄、发条细线断开,
+ *          不按文章排。
+ *
+ * 每个流的一句说明放在 header 里 —— 你说过「如果我想注解会直接放 header」。
+ * 这同时结清了 todo #8:komorebi 和 notes 在站上从来没被解释过。
+ */
+:root{
+  /* 系统跟随。明暗由 light-dark() 解析,和站上一致 */
+  color-scheme: light dark;
+
+  /* ---- 唯一的字面量,与 tokens.css 逐字相同 ---- */
+  --paper:#fdfdfc; --paper-raised:#f4f4f1; --ink:#2b2b28; --ink-soft:#6b6b66;
+  --hair-light:#e5e5e1; --steel:#3a5a7a;
+  --night:#1a1a19; --night-raised:#232321; --chalk:#e3e3e0; --chalk-soft:#9a9a95;
+  --hair-dark:#333330; --sky:#8fb4d4;
+
+  /* ---- 各自的用途 ---- */
+  --bg-page:light-dark(var(--paper),var(--night));
+  --bg-raised:light-dark(var(--paper-raised),var(--night-raised));
+  --fg-primary:light-dark(var(--ink),var(--chalk));
+  --fg-secondary:light-dark(var(--ink-soft),var(--chalk-soft));
+  --border-subtle:light-dark(var(--hair-light),var(--hair-dark));
+  --link:light-dark(var(--steel),var(--sky));
+  --bg-marked:color-mix(in srgb,var(--link) 7%,transparent);
+
+  --font:system-ui,"PingFang SC","Noto Sans CJK SC","Hiragino Sans GB",sans-serif;
+  --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  /* 新增的唯一一个:小说要衬线,和 --mono 同类的理由 */
+  --serif:"Songti SC","Source Han Serif SC","Noto Serif CJK SC","SimSun",serif;
+  --size:17px; --lh:1.85; --measure:34em; --gutter:1.2rem; --bar:2.6rem;
+}
+/* 读者显式选过就锁死,没选过才跟系统 —— light-dark() 认的是 color-scheme */
+:root[data-theme="light"]{color-scheme:light}
+:root[data-theme="dark"]{color-scheme:dark}
+
+body{margin:0;background:var(--bg-page);color:var(--fg-primary);
+  font-family:var(--font);font-size:var(--size);line-height:var(--lh);
+  text-autospace:normal;padding-bottom:var(--bar)}
+header,main,footer{max-width:var(--measure);margin-inline:auto;padding-inline:var(--gutter)}
+
+/* ---------- header:粘顶,滚动时收拢,零监听器 ---------- */
+header{position:sticky;top:env(safe-area-inset-top,0px);z-index:4;
+  background:var(--bg-page);padding-block:2rem .9rem;
+  border-block-end:1px solid transparent;
+  animation:shrink linear both;animation-timeline:scroll(root block);animation-range:0 80px}
+@keyframes shrink{to{padding-block:.7rem .6rem;border-block-end-color:var(--border-subtle)}}
+.bar{display:flex;flex-wrap:wrap;gap:.6em 1.4em;align-items:baseline}
+.brand{color:var(--fg-primary);text-decoration:none;font-weight:600;letter-spacing:.04em}
+nav{display:flex;gap:1.2em;align-items:baseline;margin-inline-start:auto}
+nav button{font:inherit;background:none;border:0;padding:0;cursor:pointer;
+  color:var(--fg-secondary);line-height:1}
+nav button[aria-current="true"]{color:var(--fg-primary)}
+nav button:hover{color:var(--fg-primary)}
+#theme{background:none;border:0;padding:0;cursor:pointer;color:var(--fg-secondary);
+  font-family:inherit;font-size:.88em;line-height:1}
+#theme:hover{color:var(--fg-primary)}
+/* 流的一句说明。滚动收拢时一起收走 —— 它是介绍,不是导航 */
+.gloss{margin:.7em 0 0;color:var(--fg-secondary);font-size:.88em;line-height:1.6;
+  animation:gloss linear both;animation-timeline:scroll(root block);animation-range:0 80px}
+@keyframes gloss{to{opacity:0;margin-block-start:0;font-size:0}}
+
+/* ---------- 记录:日期是坐标,首句是标题 ---------- */
+.year{display:flex;align-items:baseline;gap:.9em;margin-block:2.6em 1.1em}
+.year b{font:600 1.45em/1 var(--mono);color:var(--fg-secondary);
+  font-variant-numeric:tabular-nums;letter-spacing:.02em}
+.year i{flex:1;height:1px;background:var(--border-subtle)}
+.year em{font-style:normal;font-size:.82em;color:var(--fg-secondary)}
+.entry{display:grid;grid-template-columns:5.2em 1fr;gap:0 1.2em;
+  padding-block:.75em;border-block-end:1px solid var(--border-subtle);
+  text-decoration:none;color:inherit}
+.entry:first-of-type{border-block-start:1px solid var(--border-subtle)}
+.entry time{font:.78em/1.9 var(--mono);color:var(--fg-secondary);
+  font-variant-numeric:tabular-nums}
+.entry span{line-height:1.6}
+.entry:hover span{color:var(--link)}
+.entry .tag{display:block;margin-block-start:.15em;font-size:.78em;color:var(--fg-secondary)}
+@media (max-width:26em){
+  .entry{grid-template-columns:1fr;gap:.1em}
+  .entry time{line-height:1.4}
+}
+
+/* 展开的一篇:题记用标记底色,和站上 --bg-marked 同一个用途 */
+.piece{margin-block-start:3.2em}
+.piece h1{font-size:1.5em;line-height:1.4;text-wrap:balance;margin-block:0 .2em}
+.piece .meta{font:.78em/1.9 var(--mono);color:var(--fg-secondary);
+  font-variant-numeric:tabular-nums}
+.epigraph{margin-block:1.8em;padding:.9em 1.1em;background:var(--bg-marked);
+  border-inline-start:2px solid var(--border-subtle);color:var(--fg-secondary)}
+.epigraph p{margin-block:.5em}
+.piece p{margin-block:1.4em}
+
+/* ---------- 故事:中文小说的排版约定 ---------- */
+.story{font-family:var(--serif);line-height:1.95;max-width:30em;margin-inline:auto}
+.story h1{font-size:1.45em;font-weight:600;text-align:center;letter-spacing:.14em;
+  margin-block:0 .3em}
+.story .byline{text-align:center;font:.78em/1.9 var(--mono);color:var(--fg-secondary);
+  margin-block:0 2.4em}
+.story .chapter{text-align:center;font-size:1.15em;letter-spacing:.6em;
+  text-indent:.6em;color:var(--fg-secondary);margin-block:2.6em 1.2em}
+.story .chapter::before{content:"";display:block;width:2.5em;height:1px;
+  background:var(--border-subtle);margin:0 auto 1.4em}
+/* 首行缩进两字、段间不留空 —— 换掉其中任何一条,它就读回随笔 */
+.story p{text-indent:2em;margin:0}
+
+/* ---------- 短文:日志,不是文章 ---------- */
+.log{max-width:26em;margin-inline:auto;font-size:.95em;line-height:1.7}
+.note{padding-block:1.2em;border-block-end:1px solid var(--border-subtle)}
+.note:first-child{border-block-start:1px solid var(--border-subtle)}
+.note .stamp{font:.75em/1.8 var(--mono);color:var(--fg-secondary);
+  font-variant-numeric:tabular-nums;display:flex;gap:.8em;align-items:baseline}
+.note .ex{border:1px solid var(--border-subtle);border-radius:2px;padding:0 .4em;
+  font-size:.92em}
+.note p{margin-block:.35em 0}
+
+footer{border-block-start:1px solid var(--border-subtle);margin-block-start:4em;
+  padding-block:1.5em 3em;font-size:.9em;color:var(--fg-secondary)}
+footer p{display:flex;flex-wrap:wrap;gap:.4em 1.2em;margin-block:.4em}
+footer .fp{font-family:var(--mono);font-size:.82em;word-break:break-all}
+a{color:var(--link);text-underline-offset:.2em}
+
+/* ---------- 鸟:原型里那只,一字未改 ---------- */
+.track{position:fixed;bottom:0;inset-inline:0;z-index:5;height:var(--bar);
+  padding-bottom:env(safe-area-inset-bottom,0px);background:var(--bg-page);
+  visibility:hidden;animation:bar linear both;animation-timeline:scroll(root block)}
+@keyframes bar{from,to{visibility:visible}}
+.track::before{content:"";position:absolute;inset-inline:0;
+  bottom:calc(.55rem + env(safe-area-inset-bottom,0px));
+  border-top:1px solid var(--border-subtle)}
+.bird{position:absolute;bottom:calc(.3rem + env(safe-area-inset-bottom,0px));left:0;
+  margin:0;font-family:var(--mono);line-height:1;font-size:.8rem;white-space:pre;
+  color:var(--fg-secondary);user-select:none;pointer-events:none;
+  animation:fly linear both;animation-timeline:scroll(root block);--eye:4.3s}
+@keyframes fly{from{left:0}to{left:calc(100% - 6ch)}}
+.sw{position:relative;display:inline-block}
+.sw b{font-weight:inherit}
+.sw b:nth-child(2){position:absolute;left:0;top:0;opacity:0}
+@media (prefers-reduced-motion:no-preference){
+  .eye b:nth-child(1){animation:bkO var(--eye) steps(1) infinite}
+  .eye b:nth-child(2){animation:bkC var(--eye) steps(1) infinite}
+}
+@keyframes bkO{0%,94%,100%{opacity:1}94.5%,99.5%{opacity:0}}
+@keyframes bkC{0%,94%,100%{opacity:0}94.5%,99.5%{opacity:1}}
+@supports not (animation-timeline:scroll()){
+  .track{visibility:visible;animation:none}
+  .bird{animation:none}
+  header{animation:none}
+  .gloss{animation:none}
+}
+:focus-visible{outline:2px solid var(--link);outline-offset:3px}
+</style>
+
+<header>
+  <div class="bar">
+    <a class="brand" href="#">Blogu</a>
+    <nav>
+      <button type="button" data-s="posts" aria-current="true">记录</button>
+      <button type="button" data-s="story">故事</button>
+      <button type="button" data-s="notes">短文</button>
+      <button type="button" id="theme" aria-label="明暗">◐</button>
+    </nav>
+  </div>
+  <p class="gloss" id="gloss">按年编排。这里的文章没有标题,开篇第一句就是标题。</p>
+</header>
+
+<main>
+  <!-- ============ 记录 ============ -->
+  <section id="posts">
+    <div class="year"><b>2025</b><i></i><em>1 篇</em></div>
+    <a class="entry" href="#"><time datetime="2026-02-13">02-13</time>
+      <span>我深怕自己并非美玉,故而不敢加以刻苦琢磨,却又半信自己是…
+      <span class="tag">年终</span></span></a>
+
+    <div class="year"><b>2024</b><i></i><em>1 篇</em></div>
+    <a class="entry" href="#"><time datetime="2025-01-01">年终</time>
+      <span>人间极致的恶意,在书上是不曾记载的,因为那些事迹早已超越…</span></a>
+
+    <div class="year"><b>2023</b><i></i><em>6 篇</em></div>
+    <a class="entry" href="#"><time datetime="2023-12-31">年终</time>
+      <span>众神偏爱新生,留我独听凋零。</span></a>
+    <a class="entry" href="#"><time datetime="2023-01-01">01-01</time>
+      <span>看了看 2022,作为一只鸽子我好像一直挺称职的,比如月结…</span></a>
+
+    <div class="year"><b>2022</b><i></i><em>7 篇</em></div>
+    <a class="entry" href="#"><time datetime="2022-12-31">年终</time>
+      <span>「试试就知道了」</span></a>
+    <a class="entry" href="#"><time datetime="2022-06-01">06</time>
+      <span>喵喵喵</span></a>
+
+    <div class="year"><b>2021</b><i></i><em>2 篇</em></div>
+    <a class="entry" href="#"><time datetime="2021-10-18">10-18</time>
+      <span>想了很久,在公司 channel 吐槽之类的似乎也不是特别好…</span></a>
+
+    <article class="piece">
+      <h1>2025</h1>
+      <p class="meta">2026-02-13 04:37 · 年终 · 置顶</p>
+      <div class="epigraph">
+        <p>我深怕自己并非美玉,故而不敢加以刻苦琢磨,却又半信自己是块美玉,故而不肯庸庸碌碌,与瓦砾为伍。</p>
+        <p>于是我渐渐地脱离凡尘,远离世人,结果便是,任愤懑与羞恨日益助长那怯懦的自尊心。</p>
+      </div>
+      <p>今天的题记从中岛敦的《山月记》开始。</p>
+      <p>2025 年我似乎没有做什么,又似乎做了很多不重要的事情。身处 AI 的热潮下,我却似乎第一次没有紧跟技术。我很少使用 AI,仅仅是觉得它还不够好用。</p>
+      <p>除开这些暴言。这一年我几乎学完了天主教的慕道班。我从没有想过有一天我会和宗教扯上关系。直到我发现我想过的经历过的能用《圣经》表述出来,我终于找到一个方式表达自己的观点。</p>
+    </article>
+  </section>
+
+  <!-- ============ 故事 ============ -->
+  <section id="story" class="story" hidden>
+    <h1>komorebi</h1>
+    <p class="byline">狐狸与道士 · 2023-07-23</p>
+
+    <p class="chapter">一</p>
+    <p>林间古道,夕阳尚未降下山头。</p>
+    <p>一个小道士长剑出鞘,持剑傲立,目光坚定地看着前方,继而色厉内荏地说道:“待我此番艺成下山,自是要除魔卫道,拯救天下苍生,尔等妖孽怎还敢调戏于我!”</p>
+    <p>小狐狸一手拖着腮,坐在树干上,另一手拿起从小道士手里顺来的糖葫芦,看看糖葫芦,再看看小道士,说道:“你这不还没下山呢嘛。哎,你师父说了,不准你偷溜去山下镇上,我这是惩罚。再说了,你一个七岁毛孩,不能吃糖,对牙齿不好。”说罢舔了一口糖葫芦,嘻嘻,真甜。</p>
+    <p>“你..!我明明九岁毛..呸!你才是毛孩!”小道士气结,没办法,上山的三个年头,砍了一年柴挑了一年水练了一年剑,资质愚钝,至今术一个都没学会。</p>
+
+    <p class="chapter">二</p>
+    <p>夜半,思过崖。</p>
+    <p>饥肠辘辘的小道士正在面壁,嘴撅得能挂酱油瓶:“真倒霉,糖葫芦没吃着,还被师父罚来思过崖,听说晚饭有排骨汤呢……咦?”忽得,小道士闻到一股肉香,回头望去,但见一人影走来,尚只能辨析轮廓,小道士已笑得如沐春风:“师姐好～”</p>
+  </section>
+
+  <!-- ============ 短文 ============ -->
+  <section id="notes" class="log" hidden>
+    <article class="note">
+      <p class="stamp"><time datetime="2026-09-18T10:55:08Z">2026-09-18 18:55</time></p>
+      <p>测试短文投递:这条用来验证短文能不能进关注者的时间线。长文因为日期太旧被 Mastodon 的 6 小时窗口挡住,而这条是当下写的。</p>
+    </article>
+    <article class="note">
+      <p class="stamp"><time datetime="2026-09-20T02:10:00Z">2026-09-20 10:10</time><span class="ex">示例</span></p>
+      <p>短文没有标题也没有摘要,只有一个时间。所以它按日志排:行距收紧到 1.7,行宽收到 26em,发与发之间用一条细线断开。</p>
+    </article>
+    <article class="note">
+      <p class="stamp"><time datetime="2026-09-21T13:04:00Z">2026-09-21 21:04</time><span class="ex">示例</span></p>
+      <p>同一套色,不同的读法。</p>
+    </article>
+  </section>
+</main>
+
+<footer>
+  <p><span>yaame</span><a href="#">RSS</a><a href="#">ActivityPub</a><a href="#">另一个版本</a></p>
+  <p class="fp">AD14E09899ECA2C40D518CCB279F27B46C4647E3</p>
+</footer>
+
+<div class="track" aria-hidden="true">
+  <pre class="bird">(<span class="sw eye"><b>o</b><b>-</b></span>)&gt;
+ ''</pre>
+</div>
+
+<script>
+// 每个流的一句说明。todo #8 说的就是这个:komorebi 和 notes 在站上从没被解释过。
+const GLOSS = {
+  posts: "按年编排。这里的文章没有标题,开篇第一句就是标题。",
+  story: "写着玩的故事。有题、有章回,所以按小说排:衬线、首行缩进两字、段间不留空。",
+  notes: "发到联邦宇宙的短文。没有标题也没有摘要,只有时间,所以按日志排。",
+};
+const gloss = document.getElementById("gloss");
+document.querySelectorAll("nav button[data-s]").forEach((b) => {
+  b.addEventListener("click", () => {
+    document.querySelectorAll("nav button[data-s]").forEach((o) => {
+      o.setAttribute("aria-current", String(o === b));
+      document.getElementById(o.dataset.s).hidden = o !== b;
+    });
+    gloss.textContent = GLOSS[b.dataset.s];
+    scrollTo({ top: 0 });
+  });
+});
+// 站上那个开关,原样:tokens 用 light-dark(),翻 color-scheme 就够了
+document.getElementById("theme").addEventListener("click", () => {
+  const r = document.documentElement;
+  const now = getComputedStyle(r).colorScheme;
+  r.style.colorScheme = now === "dark" ? "light" : "dark";
+});
+</script>
