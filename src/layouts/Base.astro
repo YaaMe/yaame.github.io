@@ -37,7 +37,7 @@ import Progress from "../components/Progress.astro";
         {nav.slice(1).map((n) => <a href={n.href}>{n.label}</a>)}
         {features.auth && (
           <>
-            <a id="session" href="/login" title="登录" aria-label="登录">@</a>
+            <a id="session" href="/login" aria-label="登录">@</a>
             <script is:inline>
               // Inline and immediately after the element, so it runs while the
               // header is being parsed and before anything is painted — the
@@ -54,7 +54,7 @@ import Progress from "../components/Progress.astro";
                 // glyph, so the two states are one mark at two lengths.
                 const who = localStorage.getItem("session");
                 const el = document.getElementById("session");
-                if (who) { el.textContent = "@" + who; el.title = el.ariaLabel = "@" + who; }
+                if (who) { el.textContent = "@" + who; el.ariaLabel = "@" + who; }
               } catch {}
             </script>
           </>
