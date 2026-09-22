@@ -4,8 +4,8 @@ import { site, nav, social, features, other } from "../site.config";
 interface Props { title: string; description?: string }
 const { title, description } = Astro.props;
 
-// The slash form is the canonical one. Both resolve now — see astro.config.mjs
-// — so say which is meant, or the same page counts twice.
+// With a trailing slash is canonical. Both spellings resolve — see
+// astro.config.mjs — so say which is meant, or one page counts as two.
 const canonical = new URL(
   Astro.url.pathname.endsWith("/") ? Astro.url.pathname : Astro.url.pathname + "/",
   site.url,
