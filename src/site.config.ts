@@ -86,7 +86,6 @@ export const nav = [
   { label: "首页", href: "/" },
   { label: "komorebi", href: "/komorebi/" },
   { label: "notes", href: "/notes/" },
-  { label: "RSS", href: "/rss.xml" },
 ] as const;
 
 export const social = [

@@ -61,7 +61,10 @@ import Progress from "../components/Progress.astro";
     <main><slot /></main>
     <Progress />
     <footer>
-      <p>{social.map((s) => <a href={s.href}>{s.label}</a>)}</p>
+      <p>
+        {social.map((s) => <a href={s.href}>{s.label}</a>)}
+        <a href="/rss.xml">RSS</a>
+      </p>
       <p class="muted">
         © {site.author}
         <a href={other + Astro.url.pathname}>{new URL(other).host}</a>
@@ -96,7 +99,28 @@ import Progress from "../components/Progress.astro";
       footer { border-top: 1px solid var(--border-subtle); margin-block-start: 4em; padding-block: 1.5em 3em; font-size: .9em; }
       footer p { display: flex; gap: 1.2em; margin-block: .4em; }
       .muted { color: var(--fg-secondary); }
-      header { padding-block: 2rem 1rem; }
+      /*
+       * Sticky, and it shrinks on the way. The padding animates across the
+       * first 80px of scroll rather than snapping at a threshold, so nothing
+       * jumps — and it is the same scroll-driven CSS as the bird, so there is
+       * still no listener anywhere on the page.
+       *
+       * The hairline fades in over the same range: in flow the header needs no
+       * rule beneath it; stuck above moving text it does.
+       */
+      header {
+        position: sticky; top: 0; z-index: 4;
+        background: var(--bg-page);
+        padding-block: 2rem 1rem;
+        border-block-end: 1px solid transparent;
+        animation: header-shrink linear both;
+        animation-timeline: scroll(root block);
+        animation-range: 0 80px;
+      }
+      @keyframes header-shrink {
+        to { padding-block: .7rem .6rem;
+             border-block-end-color: var(--border-subtle); }
+      }
       header nav a, footer a { color: var(--fg-secondary); text-decoration: none; }
       h1, h2, h3 { line-height: 1.4; text-wrap: balance; }
       p { margin-block: 1.4em; }
