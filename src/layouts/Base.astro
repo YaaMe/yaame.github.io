@@ -36,8 +36,20 @@ import Progress from "../components/Progress.astro";
       <nav>
         {nav.slice(1).map((n) => <a href={n.href}>{n.label}</a>)}
         {features.auth && (
-          <>
-            <a id="session" href="/login" aria-label="登录">@</a>
+          <details id="session">
+            {/*
+              A native disclosure. Opening, closing, Enter and Space are the
+              browser's, so this works with scripting off — the same standard
+              the bird and the shrinking header are held to.
+
+              The name stays `menu` in both states. `aria-label` overrides the
+              visible text, so a screen reader hears `menu` rather than the
+              handle; the handle is the first item inside, and on /login.
+            */}
+            <summary aria-label="menu">@</summary>
+            <div class="panel">
+              <a href="/login">登录</a>
+            </div>
             <script is:inline>
               // Inline and immediately after the element, so it runs while the
               // header is being parsed and before anything is painted — the
@@ -49,15 +61,54 @@ import Progress from "../components/Progress.astro";
               // a display hint and nothing reads it as evidence of anything:
               // every privileged path asks the server, which asks the session.
               try {
-                // Logged out the link is a bare `@` — an address with nobody
-                // at it. Signing in appends the name rather than swapping the
-                // glyph, so the two states are one mark at two lengths.
+                const d = document.getElementById("session");
+                const summary = d.querySelector("summary");
                 const who = localStorage.getItem("session");
-                const el = document.getElementById("session");
-                if (who) { el.textContent = "@" + who; el.ariaLabel = "@" + who; }
+
+                if (who) {
+                  // The glyph gains a name; `aria-label` is untouched, so the
+                  // control keeps announcing itself as the menu it still is.
+                  summary.textContent = "@" + who;
+
+                  const panel = d.querySelector(".panel");
+                  panel.textContent = "";
+
+                  // Not a link: the summary above already says this, and
+                  // /login has nothing further to offer once 登出 is here. It
+                  // stays as text because `aria-label` hides the summary's own
+                  // wording, so this is where the handle is actually read out.
+                  const me = document.createElement("span");
+                  me.className = "who";
+                  me.textContent = "@" + who;
+
+                  // Logging out is a POST, so that no prefetch and no `img` on
+                  // somebody else's page can do it to you. That makes this a
+                  // form rather than one more link.
+                  const form = document.createElement("form");
+                  form.method = "post";
+                  form.action = "/auth/logout";
+                  const out = document.createElement("button");
+                  out.type = "submit";
+                  out.textContent = "登出";
+                  form.append(out);
+
+                  // Built as nodes rather than markup: the handle comes back
+                  // out of storage, and innerHTML would make it executable.
+                  panel.append(me, form);
+                }
+
+                // The two things `details` has no opinion about. Escape also
+                // puts focus back where it started, which `details` does only
+                // for a click on the summary.
+                addEventListener("keydown", (e) => {
+                  if (e.key === "Escape" && d.open) { d.open = false; summary.focus(); }
+                });
+                addEventListener("pointerdown", (e) => {
+                  if (d.open && !d.contains(e.target)) d.open = false;
+                });
               } catch {}
             </script>
-          </>
+          </details>
         )}
         {features.darkMode && <button id="theme" type="button" aria-label="切换明暗">◐</button>}
       </nav>
@@ -96,9 +147,47 @@ import Progress from "../components/Progress.astro";
       header, main, footer { max-width: var(--measure); margin-inline: auto; padding-inline: var(--gutter); }
       header { display: flex; flex-wrap: wrap; gap: 1em 1.4em; align-items: baseline; }
       header nav { display: flex; gap: 1.2em; align-items: baseline; }
+      /*
+       * `font-family: inherit` is the load-bearing line. A button does not
+       * inherit the page font, so this was resolving to the UA stack, Arial
+       * had no U+25D0, and the glyph came from Hiragino Sans — a Japanese
+       * face, with metrics that match nothing beside it.
+       *
+       * Then .88em: measured at 17px, the disc's ink is 13.2 tall against the
+       * 11.4 of the text next to it. Scaling lands both within .3px, and a
+       * circle wants the last fraction of that to stay — a round shape reads
+       * smaller than a flat-topped letter of the same height.
+       */
       #theme { background: none; border: 0; padding: 0; cursor: pointer;
-               color: var(--fg-secondary); font-size: 1em; line-height: 1; }
+               color: var(--fg-secondary); font-family: inherit;
+               font-size: .88em; line-height: 1; }
       #theme:hover { color: var(--fg-primary); }
+      /*
+       * The session menu. `--bg-raised` earns its first user here: a panel
+       * over running text is exactly the case the token was defined for, and
+       * it is the only surface on the site that sits above another one.
+       */
+      #session { position: relative; }
+      #session > summary {
+        list-style: none; cursor: pointer;
+        color: var(--fg-secondary); line-height: 1;
+      }
+      #session > summary::-webkit-details-marker { display: none; }
+      #session > summary:hover, #session[open] > summary { color: var(--fg-primary); }
+      #session .panel {
+        position: absolute; inset-inline-end: 0; top: calc(100% + .7em); z-index: 5;
+        display: flex; flex-direction: column; align-items: start; gap: .1em;
+        min-width: 6em; padding: .5em .8em;
+        background: var(--bg-raised); border: 1px solid var(--border-subtle);
+      }
+      #session .panel .who { padding: .3em 0; color: var(--fg-primary); white-space: nowrap; }
+      #session .panel a, #session .panel button {
+        padding: .3em 0; border: 0; background: none;
+        color: var(--fg-secondary); font: inherit; text-decoration: none;
+        white-space: nowrap; cursor: pointer;
+      }
+      #session .panel a:hover, #session .panel button:hover { color: var(--link); }
+      #session .panel form { margin: 0; }
       .brand { color: var(--fg-primary); text-decoration: none; font-weight: 600; letter-spacing: .04em; }
       footer { border-top: 1px solid var(--border-subtle); margin-block-start: 4em; padding-block: 1.5em 3em; font-size: .9em; }
       footer p { display: flex; gap: 1.2em; margin-block: .4em; }
