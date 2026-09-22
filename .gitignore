@@ -17,3 +17,6 @@ docs/identity.md
 worker-configuration.d.ts
 worker/wrangler.generated.jsonc
 .data/
+
+# Local scratch — not the repo's memory
+.todo/
