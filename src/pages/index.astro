@@ -1,11 +1,9 @@
 ---
 import Base from "../layouts/Base.astro";
-import { allPosts, href, periodYear, chapterCount } from "../lib/posts";
-import { allNotes } from "../lib/notes";
+import { allPosts, href, periodYear } from "../lib/posts";
 import { site, hero } from "../site.config";
 
 const posts = await allPosts();
-const notes = await allNotes();
 
 // Summaries, grouped by the year in the filename — the period covered, not
 // the publication date. Sorted within a group by the same key, so the order
@@ -20,24 +18,15 @@ for (const p of [...posts].sort((a, b) => b.id.localeCompare(a.id))) {
 
 // Everything else. One post for now, newest first.
 const others = posts.filter((p) => !p.data.tags.includes("summaries"));
-
-// The counts are derived, never typed in: add a post or a chapter and the
-// sentence below updates itself.
-const sumCount = posts.length - others.length;
-const sumYears = [...summaries.keys()].sort();
-const chapters = await chapterCount();
 ---
 <Base title={site.title}>
-  <section class="hero">
-    {hero.greeting && <h1>{hero.greeting}</h1>}
-    <p class="toc">
-      这里有 <a href="#summaries">{sumCount} 篇小结</a>
-      （{sumYears[0]}–{sumYears.at(-1)}）
-      {chapters > 0 && <>，和一部 <a href="/komorebi/">{chapters} 章</a>还在写的小说</>}
-      。
-      {notes.length > 0 && <>另有 <a href="/notes/">{notes.length} 条</a>没有标题的短文。</>}
-    </p>
-  </section>
+  {/* Guarded whole, not just its contents: a section with only a rule and
+      some padding in it is the empty-box bug the intro paragraph used to be. */}
+  {hero.greeting && (
+    <section class="hero">
+      <h1>{hero.greeting}</h1>
+    </section>
+  )}
 
   <section class="block" id="summaries">
     <h2 class="block-title">小结</h2>
@@ -74,11 +63,7 @@ const chapters = await chapterCount();
 
   <style>
     .hero { padding-block: .5em 2em; border-bottom: 1px solid var(--border-subtle); }
-    .hero h1 { margin: 0 0 .4em; font-size: 1.8em; }
-    .toc { margin: 0; color: var(--fg-secondary); }
-    .toc a { color: var(--fg-primary); text-decoration: none;
-             border-bottom: 1px solid var(--border-subtle); }
-    .toc a:hover { color: var(--link); border-color: var(--link); }
+    .hero h1 { margin: 0; font-size: 1.8em; }
     .block { margin-block: 3em; }
     .block-title { margin: 0 0 1.2em; font-size: .9em; font-weight: 600;
                    letter-spacing: .12em; color: var(--fg-secondary); }

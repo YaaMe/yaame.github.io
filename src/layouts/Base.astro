@@ -48,7 +48,11 @@ import Progress from "../components/Progress.astro";
             */}
             <summary aria-label="menu">@</summary>
             <div class="panel">
-              <a href="/login">登录</a>
+              {/* Straight at the flow, not at a page that holds a button to
+                  start it. /login stays a route — the callback sends its
+                  errors there, and logging out lands there — but nothing
+                  navigates to it just to log in. */}
+              <a href="/auth/github">登录</a>
             </div>
             <script is:inline>
               // Inline and immediately after the element, so it runs while the
