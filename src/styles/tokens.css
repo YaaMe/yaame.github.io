@@ -56,6 +56,8 @@
   --font: system-ui, "PingFang SC", "Noto Sans CJK SC", "Hiragino Sans GB", sans-serif;
   /* Character art needs a grid; a proportional font collapses it. */
   --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  /* 小说要衬线,和 --mono 同一类理由:排版需要,不是风格。 */
+  --serif: "Songti SC", "Source Han Serif SC", "Noto Serif CJK SC", "SimSun", serif;
   --size: 17px;
   --lh: 1.85;          /* Chinese needs more than Latin; 1.5 is cramped */
   --measure: 34em;     /* ~34 Han characters per line */

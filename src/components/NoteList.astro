@@ -19,15 +19,23 @@ const { notes, anchors = false } = Astro.props;
   ))}
 </ul>
 <style>
-  ul { list-style: none; padding: 0; margin: 0; border-top: 1px solid var(--border-subtle); }
-  /* The header is not sticky today. This is what stops a note arriving by
-     fragment from sitting flush against the top of the viewport. */
-  li { padding-block: 1.4em; border-bottom: 1px solid var(--border-subtle); scroll-margin-block-start: 2em; }
+  /*
+   * 短文没有标题,也没有摘要,只有一个时间 —— 所以它按日志排,不按文章排:
+   * 行宽收到 26em,行距收到 1.7,发与发之间只用一条细线断开。正文那套
+   * 34em / 1.85 是按整篇文章定的,一两句话摊在那个宽度上会散开。
+   */
+  ul { list-style: none; padding: 0; margin: 0; max-width: 26em;
+       border-top: 1px solid var(--border-subtle); }
+  /* header 是粘顶的,所以留出的不只是一点空隙,而是它收拢后的高度,
+     否则按片段链接跳过来的那一条正好被压在下面。 */
+  li { padding-block: 1.2em; border-bottom: 1px solid var(--border-subtle);
+       scroll-margin-block-start: 4.5em; }
   li:target { background: var(--bg-marked); }
-  .stamp { color: var(--fg-secondary); font-size: .85em; text-decoration: none;
-           font-variant-numeric: tabular-nums; }
+  /* 等宽,因为它是一列坐标:整列对齐才不抢那两句话。 */
+  .stamp { font: .75em/1.8 var(--mono); color: var(--fg-secondary);
+           text-decoration: none; font-variant-numeric: tabular-nums; }
   .stamp:hover { color: var(--link); }
-  .body { margin-block-start: .5em; line-height: 1.8; }
+  .body { margin-block-start: .4em; font-size: .95em; line-height: 1.7; }
   .body :global(p) { margin: 0 0 .8em; }
   .body :global(p:last-child) { margin-bottom: 0; }
   .body :global(a) { color: var(--link); overflow-wrap: anywhere; }

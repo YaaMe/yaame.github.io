@@ -14,5 +14,33 @@ const { entry } = Astro.props;
 const { Content } = await content(entry);
 ---
 <Base title={entry.data.title}>
-  <article><Content /></article>
+  <article class="story"><Content /></article>
+  <style>
+    /*
+     * 中文小说的印刷约定:衬线、首行缩进两字、段间不留空。
+     *
+     * 缩进和零段距是一对。去掉其中任何一条,这种对话密集的文本立刻读回随笔
+     * —— 换行处没有缩进就分不出是新的一段还是同一段折行,而留了段距又等于
+     * 用空白替缩进做了一遍同样的事,两样都有则是双重记号。
+     *
+     * 行宽收到 30em:正文的 34em 是按论说文定的,小说的一行里有大量引号和
+     * 短对话,窄一点眼睛回行更快。
+     */
+    .story { font-family: var(--serif); line-height: 1.95;
+             max-width: 30em; margin-inline: auto; }
+    .story :global(p) { text-indent: 2em; margin: 0; }
+
+    /* 章回号。居中、拉开字距,上面一条短线把上一章收住。 */
+    .story :global(h2) {
+      text-align: center; font-size: 1.15em; font-weight: 600;
+      letter-spacing: .6em; text-indent: .6em;   /* 字距会在末字右侧多出一格 */
+      color: var(--fg-secondary); margin-block: 2.6em 1.2em;
+    }
+    .story :global(h2)::before {
+      content: ""; display: block; width: 2.5em; height: 1px;
+      background: var(--border-subtle); margin: 0 auto 1.4em;
+    }
+    .story :global(h1) { font-family: var(--serif); text-align: center;
+                         letter-spacing: .14em; }
+  </style>
 </Base>

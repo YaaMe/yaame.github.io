@@ -32,6 +32,7 @@ import Progress from "../components/Progress.astro";
   </head>
   <body>
     <header>
+      <div class="bar">
       <a class="brand" href="/">{site.title}</a>
       <nav>
         {nav.slice(1).map((n) => <a href={n.href}>{n.label}</a>)}
@@ -154,6 +155,7 @@ import Progress from "../components/Progress.astro";
         )}
         {features.darkMode && <button id="theme" type="button" aria-label="切换明暗">◐</button>}
       </nav>
+      </div>
     </header>
     <main><slot /></main>
     <Progress />
@@ -187,7 +189,9 @@ import Progress from "../components/Progress.astro";
         margin: 0;
       }
       header, main, footer { max-width: var(--measure); margin-inline: auto; padding-inline: var(--gutter); }
-      header { display: flex; flex-wrap: wrap; gap: 1em 1.4em; align-items: baseline; }
+      /* 站名在左,路由在右 —— 两端各一头,中间是空的。 */
+      header .bar { display: flex; flex-wrap: wrap; justify-content: space-between;
+                    gap: 1em 1.4em; align-items: baseline; }
       header nav { display: flex; gap: 1.2em; align-items: baseline; }
       /*
        * `font-family: inherit` is the load-bearing line. A button does not
