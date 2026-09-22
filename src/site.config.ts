@@ -79,7 +79,6 @@ export const site = {
  */
 export const hero = {
   greeting: "咕咕",
-  intro: "",                 // TODO: a sentence or two. Empty means hidden
 } as const;
 
 export const nav = [

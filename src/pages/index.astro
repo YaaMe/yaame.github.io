@@ -30,7 +30,6 @@ const chapters = await chapterCount();
 <Base title={site.title}>
   <section class="hero">
     {hero.greeting && <h1>{hero.greeting}</h1>}
-    {hero.intro && <p class="intro">{hero.intro}</p>}
     <p class="toc">
       这里有 <a href="#summaries">{sumCount} 篇小结</a>
       （{sumYears[0]}–{sumYears.at(-1)}）
@@ -77,7 +76,6 @@ const chapters = await chapterCount();
   <style>
     .hero { padding-block: .5em 2em; border-bottom: 1px solid var(--border-subtle); }
     .hero h1 { margin: 0 0 .4em; font-size: 1.8em; }
-    .intro { margin: 0 0 1.2em; color: var(--fg-secondary); }
     .toc { margin: 0; color: var(--fg-secondary); }
     .toc a { color: var(--fg-primary); text-decoration: none;
              border-bottom: 1px solid var(--border-subtle); }

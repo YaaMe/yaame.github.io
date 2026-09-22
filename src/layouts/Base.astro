@@ -37,7 +37,7 @@ import Progress from "../components/Progress.astro";
         {nav.slice(1).map((n) => <a href={n.href}>{n.label}</a>)}
         {features.auth && (
           <>
-            <a id="session" href="/login">login</a>
+            <a id="session" href="/login" title="登录" aria-label="登录">@</a>
             <script is:inline>
               // Inline and immediately after the element, so it runs while the
               // header is being parsed and before anything is painted — the
@@ -49,8 +49,12 @@ import Progress from "../components/Progress.astro";
               // a display hint and nothing reads it as evidence of anything:
               // every privileged path asks the server, which asks the session.
               try {
+                // Logged out the link is a bare `@` — an address with nobody
+                // at it. Signing in appends the name rather than swapping the
+                // glyph, so the two states are one mark at two lengths.
                 const who = localStorage.getItem("session");
-                if (who) document.getElementById("session").textContent = "@" + who;
+                const el = document.getElementById("session");
+                if (who) { el.textContent = "@" + who; el.title = el.ariaLabel = "@" + who; }
               } catch {}
             </script>
           </>
