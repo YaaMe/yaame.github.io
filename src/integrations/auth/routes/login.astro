@@ -33,9 +33,7 @@ const ROLE: Record<string, string> = {
         <strong>@{session.login}</strong>
         <span class="role">{ROLE[session.role]}</span>
       </p>
-      <form method="post" action="/auth/logout">
-        <button type="submit">登出</button>
-      </form>
+      <button id="logout" type="button">登出</button>
     </div>
   ) : (
     <div class="who">
@@ -62,5 +60,14 @@ const ROLE: Record<string, string> = {
     try {
       ${session ? `localStorage.setItem("session", ${JSON.stringify(session.login)})` : 'localStorage.removeItem("session")'};
     } catch {}
+
+    // Same call the menu makes: POST, so that nothing issues it unasked, and
+    // a reload rather than a redirect from the route — this page renders from
+    // the session, so re-rendering it is what shows the result.
+    document.getElementById("logout")?.addEventListener("click", async (e) => {
+      e.target.disabled = true;
+      try { await fetch("/auth/logout", { method: "POST" }); }
+      finally { location.reload(); }
+    });
   `} />
 </Base>

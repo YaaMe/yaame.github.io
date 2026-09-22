@@ -81,20 +81,26 @@ import Progress from "../components/Progress.astro";
                   me.className = "who";
                   me.textContent = "@" + who;
 
-                  // Logging out is a POST, so that no prefetch and no `img` on
-                  // somebody else's page can do it to you. That makes this a
-                  // form rather than one more link.
-                  const form = document.createElement("form");
-                  form.method = "post";
-                  form.action = "/auth/logout";
+                  // POST, because a GET gets issued unasked — a prefetch of
+                  // this very item would log you out before it was clicked.
+                  // The route answers 204 and clears the cookie; where to go
+                  // next is this side's business, not the route's.
                   const out = document.createElement("button");
-                  out.type = "submit";
+                  out.type = "button";
                   out.textContent = "登出";
-                  form.append(out);
+                  out.addEventListener("click", async () => {
+                    out.disabled = true;
+                    // Navigate either way. /login is rendered from the session
+                    // itself and writes this key, so it reports the truth even
+                    // when the request never landed — and it is still the only
+                    // page that owns the key.
+                    try { await fetch("/auth/logout", { method: "POST" }); }
+                    finally { location.href = "/login"; }
+                  });
 
                   // Built as nodes rather than markup: the handle comes back
                   // out of storage, and innerHTML would make it executable.
-                  panel.append(me, form);
+                  panel.append(me, out);
                 }
 
                 // The two things `details` has no opinion about. Escape also
@@ -187,7 +193,6 @@ import Progress from "../components/Progress.astro";
         white-space: nowrap; cursor: pointer;
       }
       #session .panel a:hover, #session .panel button:hover { color: var(--link); }
-      #session .panel form { margin: 0; }
       .brand { color: var(--fg-primary); text-decoration: none; font-weight: 600; letter-spacing: .04em; }
       footer { border-top: 1px solid var(--border-subtle); margin-block-start: 4em; padding-block: 1.5em 3em; font-size: .9em; }
       footer p { display: flex; gap: 1.2em; margin-block: .4em; }
