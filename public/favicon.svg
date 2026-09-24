@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <!-- Carries its own ground because the tab it sits on can be either colour,
+       and prefers-color-scheme here reports the OS, not the browser's tab strip.
+       The two colours are the ink and paper literals in tokens.css; a favicon
+       cannot read the page's custom properties, so change them together.
+       No double hyphen in this comment: XML forbids it, the file stops
+       parsing, and the browser falls back to its default icon. -->
+  <rect width="32" height="32" rx="7" fill="#2b2b28"/>
+  <g transform="translate(3 3.4) scale(.81)">
+    <path d="M4 15.5 L4.6 2.5 L12.4 8.4 Q16 7.4 19.6 8.4 L27.4 2.5 L28 15.5 C29.4 24 23 30 16 30 C9 30 2.6 24 4 15.5 Z" fill="#fdfdfc"/>
+    <ellipse cx="11.3" cy="18" rx="2.4" ry="2.8" fill="#2b2b28"/>
+    <ellipse cx="20.7" cy="18" rx="2.4" ry="2.8" fill="#2b2b28"/>
+  </g>
+</svg>

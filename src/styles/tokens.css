@@ -77,4 +77,8 @@
   --lh: 1.85;          /* Chinese needs more than Latin; 1.5 is cramped */
   --measure: 34em;     /* ~34 Han characters per line */
   --gutter: 1.2rem;
+
+  /* Every bird on a page blinks on this period, and in step: they all start
+     at load, so one value keeps them together. */
+  --bird-blink: 4.3s;
 }

@@ -91,9 +91,11 @@
    * it follows the scroll, which is the reader's own hand.
    */
   @media (prefers-reduced-motion: no-preference) {
-    .eye b:nth-child(1) { animation: eye-open 4.3s steps(1) infinite; }
-    .eye b:nth-child(2) { animation: eye-shut 4.3s steps(1) infinite; }
+    .eye b:nth-child(1) { animation: eye-open var(--bird-blink) steps(1) infinite; }
+    .eye b:nth-child(2) { animation: eye-shut var(--bird-blink) steps(1) infinite; }
   }
+  /* Global on purpose: every bird on the page runs these two, so they blink
+     in step. Renaming them stops the others silently. */
   @keyframes eye-open { 0%, 94%, 100% { opacity: 1 } 94.5%, 99.5% { opacity: 0 } }
   @keyframes eye-shut { 0%, 94%, 100% { opacity: 0 } 94.5%, 99.5% { opacity: 1 } }
 </style>

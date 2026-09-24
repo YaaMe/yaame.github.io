@@ -72,3 +72,4 @@ as they are. New decisions land here.
 | [0010](0010-a-session-is-not-a-privilege.md) | A session says who you are, and nothing about what you may do |
 | [0011](0011-colour-tokens-name-a-role-not-a-value.md) | Colour tokens name a role, not a value |
 | [0012](0012-the-progress-bar-carries-a-bird.md) | The progress bar carries a bird |
+| [0013](0013-the-mark-is-a-cat-and-the-b-is-the-bird.md) | The mark is a cat, and the b is the bird |

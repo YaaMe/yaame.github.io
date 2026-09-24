@@ -20,6 +20,7 @@ import Progress from "../components/Progress.astro";
     <title>{title}</title>
     {(description ?? site.description) && <meta name="description" content={description ?? site.description} />}
     <link rel="canonical" href={canonical.href} />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="alternate" type="application/rss+xml" title="Blogu" href="/rss.xml" />
     <script is:inline>
       // Must be inline and run before first paint, or a reload flashes light.
@@ -33,7 +34,26 @@ import Progress from "../components/Progress.astro";
   <body>
     <header>
       <div class="bar">
-      <a class="brand" href="/">{site.title}</a>
+      {/* The wordmark is drawn, not set: the b is a glyph of its own. A change
+          to site.title does not reach it — it has to be redrawn. */}
+      <a class="brand" href="/" aria-label={site.title}>
+        <svg class="mark" viewBox="0 0 32 32" aria-hidden="true">
+          <path fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"
+                d="M6.4 14 L7.4 4.6 L13 9.4 Q16 8.4 19 9.4 L24.6 4.6 L25.6 14 C27 21.6 22 27.4 16 27.4 C10 27.4 5 21.6 6.4 14 Z" />
+          <path fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"
+                d="M13.2 21.6 q1.4 1.6 2.8 0 q1.4 1.6 2.8 0" />
+          <circle class="cat-eye" cx="11.8" cy="16.8" r="2" fill="currentColor" />
+          <circle class="cat-eye" cx="20.2" cy="16.8" r="2" fill="currentColor" />
+        </svg>
+        <span class="word" aria-hidden="true"><svg class="b" viewBox="5 1.6 25.4 26.4">
+          <g fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M7.5 3.5 V26.5" />
+            <circle cx="15" cy="19" r="7.5" />
+            <path d="M25.2 15.6 L28.8 19 L25.2 22.4" />
+          </g>
+          <circle class="b-open" cx="15.6" cy="18.4" r="2.3" fill="currentColor" />
+          <path class="b-shut" d="M13.3 18.4 h4.6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" />
+        </svg>logu</span></a>
       <nav>
         {nav.slice(1).map((n) => <a href={n.href}>{n.label}</a>)}
         {features.auth && (
@@ -234,7 +254,32 @@ import Progress from "../components/Progress.astro";
       }
       #session .panel a:hover, #session .panel button:hover { color: var(--active); }
       #session .panel .gh { display: block; width: 1.15em; height: 1.15em; fill: currentColor; }
-      .brand { color: var(--fg-primary); text-decoration: none; font-weight: 600; letter-spacing: .04em; }
+      .brand { color: var(--fg-primary); text-decoration: none; font-weight: 600; letter-spacing: .04em;
+               display: inline-flex; align-items: baseline; gap: .4em; }
+      .brand:hover { color: var(--active); }
+      /* Baseline, not center: centred, the row's baseline becomes the cat's
+         bottom edge and the wordmark rides above the nav beside it. The
+         transform drops the cat without moving that baseline. */
+      .brand .mark { width: 1.25em; height: 1.25em; transform: translateY(.24em); }
+      .brand .word { display: inline-flex; align-items: baseline; }
+      /* Sized and nudged so the b's stem matches the l beside it and its bowl
+         sits on the text baseline. Set by eye against system-ui at 600 in Chrome;
+         re-check if --font or the brand weight changes. */
+      .brand .b { width: .78em; height: .81em; transform: translateY(.045em); margin-inline-end: .1em; }
+      /*
+       * The b is a bird, so it blinks as one: o swaps for -, on the same
+       * period and keyframes as every other bird, and in step with them.
+       * The cat keeps its own rhythm — a slow blink, about a second from
+       * shut to open, and about half as often.
+       */
+      .brand .b-shut { opacity: 0; }
+      .brand .cat-eye { transform-box: fill-box; transform-origin: center; }
+      @media (prefers-reduced-motion: no-preference) {
+        .brand .b-open { animation: eye-open var(--bird-blink) steps(1) infinite; }
+        .brand .b-shut { animation: eye-shut var(--bird-blink) steps(1) infinite; }
+        .brand .cat-eye { animation: cat-blink 9.7s ease-in-out infinite; }
+      }
+      @keyframes cat-blink { 0%, 90%, 100% { transform: scaleY(1) } 93%, 95% { transform: scaleY(.1) } }
       footer { border-top: 1px solid var(--border-subtle); margin-block-start: 4em; padding-block: 1.5em 3em; font-size: .9em; }
       footer p { display: flex; gap: 1.2em; margin-block: .4em; }
       .muted { color: var(--fg-secondary); }

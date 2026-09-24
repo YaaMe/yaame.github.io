@@ -1,0 +1,305 @@
+<title>Blogu 的标</title>
+<style>
+  :root {
+    color-scheme: light;
+    --paper: #fdfdfc; --paper-raised: #f4f4f1; --ink: #2b2b28; --ink-soft: #6b6b66;
+    --hair-light: #e5e5e1; --rust: #9d5a2a; --steel: #3a5a7a;
+    --night: #1a1a19; --night-raised: #232321; --chalk: #e3e3e0; --chalk-soft: #9a9a95;
+    --hair-dark: #333330; --ember: #dda063; --sky: #8fb4d4;
+
+    --bg-page: var(--paper); --bg-raised: var(--paper-raised);
+    --fg-primary: var(--ink); --fg-secondary: var(--ink-soft);
+    --border-subtle: var(--hair-light); --active: var(--rust); --link: var(--steel);
+
+    --font: system-ui, "PingFang SC", "Noto Sans CJK SC", "Hiragino Sans GB", sans-serif;
+    --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --bg-page: var(--night); --bg-raised: var(--night-raised);
+      --fg-primary: var(--chalk); --fg-secondary: var(--chalk-soft);
+      --border-subtle: var(--hair-dark); --active: var(--ember); --link: var(--sky);
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --bg-page: var(--night); --bg-raised: var(--night-raised);
+    --fg-primary: var(--chalk); --fg-secondary: var(--chalk-soft);
+    --border-subtle: var(--hair-dark); --active: var(--ember); --link: var(--sky);
+  }
+
+  body {
+    background: var(--bg-page); color: var(--fg-primary);
+    font-family: var(--font); font-size: 16px; line-height: 1.85;
+    text-autospace: normal;
+    padding-inline: 16px; padding-block: 2.5rem 4rem;
+  }
+  .page { max-width: 58rem; margin-inline: auto; display: grid; gap: 3.5rem; }
+
+  h1 { font-size: 1.6rem; font-weight: 600; letter-spacing: .04em; margin: 0; line-height: 1.3; }
+  h2 { font-size: 1.15rem; font-weight: 600; margin: 0; line-height: 1.4; text-wrap: balance; }
+  p { margin: 0; max-width: 36em; }
+  .soft { color: var(--fg-secondary); }
+  .small { font-size: .88rem; }
+  code { font-family: var(--mono); font-size: .88em; }
+
+  .intro { display: grid; gap: .9rem; }
+  .pick {
+    border-inline-start: 2px solid var(--active);
+    padding-inline-start: 1rem; display: grid; gap: .4rem;
+  }
+
+  .option { display: grid; gap: 1.2rem; }
+  .option-head { display: grid; gap: .3rem; }
+  .tag { font-family: var(--mono); font-size: .8rem; color: var(--fg-secondary); letter-spacing: .06em; }
+
+  /* The specimen strip: the same mark at every size it will actually be used. */
+  .strip {
+    display: grid; gap: 1px; background: var(--border-subtle);
+    border: 1px solid var(--border-subtle);
+    grid-template-columns: repeat(2, minmax(0, 1fr)) repeat(2, minmax(0, .55fr));
+  }
+  .cell {
+    display: grid; place-items: center; gap: .6rem; padding: 1.4rem .8rem 1rem;
+    align-content: space-between; min-height: 11rem;
+  }
+  .cell.on-paper { background: var(--paper); color: var(--ink); }
+  .cell.on-night { background: var(--night); color: var(--chalk); }
+  .cell.on-page  { background: var(--bg-page); color: var(--fg-primary); }
+  .cell .label { font-family: var(--mono); font-size: .72rem; opacity: .6; align-self: end; }
+  .on-paper .label { color: var(--ink-soft); opacity: 1; }
+  .on-night .label { color: var(--chalk-soft); opacity: 1; }
+
+  .mark { display: block; }
+  .mark.xl { width: 112px; height: 112px; }
+  .mark.px32 { width: 32px; height: 32px; }
+  .mark.px16 { width: 16px; height: 16px; }
+
+  /* Tab-bar mock: where a favicon actually lives. */
+  .tab {
+    display: flex; align-items: center; gap: 6px; padding: 5px 10px;
+    border-radius: 7px 7px 0 0; font-size: 12px; line-height: 1;
+    background: var(--paper-raised); color: var(--ink);
+  }
+  .on-night .tab { background: var(--night-raised); color: var(--chalk); }
+
+  /* Header mock, built from Base.astro's own rules. */
+  .headers { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1px;
+             background: var(--border-subtle); border: 1px solid var(--border-subtle); }
+  .hdr { padding: 1.3rem 1.2rem 1rem; font-size: 17px; }
+  .hdr.on-paper { background: var(--paper); --h-fg: var(--ink); --h-soft: var(--ink-soft); --h-act: var(--rust); }
+  .hdr.on-night { background: var(--night); --h-fg: var(--chalk); --h-soft: var(--chalk-soft); --h-act: var(--ember); }
+  .bar { display: flex; flex-wrap: wrap; justify-content: space-between; gap: .6em 1.4em; align-items: baseline; }
+  .brand {
+    display: inline-flex; align-items: center; gap: .4em;
+    color: var(--h-fg); text-decoration: none; font-weight: 600; letter-spacing: .04em;
+  }
+  .brand .mark { width: 1.25em; height: 1.25em; transform: translateY(.06em); }
+  .brand:hover, .brand:focus-visible { color: var(--h-act); outline: none; }
+  .brand.mono-word { font-family: var(--mono); font-weight: 500; letter-spacing: 0; }
+  .hdr nav { display: flex; gap: 1.2em; align-items: baseline; }
+  .hdr nav span { color: var(--h-soft); }
+  .hdr .hint { font-family: var(--mono); font-size: .7rem; color: var(--h-soft); margin-top: .8rem; }
+
+  .notes { display: grid; gap: .5rem; padding-inline-start: 1.1rem; margin: 0; }
+  .notes li { max-width: 40em; }
+  .notes b { font-weight: 600; }
+
+  hr { border: 0; border-top: 1px solid var(--border-subtle); margin: 0; }
+
+  /* The blink from Progress.astro, on hover only: a logo that moves by itself is noise. */
+  .eye { transform-box: fill-box; transform-origin: center; }
+  @media (prefers-reduced-motion: no-preference) {
+    .blinks:hover .eye, .brand:hover .eye, .brand:focus-visible .eye { animation: blink .32s steps(1) 1; }
+  }
+  @keyframes blink { 0%, 100% { transform: scaleY(1); } 20%, 80% { transform: scaleY(.15); } }
+
+  .word { display: inline-flex; align-items: baseline; }
+  .word .b { width: .78em; height: .81em; align-self: baseline; transform: translateY(.045em); margin-inline-end: .1em; }
+  .xl-word { font-size: 3.2rem; font-weight: 600; letter-spacing: .04em; line-height: 1; }
+  @media (max-width: 640px) {
+    .strip { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .headers { grid-template-columns: 1fr; }
+    .mark.xl { width: 88px; height: 88px; }
+  }
+</style>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <!-- A · the bird from the progress bar: ( ) body, o eye, > beak, '' feet -->
+    <symbol id="bird" viewBox="0 0 32 32">
+      <g fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="13.5" cy="14" r="8.3"/>
+        <path d="M24.6 10.6 L28.6 14 L24.6 17.4"/>
+        <path d="M10.6 24.8 v2.6 M16.4 24.8 v2.6"/>
+      </g>
+      <circle class="eye" cx="13.5" cy="14" r="2.7" fill="currentColor"/>
+    </symbol>
+    <symbol id="bird-small" viewBox="0 0 32 32">
+      <g fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="13" cy="16" r="9"/>
+        <path d="M25 11.8 L29.4 16 L25 20.2"/>
+      </g>
+      <circle class="eye" cx="13" cy="16" r="3.3" fill="currentColor"/>
+    </symbol>
+
+    <!-- B · a lowercase b whose bowl is the bird -->
+    <symbol id="bee" viewBox="0 0 32 32">
+      <g fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M7.5 3.5 V26.5"/>
+        <circle cx="15" cy="19" r="7.5"/>
+        <path d="M25.2 15.6 L28.8 19 L25.2 22.4"/>
+      </g>
+      <circle class="eye" cx="15.6" cy="18.4" r="2.3" fill="currentColor"/>
+    </symbol>
+    <symbol id="bee-small" viewBox="0 0 32 32">
+      <g fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M6.5 2.5 V28"/>
+        <circle cx="14.5" cy="19.5" r="8"/>
+        <path d="M25.4 15.4 L29.6 19.5 L25.4 23.6"/>
+      </g>
+      <circle class="eye" cx="15" cy="19" r="3" fill="currentColor"/>
+    </symbol>
+
+    <!-- C · a cat, after the avatar -->
+    <symbol id="cat" viewBox="0 0 32 32">
+      <g fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M6.4 14 L7.4 4.6 L13 9.4 Q16 8.4 19 9.4 L24.6 4.6 L25.6 14 C27 21.6 22 27.4 16 27.4 C10 27.4 5 21.6 6.4 14 Z"/>
+        <path d="M13.2 21.6 q1.4 1.6 2.8 0 q1.4 1.6 2.8 0" stroke-width="1.6"/>
+      </g>
+      <circle class="eye" cx="11.8" cy="16.8" r="2" fill="currentColor"/>
+      <circle class="eye" cx="20.2" cy="16.8" r="2" fill="currentColor"/>
+    </symbol>
+    <symbol id="cat-small" viewBox="0 0 32 32">
+      <g fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M5 15 L6 3.5 L12.6 9 Q16 8 19.4 9 L26 3.5 L27 15 C28.4 23 22.6 29 16 29 C9.4 29 3.6 23 5 15 Z"/>
+      </g>
+      <circle class="eye" cx="11.6" cy="18" r="2.6" fill="currentColor"/>
+      <circle class="eye" cx="20.4" cy="18" r="2.6" fill="currentColor"/>
+    </symbol>
+    <symbol id="bee-word" viewBox="5 1.6 25.4 26.4">
+      <g fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M7.5 3.5 V26.5"/>
+        <circle cx="15" cy="19" r="7.5"/>
+        <path d="M25.2 15.6 L28.8 19 L25.2 22.4"/>
+      </g>
+      <circle class="eye" cx="15.6" cy="18.4" r="2.3" fill="currentColor"/>
+    </symbol>
+  </defs>
+</svg>
+
+<main class="page">
+
+  <section class="intro">
+    <h1>Blogu 的标</h1>
+    <p class="soft">三个方向，都用站点自己的令牌画：墨色是标本身，锈色只在鼠标放上去时出现 —— 和 <code>tokens.css</code> 里 <code>--active</code> 的分工一致（「你正在动它」）。每个方向都给了真实用得到的尺寸：大图、32px、16px 的标签页，以及放进现在的页头里的样子。鼠标移到标上，鸟会眨一次眼。</p>
+    <div class="pick">
+      <h2>我选 A：底栏那只鸟本身</h2>
+      <p class="small">站上现在唯一的装饰就是它，标用同一只鸟，全站只有一个角色。字符画里的每一笔都有对应：<code>( )</code> 是身体，<code>o</code> 是眼睛，<code>&gt;</code> 是喙，<code>''</code> 是脚。16px 下脚会糊，所以小尺寸单独画了一版：去掉脚、笔画加粗。</p>
+    </div>
+  </section>
+
+  <section class="option" aria-labelledby="d-h">
+    <div class="option-head">
+      <span class="tag">C + B · 猫做标，b 进字标</span>
+      <h2 id="d-h">Blogu 的 B 换成那只 b</h2>
+    </div>
+    <div class="strip" style="grid-template-columns: repeat(2, minmax(0, 1fr));">
+      <div class="cell on-paper blinks"><span class="xl-word word"><svg class="b" aria-hidden="true"><use href="#bee-word"/></svg>logu</span><span class="label">字标 · paper</span></div>
+      <div class="cell on-night blinks"><span class="xl-word word"><svg class="b" aria-hidden="true"><use href="#bee-word"/></svg>logu</span><span class="label">字标 · night</span></div>
+    </div>
+    <div class="headers">
+      <div class="hdr on-paper"><div class="bar"><a class="brand" href="#d-h"><svg class="mark" aria-hidden="true"><use href="#cat"/></svg><span class="word"><svg class="b" aria-hidden="true"><use href="#bee-word"/></svg>logu</span></a><nav><span>首页</span><span>komorebi</span><span>notes</span><span>◐</span></nav></div><div class="hint">① 猫 + 字标</div></div>
+      <div class="hdr on-night"><div class="bar"><a class="brand" href="#d-h"><svg class="mark" aria-hidden="true"><use href="#cat"/></svg><span class="word"><svg class="b" aria-hidden="true"><use href="#bee-word"/></svg>logu</span></a><nav><span>首页</span><span>komorebi</span><span>notes</span><span>◐</span></nav></div><div class="hint">① 猫 + 字标</div></div>
+      <div class="hdr on-paper"><div class="bar"><a class="brand" href="#d-h"><span class="word"><svg class="b" aria-hidden="true"><use href="#bee-word"/></svg>logu</span></a><nav><span>首页</span><span>komorebi</span><span>notes</span><span>◐</span></nav></div><div class="hint">② 只有字标，猫只在 favicon</div></div>
+      <div class="hdr on-night"><div class="bar"><a class="brand" href="#d-h"><span class="word"><svg class="b" aria-hidden="true"><use href="#bee-word"/></svg>logu</span></a><nav><span>首页</span><span>komorebi</span><span>notes</span><span>◐</span></nav></div><div class="hint">② 只有字标，猫只在 favicon</div></div>
+    </div>
+    <ul class="notes small">
+      <li><b>①</b> 页头里有猫也有鸟，加上底栏那只，一屏里是一只猫两只鸟。</li>
+      <li><b>②</b> 页头只有字标，鸟做字母，猫只出现在浏览器标签和社交卡片上 —— 页面上的角色还是只有鸟一个。</li>
+    </ul>
+  </section>
+
+  <hr>
+
+  <section class="option" aria-labelledby="a-h">
+    <div class="option-head">
+      <span class="tag">A · 鸟</span>
+      <h2 id="a-h">把 <code>(o)&gt;</code> 画成图形</h2>
+    </div>
+    <div class="strip">
+      <div class="cell on-paper blinks"><svg class="mark xl" role="img" aria-label="鸟，亮色"><use href="#bird"/></svg><span class="label">112 · paper</span></div>
+      <div class="cell on-night blinks"><svg class="mark xl" role="img" aria-label="鸟，暗色"><use href="#bird"/></svg><span class="label">112 · night</span></div>
+      <div class="cell on-paper"><svg class="mark px32" aria-hidden="true"><use href="#bird-small"/></svg><div class="tab"><svg class="mark px16" aria-hidden="true"><use href="#bird-small"/></svg>Blogu</div><span class="label">32 / 16</span></div>
+      <div class="cell on-night"><svg class="mark px32" aria-hidden="true"><use href="#bird-small"/></svg><div class="tab"><svg class="mark px16" aria-hidden="true"><use href="#bird-small"/></svg>Blogu</div><span class="label">32 / 16</span></div>
+    </div>
+    <div class="headers">
+      <div class="hdr on-paper"><div class="bar"><a class="brand" href="#a-h"><svg class="mark" aria-hidden="true"><use href="#bird"/></svg>Blogu</a><nav><span>首页</span><span>komorebi</span><span>notes</span><span>◐</span></nav></div><div class="hint">页头 · 标 + 字</div></div>
+      <div class="hdr on-night"><div class="bar"><a class="brand" href="#a-h"><svg class="mark" aria-hidden="true"><use href="#bird"/></svg>Blogu</a><nav><span>首页</span><span>komorebi</span><span>notes</span><span>◐</span></nav></div><div class="hint">页头 · 标 + 字</div></div>
+    </div>
+    <ul class="notes small">
+      <li><b>好处</b>：和底栏是同一个角色，读者在页头见过它，滚动时又在底下见到它。不引入新东西。</li>
+      <li><b>代价</b>：页头一只、底栏一只，页面顶上和底下同时各有一只鸟。要是嫌重复，可以只在 favicon 和社交卡片里用它，页头保持纯文字。</li>
+    </ul>
+  </section>
+
+  <hr>
+
+  <section class="option" aria-labelledby="b-h">
+    <div class="option-head">
+      <span class="tag">B · b</span>
+      <h2 id="b-h">小写 b，字碗就是鸟</h2>
+    </div>
+    <div class="strip">
+      <div class="cell on-paper blinks"><svg class="mark xl" role="img" aria-label="字母 b 形的鸟，亮色"><use href="#bee"/></svg><span class="label">112 · paper</span></div>
+      <div class="cell on-night blinks"><svg class="mark xl" role="img" aria-label="字母 b 形的鸟，暗色"><use href="#bee"/></svg><span class="label">112 · night</span></div>
+      <div class="cell on-paper"><svg class="mark px32" aria-hidden="true"><use href="#bee-small"/></svg><div class="tab"><svg class="mark px16" aria-hidden="true"><use href="#bee-small"/></svg>Blogu</div><span class="label">32 / 16</span></div>
+      <div class="cell on-night"><svg class="mark px32" aria-hidden="true"><use href="#bee-small"/></svg><div class="tab"><svg class="mark px16" aria-hidden="true"><use href="#bee-small"/></svg>Blogu</div><span class="label">32 / 16</span></div>
+    </div>
+    <div class="headers">
+      <div class="hdr on-paper"><div class="bar"><a class="brand" href="#b-h"><svg class="mark" aria-hidden="true"><use href="#bee"/></svg>Blogu</a><nav><span>首页</span><span>komorebi</span><span>notes</span><span>◐</span></nav></div><div class="hint">页头 · 标 + 字</div></div>
+      <div class="hdr on-night"><div class="bar"><a class="brand mono-word" href="#b-h">bl(o)&gt;gu</a><nav><span>首页</span><span>komorebi</span><span>notes</span><span>◐</span></nav></div><div class="hint">变体 · 纯字符，o 换成鸟头</div></div>
+    </div>
+    <ul class="notes small">
+      <li><b>好处</b>：先读成 b，再认出是鸟。站名首字母和站上的角色合成一个形状，16px 下竖笔让它比 A 更好认。</li>
+      <li><b>代价</b>：是个「双关标」，巧，但也更像设计出来的东西，而这个站别的地方都很克制。右边的 <code>bl(o)&gt;gu</code> 是同一个想法的纯文字版，不需要任何图形，但只能在等宽字体里成立。</li>
+    </ul>
+  </section>
+
+  <hr>
+
+  <section class="option" aria-labelledby="c-h">
+    <div class="option-head">
+      <span class="tag">C · 猫</span>
+      <h2 id="c-h">跟着头像走的猫</h2>
+    </div>
+    <div class="strip">
+      <div class="cell on-paper blinks"><svg class="mark xl" role="img" aria-label="猫，亮色"><use href="#cat"/></svg><span class="label">112 · paper</span></div>
+      <div class="cell on-night blinks"><svg class="mark xl" role="img" aria-label="猫，暗色"><use href="#cat"/></svg><span class="label">112 · night</span></div>
+      <div class="cell on-paper"><svg class="mark px32" aria-hidden="true"><use href="#cat-small"/></svg><div class="tab"><svg class="mark px16" aria-hidden="true"><use href="#cat-small"/></svg>Blogu</div><span class="label">32 / 16</span></div>
+      <div class="cell on-night"><svg class="mark px32" aria-hidden="true"><use href="#cat-small"/></svg><div class="tab"><svg class="mark px16" aria-hidden="true"><use href="#cat-small"/></svg>Blogu</div><span class="label">32 / 16</span></div>
+    </div>
+    <div class="headers">
+      <div class="hdr on-paper"><div class="bar"><a class="brand" href="#c-h"><svg class="mark" aria-hidden="true"><use href="#cat"/></svg>Blogu</a><nav><span>首页</span><span>komorebi</span><span>notes</span><span>◐</span></nav></div><div class="hint">页头 · 标 + 字</div></div>
+      <div class="hdr on-night"><div class="bar"><a class="brand" href="#c-h"><svg class="mark" aria-hidden="true"><use href="#cat"/></svg>Blogu</a><nav><span>首页</span><span>komorebi</span><span>notes</span><span>◐</span></nav></div><div class="hint">页头 · 标 + 字</div></div>
+    </div>
+    <ul class="notes small">
+      <li><b>好处</b>：最像你本人 —— 头像是猫，ADR 0012 里底栏最初想放的也是猫。耳朵的轮廓在 16px 下是三个方向里最好认的。</li>
+      <li><b>代价</b>：站上就有了两个角色，底栏是鸟，标是猫。另外头像是《甜甜私房猫》的 Chi，这里画的是原创的简笔猫，没有照搬她的样子 —— 要是往 Chi 靠，就有版权问题。</li>
+    </ul>
+  </section>
+
+  <hr>
+
+  <section class="intro">
+    <h2>三个方向都守着的几条</h2>
+    <ul class="notes small">
+      <li>颜色只有墨色一种，暗色下换成粉笔色，都是 <code>--fg-primary</code>。锈色和琥珀色只在悬停时出现，不给标常驻一个颜色 —— 否则 <code>--active</code> 就不再只表示「你正在动它」。</li>
+      <li>favicon 用 SVG，里面写 <code>prefers-color-scheme</code>，跟着浏览器切深浅，不必出两张图。</li>
+      <li>小尺寸都单独画了一版：线更粗，细节更少。同一张图直接缩到 16px，会糊成一团。</li>
+      <li>动效只有一次眨眼，只在悬停时出现，遵守 <code>prefers-reduced-motion</code> —— 和底栏那只鸟的做法一样。</li>
+    </ul>
+  </section>
+
+</main>
