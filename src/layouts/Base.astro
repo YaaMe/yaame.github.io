@@ -37,14 +37,6 @@ import Progress from "../components/Progress.astro";
       {/* The wordmark is drawn, not set: the b is a glyph of its own. A change
           to site.title does not reach it — it has to be redrawn. */}
       <a class="brand" href="/" aria-label={site.title}>
-        <svg class="mark" viewBox="0 0 32 32" aria-hidden="true">
-          <path fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"
-                d="M6.4 14 L7.4 4.6 L13 9.4 Q16 8.4 19 9.4 L24.6 4.6 L25.6 14 C27 21.6 22 27.4 16 27.4 C10 27.4 5 21.6 6.4 14 Z" />
-          <path fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"
-                d="M13.2 21.6 q1.4 1.6 2.8 0 q1.4 1.6 2.8 0" />
-          <circle class="cat-eye" cx="11.8" cy="16.8" r="2" fill="currentColor" />
-          <circle class="cat-eye" cx="20.2" cy="16.8" r="2" fill="currentColor" />
-        </svg>
         <span class="word" aria-hidden="true"><svg class="b" viewBox="5 1.6 25.4 26.4">
           <g fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round">
             <path d="M7.5 3.5 V26.5" />
@@ -53,7 +45,16 @@ import Progress from "../components/Progress.astro";
           </g>
           <circle class="b-open" cx="15.6" cy="18.4" r="2.3" fill="currentColor" />
           <path class="b-shut" d="M13.3 18.4 h4.6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" />
-        </svg>logu</span></a>
+        </svg>logu</span>
+        <svg class="mark" viewBox="0 0 32 32" aria-hidden="true">
+          <path fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"
+                d="M6.4 14 L7.4 4.6 L13 9.4 Q16 8.4 19 9.4 L24.6 4.6 L25.6 14 C27 21.6 22 27.4 16 27.4 C10 27.4 5 21.6 6.4 14 Z" />
+          <path fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"
+                d="M13.2 21.6 q1.4 1.6 2.8 0 q1.4 1.6 2.8 0" />
+          <circle class="cat-eye" cx="11.8" cy="16.8" r="2" fill="currentColor" />
+          <circle class="cat-eye" cx="20.2" cy="16.8" r="2" fill="currentColor" />
+        </svg>
+      </a>
       <nav>
         {nav.slice(1).map((n) => <a href={n.href}>{n.label}</a>)}
         {features.auth && (

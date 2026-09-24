@@ -17,7 +17,9 @@ the author's choice rather than the outcome of a comparison.
 
 **The wordmark replaces the B with the bird.** A lowercase b whose bowl is the
 bird's body, with the eye inside and the beak after it, followed by "logu".
-The header carries both: cat, then wordmark.
+The header carries both: wordmark, then cat. With the cat first, both drawn
+faces sat together at the left edge and the mark read heavy on one side; after
+the word, the b opens it and the cat closes it.
 
 - **One colour.** Both are `--fg-primary`. Hover turns them `--active`, like
   every other link in the header; neither holds an accent at rest, so
