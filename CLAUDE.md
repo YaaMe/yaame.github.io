@@ -48,7 +48,7 @@ imports never have to exist.
 // astro.config.mjs
 const TARGET = process.env.DEPLOY_TARGET ?? "cloudflare";
 adapter: TARGET === "node" ? node() : cloudflare(),
-vite: { resolve: { alias: { "virtual:platform": `./src/platform/${TARGET}.ts` } } }
+vite: { resolve: { alias: { "virtual:platform": `/src/platform/${TARGET}.ts` } } }
 ```
 
 This rule is stricter than the first in one way: breaking rule one makes a
@@ -69,8 +69,11 @@ different schedule.
   its own answer, not a different import.
 - **The deploy configuration itself.** `wrangler.jsonc` has no abstract form.
 
-There is no `src/platform/` yet, because the site is static and imports nothing
-host-specific. The rule takes effect with the first server-rendered route.
+`src/platform/` holds `cloudflare.ts` and `node.ts`, two implementations of the
+`Platform` interface in `types.ts`, and `src/` reaches them only through
+`src/platform/index.ts`. The queue consumer in `worker/` imports
+`virtual:platform` directly, and its own wrangler config aliases that to the
+Cloudflare file.
 
 ## Rules that live in the data layer, not in pages
 
@@ -85,7 +88,7 @@ host-specific. The rule takes effect with the first server-rendered route.
 ## Commands
 
 ```
-make check     frontmatter → build → link check   (CI runs this exact command)
+make check     wrangler config → frontmatter → types → build → link check   (CI runs this exact command)
 make new       interactive; dispatches to newpost / newtag
 make fix       fill missing description and tags, never overwriting written ones
 make tags      the registry and its usage counts

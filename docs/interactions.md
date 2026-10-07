@@ -1,296 +1,403 @@
-# 互动内容:短文、评论、点赞
+# Interactions: notes, comments, likes
 
-这份文档记的是**决定和它们的理由**,不是使用说明。实现随时会变,理由不会 ——
-每一条"为什么不那样做"都是一次已经付过的成本。
+This document describes how interactions work now, and the constraints they
+run under. It covers what arrives from outside (replies, boosts, likes), the
+notes we publish ourselves, and how both move between runtime storage and git.
+Long posts are out of scope. They are always in git.
 
-范围:从外面来的东西(评论、点赞、转发)和我们自己发的短文,以及它们怎么在
-运行时存储和 git 之间流动。长文不在此列,它一直在 git 里。
+Where a record in [`decisions/`](decisions/) covers a choice, this document
+links to it. Some rejected options are argued here because no record covers
+them yet.
 
-## 两层
+## Two layers
 
 ```
-git          持久层。唯一真相，可审阅、可回溯、可被构建时索引
-运行时存储    外来的和还没被固化的。可丢弃
-命令          把运行时的东西有筛选地拉回 git
+git              The durable layer and the single source of truth.
+                 Reviewable, revertible, indexed at build time.
+runtime storage  What arrived from outside and is not in git. Disposable.
+commands         Carry chosen runtime records into git.
 ```
 
-这个分层不是为了备份,是为了**让"留下什么"成为一个显式的决定**。默认什么都
-不进 git,进去的每一条都是有人挑过的。
+The split makes keeping something an explicit decision. By default nothing
+enters git. A person chose every record that is in git.
 
-## 存储:SQLite 方言
+Only comments cross from runtime storage into git. Notes go straight into git:
+`make po` appends a note to `src/content/notes/<year>.json`. No route writes a
+note to the database.
 
-| | Workers 上 | node 上 |
+## Storage: one SQL dialect
+
+| | On Workers | On node |
 |---|---|---|
-| 驱动 | D1(第一方绑定) | 内置 `node:sqlite`,零依赖 |
-| 上面那层 | Drizzle,同一份表定义喂给两个驱动 | 同左 |
+| Driver | D1 (first-party binding) | built-in `node:sqlite`, no dependency |
+| Above it | Drizzle, one set of table definitions for both drivers | same |
 
-**用 Drizzle 而不是自己写。** 把 CRUD 渲染成 SQL、转义标识符、按方言拼冲突子句
-都是已经解决的问题;这个包**自身零依赖**,并且有 provenance attestation ——
-后者才是加一个依赖时真正该看的东西。它在打进去的包里占 167 KiB(3.2%),
-Fedify 占 72%。
+The table definitions are in `src/integrations/activitypub/store/schema.ts`.
+Why Drizzle, and why not KV, a document store or hand-written SQL: see
+[0007](decisions/0007-interactions-live-in-a-database-the-host-provides.md).
+In the bundle Drizzle is 167 KiB (3.2%). Fedify is 72%.
 
-选它不是因为"SQLite 更好",是因为约束把选项压到只剩它:
+SQLite was not chosen for being better. The constraints left nothing else:
 
-- **Postgres / MySQL / Mongo / Firestore** —— Workers 上没有本地实现,只能连
-  外部服务。那意味着引入第三方、一个连接 secret,而且数据本身住在别人那里,
-  连"可以搬走"都不成立
-- **Durable Objects** —— 不引第三方,但 node 那边没有对应物,等于堵死切换宿主
-  的路。这和把签名密钥放在 GitHub secret 而不是只放 Cloudflare 是同一个取舍
-- **KV** —— 见下
+- **Postgres, MySQL, Mongo, Firestore.** Workers have no local implementation
+  of any of them, so each one means an external service. That brings in a
+  third party and a connection secret. The data then lives with someone else,
+  so it cannot be moved freely either.
+- **Durable Objects.** No third party, but node has no equivalent, so this
+  closes the path to another host. It is the same trade as keeping the signing
+  key in a GitHub secret as well as in Cloudflare.
+- **KV.** See below.
 
-在"嵌入式、单文件、无服务器"这个位置上,SQLite 基本是唯一同时具备 ACID 和
-查询能力的成熟选项。纯 JSON 文件没有索引和原子更新(关注者名单那种规模可以,
-所以现在就是那么存的);LMDB/LevelDB 没有查询,且 Workers 上没有对应物;
-DuckDB 是分析型,形状不对。
+For an embedded, single-file, serverless store, SQLite is the only mature
+option with both atomic transactions and queries. Plain JSON has no indexes
+and no atomic updates. That is enough at the size of the follower list, which
+is held as one JSON value in KV. LMDB and LevelDB have no queries, and Workers
+have no equivalent. DuckDB is built for analytics, which is the wrong shape.
 
-### 为什么评论不能放 KV
+### Why comments cannot live in KV
 
-量级不是问题,性质是:
+Volume is not the problem. KV's guarantees are:
 
-| 限制 | 后果 |
+| Limit | Consequence |
 |---|---|
-| 同一个键 1 次/秒(免费和付费都一样) | 点赞计数是"读-改-写",并发两次必丢一次。付费也解决不了 |
-| 没有原子操作 | 同上,且无法用事务补救 |
-| 最终一致,最长 60 秒 | 评论收下后不能立刻显示 |
-| 免费版写不同键 1,000 次/天 | 硬上限 |
-| 只能按前缀列举 | 加一个筛选维度就不够用 |
+| One write per second per key, on every plan | A like count is read-modify-write. Two at once lose one. A paid plan does not change this |
+| No atomic operations | Same, and no transaction can repair it |
+| Eventually consistent, up to 60 seconds | A received comment cannot show at once |
+| 1,000 writes a day on the free plan, across all keys | A hard ceiling |
+| Listing by key prefix only | One more filter dimension is too many |
 
-KV 继续持有关注者名单和 actor 指纹 —— 极小、极低频、已经在跑,没有理由动。
+KV keeps small state that is written rarely: the follower list, the actor
+digest, the delivery record and login sessions.
 
-### 迁移风险怎么压住
+### Keeping a move to another database cheap
 
-数据库的职责被刻意收窄成:追加一行、按一两个键读回、计数器加一。没有 join、
-没有 FTS、没有专有函数。换 Postgres 就是换 Drizzle 的 postgres 驱动,表定义那份
-基本原样。
+The database does little on purpose. It appends a row, reads rows back by one
+or two keys, counts rows, and marks a row deleted or undone. There are no
+joins, no full-text search and no vendor functions. To move to Postgres,
+switch to Drizzle's postgres driver and keep most of the table definitions.
 
-两条防护:
+Safeguards:
 
-- **时间一律存 ISO 8601 字符串**。SQLite 没有日期类型,而每个方言读 ISO 字符串
-  的方式都一样;数字时间戳更小,但每个读它的地方都要手工解码
-- **业务代码里没有 SQL 文本**。查询是构造器调用,方言由 Drizzle 渲染
+- **Times are ISO 8601 strings.** SQLite has no date type, and every dialect
+  reads an ISO string the same way. A numeric timestamp is smaller, but every
+  reader would have to decode it by hand.
+- **Application code holds no SQL text.** Queries are builder calls, and
+  Drizzle renders the dialect.
 
-第二条早先的写法是"所有语句集中在一个文件",那是还打算手写渲染层时定的约定。
-换成 Drizzle 之后那个文件不存在了 —— 意图(别让方言渗进业务代码)反而达成得
-更彻底,但靠的是工具而不是纪律。
+Exceptions to the second rule:
 
-## 搜索不进数据库
+- The migrations in `schema.ts` are hand-written SQL.
+- `scripts/promote.mjs` and `scripts/tombstone.mjs` send SQL text to D1
+  through `wrangler d1 execute`. They work against D1 only.
 
-需要全文检索的内容**全部在 git 那一侧**:长文本来就在,短文按上面的分层最终
-也会被拉回。所以搜索是构建时对 git 内容建索引,不是运行时查库。
+## Search stays out of the database
 
-这不是"换个地方实现",是消掉一个需求。顺带也躲开了一个实测过的坑:
+All text that needs full-text search is on the git side. Long posts are there
+already, and promoted comments arrive there. So search indexes git at build
+time and does not query the database at runtime. No search exists yet:
+`features.search` is `false` in both profiles.
 
-```
-FTS5 unicode61   中文任何长度都搜不到
-FTS5 trigram     3 字以上命中，2 字及以下无结果
-```
-
-D1 和 `node:sqlite` 都带 FTS5 和 json1,但默认分词器不切中文,而 ICU 分词器
-两边都没有。放在构建时就没有这个限制 —— 分词器随便挑,依赖随便加。
-
-## 评论
-
-### 全量入库,有筛选地提升进 git
-
-理由不是省空间,是**把陌生人的话放进公开仓库是一个不可撤销的承诺**。git 是
-永久的、被索引的、全世界可读的,而对方写下那句话时并不知道会落到这里。
-
-筛选以**线程**为单位,因为判断需要上下文 —— 一次只看一条评论,"保留整条回复链"
-就表达不出来:
-
-```ts
-promote({ filter: (thread) => Comment[] })
-```
-
-内置两个默认实现(按作者、整条链),其余由使用者自己写。筛选标准是社交判断,
-不是数据结构问题,所以不把单位写死。
-
-### 规范要求的两条
-
-**去重是 MUST。** ActivityPub §5.2:服务端必须按活动 `id` 去重。落到 schema 上
-是活动 id 的唯一约束 —— 这是规范要求,不是优化。
-
-**收到 `Delete` 应当删除对应对象。** §7.4 是 SHOULD,并且规范自己承认"协议无法
-强制远端删除"。MAY 替换成 `Tombstone`。
-
-保留期**没有任何约束**:§7.2 只说"服务端很可能会想在本地存一份",是预期不是要求。
-所以过不过期是纯产品决定。当前:不过期。
-
-### 删除的两步
-
-已经进了 git 的评论,运行时删不掉它。所以拆成两步:
+This removes a requirement. It also avoids a measured problem:
 
 ```
-收到 Delete
-  → 库里标记 deleted_at，立刻停止呈现          自动，秒级。这一步就满足了 §7.4
-  → 若已提升，留一个待办标记（不随保留期过期）
-  → 每周一次的 CI job 读取待办，开 PR 把 git 里那条换成墓碑
-  → 人决定合不合
+FTS5 unicode61   no Chinese query of any length matches
+FTS5 trigram     3 or more characters match; 2 or fewer return nothing
 ```
 
-即时那一半由运行时承担,是因为**只走 PR 的话,从收到请求到合并之间我们仍在公开
-展示对方已经要求删除的内容**,而那段时间取决于有没有人去看 GitHub。
+D1 and `node:sqlite` both ship FTS5 and json1. Their default tokenizers do not
+segment Chinese, and neither has the ICU tokenizer. At build time the choice of
+tokenizer and dependencies is free.
 
-git 那一步**不改写历史**。合并 PR 是把内容换成一条记录:
+## Comments
 
+### Store everything, promote selectively
+
+Putting a stranger's words into a public repository cannot be undone. Git is
+permanent, indexed and readable by anyone. The author did not know their words
+would land there.
+
+The inbox stores every reply to one of our posts or notes. `make promote` then
+carries a chosen subset into `src/content/comments/`. It is a dry run unless
+`APPLY=1` is set. With `APPLY=1` it writes the files, then sets `promoted_at`
+on each row in D1. It never promotes a row that is already deleted.
+
+The filter receives a whole thread, because judging a comment needs its
+context. "Keep the whole reply chain" cannot be expressed one comment at a
+time. `scripts/promote-filter.mjs` default-exports the rule:
+
+```js
+export default (thread) => keptComments;
 ```
-这条评论由 X 在 T1 发表，于 T2 被删除
-```
 
-内容没了,事实留着。历史里还有原文不再是缺陷 —— 我们许诺的从来不是"它不曾存在",
-而是"记录显示它被删除了",而提交本身就是那份记录。
+That file provides `byAuthor`, `wholeThread` and `nothing`. The default is
+`nothing`, so no comment is promoted until someone writes a rule. Choosing
+what to keep is a social judgement, not a data-structure question, so the
+unit of selection is not fixed.
 
-这也是"有筛选地提升"的又一个理由:每提升一条陌生人的评论,就是在承担一份只能
-部分兑现的删除义务。
+Promotion stores the comment as text, not as the sender's HTML. See
+[0006](decisions/0006-promoted-comments-are-stored-as-text.md). It also
+fetches the author's display name and stores it as `name`.
 
-### 对导出格式的硬要求
+### What the specification requires
 
-提升进 git 时**必须带上活动 id**,否则 PR 不知道该改哪一条。
+**De-duplication is a MUST.** ActivityPub §5.2 requires a server to
+de-duplicate by activity `id`. The activity id is the primary key of the
+comments table, so the database refuses a redelivery.
 
-### 那个 PR job
+**On `Delete`, the server SHOULD remove the object.** §7.4 is a SHOULD, and
+the specification says the protocol cannot force a remote server to delete
+anything. A server MAY replace the object with a `Tombstone`. The inbox
+accepts a `Delete` only for an object whose author sent it.
 
-- 每周一次
-- 没有待办时什么都不做,不开空 PR
-- 幂等:同一批待办更新同一个分支,不是每周开一个新的
-- 只需要 `GITHUB_TOKEN`(`contents: write` + `pull-requests: write`),不需要 PAT
-  —— 和写仓库 secret 不同,开 PR 在它的权限范围内
+**Retention has no constraint.** §7.2 says only that a server is likely to want
+a local copy. That is an expectation, not a requirement. So expiry is a
+product decision. Comments do not expire.
 
-只能由 CI 做,因为运行时没有 GitHub 令牌,而那是有意的。
+### Deletion
 
-## 写入的入口
+A comment that is in git cannot be removed from it at runtime. Deletion happens
+in two places, at two times.
 
-路由层的写入要有身份认证,方案是自己实现的 GitHub OAuth:
+When a `Delete` arrives for a comment:
 
-- scope 显式写 `read:user`,不留空。文档说留空时会沿用用户历史上授过的权限 ——
-  拿到什么取决于历史状态而不是我们的声明
-- 允许名单管的是**权限,不是登录**。谁都能登进来,名单决定登进来之后能做什么:
-  站长、名单内、以及"知道身份的游客"三档。GitHub 登录只证明"是某个 GitHub
-  用户",不证明是你 —— 所以任何一处都不能把"有会话"当成"是站长",见
-  docs/decisions/0010。比对用数字 id,不用用户名:用户名能改,改完会被释放
-- 会话用不透明 id + KV 记录,不用签名 cookie,这样少一个要手工放置的 secret,
-  也能主动吊销
-- 要手工放的只有 `GITHUB_CLIENT_SECRET`
+1. The inbox sets `deleted_at` and empties `content` in the database. The row
+   stays.
+2. From that moment the post's `replies` collection and every reply count leave
+   the comment out. This meets §7.4 for what we serve over ActivityPub.
+3. If the comment was not promoted, nothing else shows it, so nothing else
+   changes.
+4. If the comment was promoted, git still holds its text. Post pages are
+   prerendered from git in both profiles. So the post page keeps showing the
+   comment, in full.
+5. The Tombstones workflow runs every Monday at 01:37 UTC, or when started by
+   hand. It finds the rows where both `deleted_at` and `promoted_at` are set,
+   rewrites `src/content/comments/`, and opens or updates a pull request.
+6. A person decides whether to merge. A merge pushes to `main`, and that push
+   rebuilds and redeploys both sites. Only then does the text leave the page.
 
-**不用 Cloudflare Access**:它更省代码(Worker 仍要验 JWT,约 15 行 vs 约 150 行),
-但那道门是 Cloudflare 控制台上的状态 —— git 里看不见、review 不到、换宿主就没了。
+So a withdrawn comment that was promoted stays on the page until the next run
+of the workflow, a person's merge, and the deploy after it. Nothing at runtime
+shortens that. Until the merge, we are still showing words their author asked
+us to remove. How long depends on when someone next looks at GitHub.
 
-**当前状态:未实现**,等存储落地后再做。门守的是写入,写到哪还没建好。
+No separate queue of pending removals exists. The pending set is the query on
+the two columns.
 
-## 点赞与转发
+When the workflow rewrites a file:
 
-同一张表,因为它们只差一个动词:同样的发送者、同样的目标、同样的撤销。撤销
-**标记而不删行** —— 删了的话同一条转发能被重新计数,而主键正是用来挡住这个的。
+- A withdrawn comment that nothing replies to is removed. A file left empty is
+  deleted.
+- A withdrawn comment that another comment replies to loses its `content` and
+  gains `deletedAt`. The page shows it as "已由作者删除 · <date>", so the reply
+  below it still answers something.
+- The rewrite repeats until nothing changes. Removing a reply can leave the
+  tombstone above it with no replies, and that tombstone then goes too.
 
-对外**只给计数,不给成员集合**:
+When the site is built, `commentsFor()` also hides a tombstone that nothing
+replies to.
 
-- 规范把 `likes` / `shares` 都写成 MAY,并且"收到时加进集合"这条义务附带
-  "**如果这个集合存在**"的条件
-- Mastodon 自己也是这样 —— 实测它对 `/likes`、`/shares` 返回 404,计数则内联在
-  对象上
-- 谁点了赞、谁转发了,留在库里不发布。这是决定,不是遗漏
+The rewrite does **not** change history. The commit is the record. The promise
+was never that the comment did not exist. It is that the comment is gone now,
+and the commit records that. The original text staying in history is
+therefore not a defect.
 
-`replies` 相反,是一个真集合:有 id、可取、分页。区别在于回复是公开的言论,而
-点赞是一个动作。
+This is one more reason to promote selectively. Each promoted comment from a
+stranger is a deletion obligation we can only partly meet.
 
-## 分发
+### A hard requirement on the stored format
+
+Every promoted entry must carry its activity id. Without it, the workflow
+cannot tell which entry to change. The `activityId` field is required in
+`src/content.config.ts`.
+
+### The pull-request job
+
+`.github/workflows/tombstones.yml`:
+
+- Runs weekly, and on `workflow_dispatch`.
+- Does nothing when nothing is pending. It never opens an empty pull request.
+- Is idempotent. Each run rebuilds the fixed branch `comments/tombstones`
+  from `main` and force-pushes it, so one batch updates one open pull request.
+  A hand edit on that branch is overwritten on the next run. Edit `main`
+  instead. The force-push exception is explained in `CLAUDE.md`.
+- Holds `GITHUB_TOKEN` with `contents: write` and `pull-requests: write`. No
+  personal access token is needed, because opening a pull request is within
+  that token's permissions.
+- Holds `CLOUDFLARE_API_TOKEN` to read D1. That token has `D1 Read` and no D1
+  write permission.
+
+Only CI can do this. The runtime holds no GitHub token, deliberately. The
+mirror also holds: CI cannot write D1, so `make promote` runs locally, under
+your own login.
+
+## The write entry point
+
+A write through a route needs an authenticated identity. The site has its own
+GitHub OAuth login, in `src/integrations/auth/`. It exists only in the `full`
+profile. It serves `/login`, `/auth/github`, `/auth/github/callback` and
+`/auth/logout`. Logout is `POST` only.
+
+- **The scope is `read:user`, written out.** With an empty scope, GitHub
+  reuses whatever the user granted before. What arrives would then depend on
+  their history, not on what we asked for.
+- **The allowlist decides permissions, not login.** Anyone can log in. The
+  list decides what they may do after that. The tiers are owner,
+  allowed and guest. The login page shows them as "站长", "名单内" and "访客".
+  A GitHub login proves only that the visitor is some GitHub user, not that it
+  is you. So no path may treat "has a session" as "is the owner". Every
+  privileged path asks `roleOf()`. Identities are compared by numeric GitHub
+  id, never by username. A username can be changed, and the old one is then
+  free for anyone to take. See
+  [0010](decisions/0010-a-session-is-not-a-privilege.md).
+- **A session is an opaque id with a record in KV.** It is not a signed
+  cookie. So there is one less secret to place by hand, and a session can be
+  revoked. Sessions last 30 days. Logout deletes the record, not only the
+  cookie.
+- **The only secret placed by hand is `GITHUB_CLIENT_SECRET`.** The client id
+  is public and is in `src/integrations/auth/config.ts`.
+
+**Cloudflare Access is not used.** It needs less code here, though the Worker
+would still have to verify its JWT. But that gate is state in the Cloudflare
+dashboard. Git cannot see it, nobody can review it, and it is gone when the
+site moves host.
+
+**Nothing is behind the gate yet.** No route performs a write, and
+`AUTH.allow` is empty. Today `roleOf()` decides only what `/login` displays.
+
+## Likes and boosts
+
+Likes and boosts share one table, because they differ only in the verb. They
+have the same sender, the same target and the same undo. An undo **marks the
+row and keeps it**. Deleting the row would let the same boost be counted again,
+and the primary key exists to stop that.
+
+We publish **counts only, never who**:
+
+- The specification makes `likes` and `shares` a MAY. The duty to add to the
+  collection on receipt applies only "if this collection is present".
+- Mastodon does the same. Measured: it answers 404 for `/likes` and `/shares`,
+  and puts the counts inline on the object.
+- Who liked or boosted a post stays in the database and is not published. This
+  is a decision, not an omission.
+
+`replies` is the opposite: a real collection with an id, fetchable and paged.
+A reply is public speech. A like is an action.
+
+## Delivery
 
 | | |
 |---|---|
-| outbox 展示多少 | `AP.published`,`0` = 全部 |
-| 推给关注者什么 | `ap:delivered` 记账,只推没推过的 |
-| 首次运行 | 只登记不发送 —— 新账号不该一上来就把存档刷给所有人 |
-| 内容改了 | 指纹变化时发 `Update{Note}`,**只看内容不看计数** |
+| How much the outbox shows | `AP.published`; `0` means everything |
+| What goes to followers | `ap:delivered` records what was sent; only unsent posts go |
+| First run | Records everything as sent and sends nothing. A new account must not flood every follower with the archive |
+| A post changes | When its fingerprint changes, an `Update{Note}` goes out. The fingerprint covers the content, URL and date, **never the counts** |
 
-最后一条是有意的:每来一个赞就向所有关注者推一条,代价是他们的服务器,而
-Mastodon 也不这么做 —— 计数是对方取的时候才更新的。
+The last row is deliberate. A push to every follower for every like would cost
+their servers. Mastodon does not do it either: counts update when someone
+fetches the object.
 
-**旧文章投递出去也不会进时间线。** Mastodon 只把 `created_at` 在 6 小时内的内容
-分发到主页时间线,这是它防止补录刷屏的设计。所以存档只能被搜到、被访问,不会
-出现在别人的时间线上 —— 正确的行为,但意味着"投递成功"和"对方看见"是两件事。
+**An old post that is delivered does not reach anyone's timeline.** Mastodon
+puts a post on the home timeline only if its `created_at` is within the last
+6 hours. This stops backfill from flooding timelines. So the archive can be
+found and opened, but it does not appear in timelines. That is correct, but
+"delivered" and "seen" are different things.
 
-## 在站点上渲染评论 —— 未做
+## Rendering comments on the site
 
-数据已经在 git 里(`src/content/comments/`),内容集合和 schema 都有,但**没有
-任何页面读它**。停下来的原因不是工作量,是一个没想清楚的问题:
+Post pages render promoted comments, in both profiles. `commentsFor(slug)` in
+`src/lib/comments.ts` reads the `comments` content collection. It reads only
+git, never the database. So the static site and the full site show the same
+comments.
 
-**评论内容是别人的服务器给的 HTML。** 直接 `set:html` 就是在我们域名下开一个
-XSS 口子。三条路各有代价:
+`src/components/Comments.astro` renders them under the heading "回应". Each
+comment shows the author's name or `@name@host`, a date that links to the
+original, and the text. The text is plain text (see
+[0006](decisions/0006-promoted-comments-are-stored-as-text.md)). The template
+escapes it. Blank lines separate paragraphs, and URLs become links with
+`rel="nofollow ugc"`. There is no sanitiser and no `set:html`.
 
-- **渲染时消毒** —— 要一个消毒器。`sanitize-html` 是主流选择,但它拖 7 个传递
-  依赖(postcss、htmlparser2 等),而且这个仓库到现在几乎没有运行时依赖
-- **提升时消毒** —— 危险的转换发生在本地的、可审阅的一步,落进 git 的已经安全,
-  diff 里能直接看见将要渲染的东西;消毒器只是 devDependency,不进 Worker 的包。
-  **方向上更对**,但依赖还是要引
-- **存成纯文本** —— 零依赖、绝对安全,代价是丢掉段落和链接
+Limits as they stand:
 
-倾向第二条,但"引哪个消毒器"值得单独看一次,而不是顺手装上。DOM 那侧(怎么展示
-作者、头像、时间、层级)也还没设计。
+- Only `/posts/{slug}/` renders comments. Note pages do not.
+- `scripts/promote.mjs` writes every thread to
+  `src/content/comments/posts/<id>.json`, including a thread under a note.
+  Nothing writes `src/content/comments/notes/`.
+- A withdrawn comment stays on the page until the tombstone pull request is
+  merged and deployed. See [Deletion](#deletion).
 
-当前状态:评论收得下、挑得出、进得了 git,**就是没人看得见**。
+## What has run, and what is only written
 
-## 已经跑通的,和只是写好的
+This distinction matters more than the list.
 
-这个区分比清单本身重要。
+**Verified with real data:** Follow → Accept; delivering `Create`; storing an
+inbound reply (thread placement, de-duplication); storing `Announce` and
+`Like`; all three `Undo`s (unfollow, unboost, unlike); counts visible from
+outside and back to zero after an undo; paging; the deletion chain through to
+the tombstone pull request.
 
-**用真实数据验过**:Follow → Accept;投递 `Create`;入站回复落库(线程归属、
-去重);`Announce` / `Like` 落库;三种 `Undo`(取关、取消转发、取消点赞);
-计数对外可见且撤销后归零;分页。
+**In place but not verified:**
 
-**代码在位但没验过**:
+- Removing a follower on a permanent failure (404/410). The only sample was
+  recorded by Fedify before the handler was deployed. Fedify now skips that
+  inbox, so no event fires.
+- `Update{Note}`. It fires only when a post's content actually changes.
+- Timeline placement. It needs a new post dated now.
 
-- 永久失败(404/410)摘除关注者 —— 唯一的样本在处理器部署前就被 Fedify
-  记住了,之后它直接跳过那个 inbox,不再产生事件
-- `Update{Note}` —— 要真的改一篇文章的内容才会触发
-- 时间线 —— 要一篇当下日期的新文章
+The last two will happen in the course of normal writing.
 
-后两条会在正常写作时自己发生。
+## Permissions of the CI token
 
-## CI 那个 token 的权限
+`docs/cloudflare-token.tf` declares them. Each permission is listed with the
+failure that appears without it:
 
-写在 `docs/cloudflare-token.tf` 里,声明式的一份。那几项原本只存在于报错里 ——
-每一项都是撞了一次墙才知道要加的:
-
-| 权限 | 撞出它的那次失败 |
+| Permission | The failure without it |
 |---|---|
-| Workers Scripts Write | 没有它什么都发不出去 |
-| Workers KV Storage Write | `AP_KV` 绑定 |
-| Queues Write | producer 与 consumer |
-| Zone → Workers Routes Write | `Authentication error [code: 10000]`,发生在 zone 这一侧 —— 账号级的 Workers 权限盖不到 |
-| D1 Read | `code: 7403 该账号未被授权访问此服务`,Tombstones job 查库时 |
+| Workers Scripts Write | Nothing can be deployed |
+| Workers KV Storage Write | The `AP_KV` binding |
+| Queues Write | The producer and the consumer |
+| Zone → Workers Routes Write | `Authentication error [code: 10000]`, on the zone side. Account-level Workers permissions do not reach it |
+| D1 Read | `code: 7403` (the account is not authorised for this service), when the Tombstones job queries the database |
 
-**故意不给的**:`Memberships Read`。一旦 wrangler 需要去查 memberships,说明
-account id 没配上,那正是该失败的时候;给了它,部署会成功,但发到一个没人声明
-过的账号上。
+**Withheld on purpose:** `Memberships Read`. If wrangler needs to look up
+memberships, the account id did not arrive, and the deploy should fail. With
+that permission it would succeed, against an account nobody declared.
 
-那份 tf **没有被 apply 过**,token 目前是手工建的。
+That file **has not been applied**. The token in use was created by hand.
 
-## `featured` 置顶 —— 未做
+## Pinned posts: `featured`
 
-**Mastodon 从不回补远端的 outbox。** 源码里没有任何 service 或 worker 会去读它,
-只记下 `outbox_url`,再从它的 `totalItems` 取一个嘟文数。所以别人搜到这个账号时
-看到的是"N 条嘟文"却一条也列不出来 —— 那是正常行为,不是缺陷。
+**Mastodon never backfills a remote outbox.** Nothing in its source reads one.
+It records `outbox_url` and takes a post count from `totalItems`. So a stranger
+who finds this account sees "N posts" and cannot list any of them. That is
+normal behaviour, not a defect.
 
-`featured` 是唯一的例外:`ProcessAccountService` 在处理 actor 时,若 actor 上有
-这个字段就会去抓。也就是说**它是新访客一来就能看到内容的唯一入口**,不需要对方
-关注,也不需要等我们发新东西。
+`featured` is the one exception. When `ProcessAccountService` processes an
+actor that has this field, it fetches the collection. So it is **the only way a
+new visitor sees content at once**, without following and without waiting for
+a new post.
 
-做它需要先有一个东西:**哪几篇算置顶,得有地方标记。** 两种:
+A post is pinned by `pinned: true` in its frontmatter. `make pin <slug>` and
+`make unpin <slug>` edit that one line. The actor advertises `featured`, and
+the collection serves every pinned long post. Notes cannot be pinned: a note
+has no title, and pinning exists to tell a first-time visitor what is written
+here.
 
-- frontmatter 里加 `pinned: true` —— 和内容放在一起,改哪篇就改哪篇
-- `AP` 配置里列几个 slug —— 集中,但和文章分离,改一次要动两个地方
+## Status
 
-机械和 `replies` 那套一样:一个集合调度器加一条注入的路由。
-
-## 待办
-
-- [x] 存储缝 + D1 与 `node:sqlite` 两个实现 —— 用的是 Drizzle,不是手写的渲染层
-- [x] schema:评论表、反应表,活动 id 为主键(规范 MUST 的去重由数据库执行)
-- [x] `.on(Create)` —— 回复落库
-- [x] `.on(Delete)` 区分账号注销与对象删除
-- [x] `.on(Announce)` / `.on(Like)` 与它们的 `Undo`
-- [x] `replies` 集合、`likes` / `shares` 计数
-- [x] 提升命令与 filter
-- [ ] 站点上渲染评论 —— 卡在消毒器的选择上,见上
-- [x] 每周的 PR job —— 墓碑 PR,整条删除链已跑通真实数据
-- [ ] `featured` 置顶集合 —— 见下
-- [ ] 路由层与 OAuth
+- [x] Storage seam with two implementations, D1 and `node:sqlite`, through
+      Drizzle
+- [x] Schema: a comments table and a reactions table, keyed by activity id, so
+      the database enforces the de-duplication the specification requires
+- [x] `.on(Create)`: replies are stored
+- [x] `.on(Delete)` tells an account deletion from an object deletion
+- [x] `.on(Announce)` and `.on(Like)`, with their `Undo`
+- [x] The `replies` collection; `likes` and `shares` counts
+- [x] The promote command and its filter
+- [x] Comments rendered on post pages
+- [x] The weekly tombstone pull request
+- [x] The `featured` collection
+- [x] GitHub OAuth login and sessions
+- [ ] A write route behind `roleOf()`
+- [ ] Comments under notes: promoted to the posts path, rendered nowhere
+- [ ] A withdrawn, promoted comment leaving the page before the pull request
+      is merged

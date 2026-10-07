@@ -53,8 +53,9 @@ Numbers are never reused. A superseded record keeps its number and gains a
 pointer; the replacement says what changed and why the earlier reasoning no
 longer holds.
 
-`docs/identity.md` and `docs/interactions.md` predate this directory and stay
-as they are. New decisions land here.
+`docs/identity.md` and `docs/interactions.md` predate this directory and are
+not rewritten into this format. They describe how things work now; new
+decisions land here.
 
 ## Index
 

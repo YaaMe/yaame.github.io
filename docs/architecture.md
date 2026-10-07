@@ -1,60 +1,92 @@
-# 设计层与数据层解耦
+# The design layer and the data layer
 
-站点的核心约束:**设计可以整层扔掉重写,数据不受影响。**
+The site's central constraint: **you can throw away the whole design layer and
+rewrite it, and the data does not change.**
 
-## 两层
+## The two layers
 
 ```
-数据层 ── 换设计时一行不动
-  src/content/            markdown。纯数据
-  src/content.config.ts   字段定义 + 标签校验
-  src/tags.ts             标签常量池（唯一真相）
-  src/site.config.ts      站点身份、导航、社交
-  src/lib/posts.ts        唯一的数据出口
-  scripts/*.mjs           补全、校验、创建
-  Makefile                操作入口
+data layer — no line changes in a redesign
+  src/content/            markdown. Data only
+  src/content.config.ts   field definitions and tag validation
+  src/tags.ts             the tag registry (the single source)
+  src/site.config.ts      site identity, navigation, social links
+  src/lib/posts.ts        posts, tags, the novel
+  src/lib/notes.ts        notes, and the permalink they publish
+  src/lib/comments.ts     promoted comments
+  scripts/*.mjs           the commands the Makefile runs
+  Makefile                the entry point for every operation
 
-设计层 ── 可整层替换
+design layer — replaceable as a whole
   src/layouts/  src/components/  src/pages/  src/styles/
 ```
 
-## 规则
+Neither list covers `src/integrations/` (ActivityPub and login) or
+`src/platform/` (the host boundary). The second architectural rule in
+`CLAUDE.md` governs `src/platform/`.
 
-**设计层不得 import `astro:content`,只能从 `src/lib/posts.ts` 取数据。**
+## The rule
 
-数据出口:
+**The design layer must not import `astro:content`.** It reads content only
+through `src/lib/`. It may also import `src/site.config.ts` and `src/tags.ts`.
 
-| | |
-|---|---|
-| `allPosts()` | 全部文章,按发布时间倒序 |
-| `href(post)` | URL |
-| `periodYear(post)` | 文章覆盖的年份 —— 取自文件名,不是发布日期 |
-| `allTags()` | 用到的标签 |
-| `pages(n)` / `slice(posts, n)` | 分页 |
-| `komorebi()` / `novel()` / `chapterCount()` | 小说 |
-| `content(entry)` | 渲染 |
+What `src/lib/` exports:
 
-设计层能拿到的东西被这个清单限死。要加新数据,先加在这里。
+| Module | Export | |
+|---|---|---|
+| `posts.ts` | `allPosts()` | all posts, newest first by publication date |
+| | `href(post)` | the post's URL |
+| | `periodYear(post)` | the year the post covers. It comes from the filename, not the publication date |
+| | `period(post)` | the period the post covers, as a printed label and a machine-readable value |
+| | `allTags()` | the tags in use |
+| | `PAGE_SIZE` / `pages(n)` / `slice(posts, n)` | pagination |
+| | `komorebi()` / `novel()` / `chapterCount()` | the novel |
+| | `content(entry)` | rendering |
+| `notes.ts` | `allNotes()` / `noteYears()` | notes, newest first, and their archive years |
+| | `noteHref(note)` | the note's URL |
+| | `noteHtml(note)` | the note's markup |
+| `comments.ts` | `commentsFor(slug)` | the promoted comments under one post or note |
+| | `handle(actorId)` / `paragraphs()` / `segments()` | comment text, prepared for display |
 
-## 什么属于数据层
+This list is everything the design layer can get. To add new data, add it
+here first.
 
-判据是:**这条规则是关于内容的,还是关于呈现的。**
+## What belongs in the data layer
 
-`periodYear` 属于数据层 —— 年结月结都是事后写的,"这篇覆盖哪一年"必须从文件名取而非发布日期。这是内容的性质,不是排版决定。
+Ask one question: **is this rule about the content, or about how it is shown?**
 
-同理,"章节是正文里的中文数字小标题"也是内容规则,所以数章节的逻辑在 `chapterCount()` 里,不在页面里。
+`periodYear` belongs in the data layer. The yearly and monthly summaries are
+written after the period ends. So the year a post covers must come from the
+filename, not the publication date. That is a property of the content, not a
+layout decision.
 
-## 这条约束买到什么
+The novel's chapters are the Han-numeral headings in its body. That is also a
+content rule. So `chapterCount()` counts chapters, and no page does.
+
+## What this constraint gives you
 
 ```
-换一套设计     只重写 layouts / components / pages / styles
-加 CSS 框架    纯设计层的事，数据层不知情
-换掉 Astro     数据层里只有 content.config.ts 和 lib/posts.ts 认识 Astro
-               内容、标签池、脚本、Makefile 全部照旧
+new design        rewrite layouts / components / pages / styles only
+add a CSS framework
+                  a design-layer change. The data layer does not see it
+replace Astro     in the data layer, only content.config.ts and src/lib/*.ts
+                  know Astro. Content, the tag registry, the scripts and
+                  the Makefile stay as they are
 ```
 
-## 例外:URL 形状
+## Exception: URL shapes
 
-`/posts/{slug}/` 是**对外契约**,比两层都长寿。
+The URLs are an **external contract**. They outlive both layers.
 
-它实现在 `lib/posts.ts` 的 `href()` 里,但稳定性要求高于数据层本身 —— 换数据层实现可以,换 URL 要当成一次对外的破坏性变更。
+`/posts/{slug}/` is built by `href()` in `lib/posts.ts`. `/notes/{year}/#{id}`
+is built by `noteHref()` in `lib/notes.ts`. Both live in the data layer, but
+they must be more stable than the data layer itself. You may replace the
+data-layer code. If you change a URL, treat it as an externally breaking
+change.
+
+`PAGE_SIZE` is part of the same contract. If it changes, the posts on
+`/tags/{tag}/page/2/` change with it.
+
+The note URL is stricter still. It is the `url` a note publishes to the
+fediverse, so it is stored in other servers' databases. See
+[decision 0009](decisions/0009-note-urls-are-a-year-archive-and-an-anchor.md).

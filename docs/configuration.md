@@ -1,105 +1,186 @@
-# 配置
+# Configuration
 
-这份文档给读代码的人和 AI 用:每一项配置在哪里、谁改、什么时候被读、开错了会发生什么。
+This document is for people and agents who read the code. For each setting it
+says where it lives, who changes it, when it is read, and what happens if it is
+wrong.
 
-**最需要知道的是最后一节的交互表** —— 单项的含义容易猜,组合的含义不容易。
+**The most important part is the interaction table in the last section.** The
+meaning of one setting is easy to guess. The meaning of a combination is not.
 
-## 一览
+## Overview
 
-| 配置项 | 在哪 | 何时读 | 谁改 |
+| Setting | Where | When it is read | Who changes it |
 |---|---|---|---|
-| `BUILD_PROFILE` | 环境变量 | 构建前 | CI / 部署者 |
-| `DEPLOY_TARGET` | 环境变量 | 构建前 | 部署者 |
-| `CF_KV_ID` | 环境变量 → `wrangler.jsonc` | 构建前、部署时 | CI 仓库变量 |
-| `features.*` | `src/site.config.ts`,由 `BUILD_PROFILE` 推导 | 构建期 | 作者(改推导规则) |
-| `site.*` | `src/site.config.ts` | 构建期 | 作者 |
-| `AP.*` | `src/integrations/activitypub/config.ts` | 构建期 | 作者 |
-| `routes` / 绑定 | `wrangler.jsonc.template` | 部署时 | 部署者 |
+| `BUILD_PROFILE` | environment variable | before the build | CI / the deployer |
+| `DEPLOY_TARGET` | environment variable | before the build | the deployer |
+| `CF_KV_ID` / `CF_D1_ID` | environment variable → `wrangler.jsonc` | before the build, at deploy | CI repository variables |
+| `features.*` | `src/site.config.ts`, derived from `BUILD_PROFILE` | at build time | the author (by changing the derivation) |
+| `site.*` | `src/site.config.ts` | at build time | the author |
+| `AP.*` | `src/integrations/activitypub/config.ts` | at build time | the author |
+| `routes` / bindings / secrets | `wrangler.jsonc.template` | at deploy | the deployer |
 
 ---
 
-## `BUILD_PROFILE` — `static`(默认) / `full`
+## `BUILD_PROFILE`: `static` (default) or `full`
 
-决定这次构建产出哪一个站点。两者**不是同一个站点的两份副本**,是两个产品。
+It decides which site this build produces. The two are **two products, not two
+copies of one site.**
 
 | | `static` | `full` |
 |---|---|---|
-| 地址 | `blogu.yaa.me` | `blogu.yaame.dev` |
-| 托管 | GitHub Pages | Cloudflare Worker |
-| 产物 | 只有 `dist/client/` | 加上 `dist/server/` |
-| `features.activitypub` | 关 | 开 |
-| canonical | 指自己 | 指自己 |
+| Address | `blogu.yaa.me` | `blogu.yaame.dev` |
+| Host | GitHub Pages | Cloudflare Workers |
+| Output | `dist/client/` only | `dist/client/` and `dist/server/` |
+| `features.activitypub` / `features.auth` | off | on |
+| Canonical URL | points to itself | points to itself |
 
-它被读两次,在两个不同的运行时里:Node 加载 `astro.config.mjs` 时走 `process.env`,Vite 把页面模块转换后走 `define` 注入的 `__BUILD_PROFILE__`。`src/site.config.ts` 两个来源都读 —— **只读一个的话,同一个文件会因为"谁 import 的"而给出不同答案**,曾经导致 canonical 和 RSS 指向两个不同域名。
+Each site's footer links to the same path on the other site.
 
-## `DEPLOY_TARGET` — `cloudflare`(默认) / `node`
+The value is read twice, in two runtimes. When Node loads `astro.config.mjs`,
+it reads `process.env`. When Vite transforms the page modules, `process.env` is
+gone, and the value arrives as `__BUILD_PROFILE__` through `define`.
+`src/site.config.ts` reads both sources. **If it read only one, the same file
+would give different answers depending on who imported it.** The canonical link
+and the RSS feed would then point at different domains.
 
-决定 `virtual:platform` 解析到 `src/platform/` 下的哪个文件,以及用哪个 Astro adapter。
+`make check` builds only the profile that `BUILD_PROFILE` names. `make both`
+builds `full` and then `static`.
 
-选中之外的那个实现**不进模块图**,所以它里面的宿主专有 import(`cloudflare:workers`、`node:*`)不需要在别的平台上存在。这是 `CLAUDE.md` 第二条架构规则的实现方式。
+## `DEPLOY_TARGET`: `cloudflare` (default) or `node`
 
-`node` 那份目前不存在。
+It decides two things in `astro.config.mjs`: which file under `src/platform/`
+`virtual:platform` resolves to, and which Astro adapter the build uses.
 
-## `CF_KV_ID`
+The implementation that is not selected **never enters the module graph**. So
+its host-only imports (`cloudflare:workers`, `node:*`) do not have to exist on
+the other host. This is how the second architectural rule in `CLAUDE.md` is
+implemented.
 
-Workers KV 的 namespace id,替换 `wrangler.jsonc.template` 里的 `${CF_KV_ID}`。
+Both implementations exist:
 
-- `make check` 时用占位值即可 —— 类型生成只需要配置**可解析**,与 id 的真假无关
-- `make deploy` 要求真值,缺了直接失败:绑错 KV 的部署比失败的部署更糟
+- **`cloudflare.ts`** reads the Worker bindings `AP_KV`, `AP_DB` and
+  `AP_QUEUE`, and reads secrets from the Worker environment.
+- **`node.ts`** uses the `@astrojs/node` adapter in standalone mode. It stores
+  records as JSON files under `AP_DATA_DIR` (default `.data`). It stores the
+  database in SQLite through the built-in `node:sqlite`, at `AP_DB_URL`
+  (default `.data/interactions.sqlite`). It reads secrets from `process.env`.
+  It has no queue, so delivery is synchronous and a failed delivery is final.
 
-不是密钥,所以在 CI 里是仓库变量而非 secret。它只暴露"账号里有这个资源",凭它访问不了任何东西。
+No Makefile target and no CI job builds or deploys `DEPLOY_TARGET=node`. So
+nothing checks that this target still builds.
+
+The queue consumer in `worker/` does not read `DEPLOY_TARGET`. Its own
+`worker/wrangler.jsonc` always aliases `virtual:platform` to `cloudflare.ts`.
+
+## `CF_KV_ID` and `CF_D1_ID`
+
+The Workers KV namespace id and the D1 database id. `scripts/wrangler-config.mjs`
+puts them in place of `${CF_KV_ID}` and `${CF_D1_ID}` in
+`wrangler.jsonc.template`. If any `${VAR}` in the template has no value, the
+script fails.
+
+- `make check` fills in placeholder values when they are not set. Type
+  generation only needs the configuration to **parse**. It does not matter
+  whether the ids are real.
+- `make deploy` needs the real values. If either is missing, it fails. A
+  deploy bound to the wrong KV is worse than a failed deploy.
+- `make deploy` only checks that the values are present. It cannot detect a
+  wrong id. With a wrong `CF_KV_ID`, the deploy succeeds and the Worker reads
+  another namespace instead of its own records, such as the follower list and
+  sessions.
+- `make promote` and `make tombstone` need a real `CF_D1_ID`.
+
+Neither is a secret, so CI holds them as repository variables, not secrets.
+They only show that the resource exists in the account. Nobody can access
+anything with them alone.
 
 ## `features.*`
 
-由 `BUILD_PROFILE` 推导,不单独设置。
+`BUILD_PROFILE` decides these. You do not set them one by one.
 
-| | 含义 |
+| | Meaning |
 |---|---|
-| `darkMode` | 页脚的明暗切换按钮 |
-| `activitypub` | 联邦。**开着才会产出 Worker** —— 其余路由都是预渲染的 |
-| `comments` / `search` | **`false` 表示没做**,不是"做了但关掉" |
+| `darkMode` | the light/dark toggle button in the header navigation |
+| `activitypub` | federation. Its routes are server-rendered |
+| `auth` | GitHub login. Its routes are server-rendered |
+| `comments` | promoted comments under a post. On in both profiles: they are read from git, not from the database |
+| `search` | **`false` means it has not been built.** It does not mean "built and switched off" |
+
+Every other route is prerendered. So **the build produces a Worker only when
+`activitypub` or `auth` is on.**
 
 ## `site.*`
 
-`title` / `author` / `lang` / `description` 是资料。另外三项有约束:
+`title`, `author`, `lang` and `description` are plain information. Three fields
+have constraints:
 
-- **`url`** 跟随 `BUILD_PROFILE`,决定 canonical、RSS 链接、以及 actor 里指向博客的地址
-- **`timezone`** 是发布时区。日期若按 UTC 渲染,`02:22+08:00` 会退一天,`/YYYY/MM/DD/` 的 URL 契约就破了
-- **`fingerprint`** 是 OpenPGP 主密钥指纹,40 位不是 16 位 —— 16 位是这个哈希的截断,而它唯一的职能就是被拿去跨渠道比对
+- **`url`** follows `BUILD_PROFILE`. It decides the canonical URL and the RSS
+  links. The actor's link to the blog does not use it. That link is
+  `AP.blogUrl`, which is fixed.
+- **`timezone`** is the publishing time zone. Post and note dates are rendered
+  in it. If a date were rendered in UTC, `02:22+08:00` would show as the
+  previous day.
+- **`fingerprint`** is the OpenPGP primary key fingerprint. It has 40
+  characters, not 16. A 16-character key ID is a truncation of this hash, and
+  the only job of this value is to be compared against another channel. No
+  page reads it at present.
 
 ## `AP.*`
 
-| | 值 | 说明 |
+| | Value | Notes |
 |---|---|---|
-| `handleHost` | `id.yaa.me` | handle 里 `@` 后面那段。**协议规定 WebFinger 由它提供**,没有间接层 |
-| `actorHost` | `yaame.dev` | actor 实际所在。和上一项不同是有意的 |
+| `handleHost` | `id.yaa.me` | the part of the handle after `@`. **The protocol requires this host to serve WebFinger.** There is no indirection |
+| `actorHost` | `yaame.dev` | where the actor lives. It differs from `handleHost` on purpose |
 | `user` | `yaame` | |
+| `blogUrl` | `https://blogu.yaame.dev` | the blog the actor points to. It is fixed, so both profiles advertise the same address |
 
-`actorHost` 一旦有了关注者就**不能改** —— actor id 写在每个关注者的库里,换它等于账号迁移。
+The file also sets `discoverable`, `indexable`, `published`, `since` and
+`manuallyApprovesFollowers`. The comments in the file explain each one.
 
-`handleHost` 与 actor 不同域时,`id.yaa.me` 上那份静态 WebFinger 必须与 Fedify 生成的一致。Mastodon 会做二次确认,两侧对不上账号在对面不可见。
+Once the actor has followers, **`actorHost` cannot change.** The actor id is
+stored in every follower's database. Changing it is an account migration.
+
+When `handleHost` and the actor are on different domains, the static WebFinger
+document on `id.yaa.me` must match the one Fedify generates. Mastodon checks a
+second time. If the two do not match, the account is invisible on the other
+server.
 
 ## `wrangler.jsonc.template`
 
-由 `make wrangler` 生成 `wrangler.jsonc`。两处需要知道:
+`make wrangler` generates `wrangler.jsonc` from it. Points to know:
 
-- **`routes`** 会被 adapter 丢掉。`scripts/wrangler-routes.mjs` 在构建后补回 `dist/server/wrangler.json`,否则部署成功但自定义域从未创建
-- **adapter 会剥掉 `queues`(消费者)、`durable_objects`、`migrations`、`workflows`**,只保留 `queues.producers`。所以 Astro 的 Worker 能入队,不能消费 —— 队列消费者必须是另一个 Worker
+- **The adapter drops `routes`.** After the build, `scripts/wrangler-routes.mjs`
+  puts them back into `dist/server/wrangler.json`. Without that step the deploy
+  succeeds, but the custom domains are never created.
+- **The Astro Worker can send to the queue, but cannot consume it.** The
+  adapter's server entry point exports only a `fetch` handler. So the queue
+  consumer is a separate Worker, `worker/consumer.ts`, with its own
+  `worker/wrangler.jsonc`. `make deploy` deploys both.
+- **`secrets.required`** lists `AP_KEY_JWK` and `GITHUB_CLIENT_SECRET`. With
+  this list, wrangler refuses to deploy a Worker that is missing one. The values
+  are set with `wrangler secret put`, outside the build and the deploy. Nothing
+  that builds or deploys reads them.
 
-## 交互
+## Interactions
 
-单项的含义好猜,组合的不好猜:
-
-| 组合 | 结果 |
+| Combination | Result |
 |---|---|
-| `BUILD_PROFILE=static` | `activitypub` 强制关,不产出 Worker,`CF_KV_ID` 与 `DEPLOY_TARGET` 都无关 |
-| `BUILD_PROFILE=full` + 无 `CF_KV_ID` | `make deploy` 失败;`make check` 仍可跑 |
-| `activitypub=true` 但路由未注入 | actor 宣传一个 404 的端点。**不报错** —— 分发器和 `PATHS` 是一对 |
-| `platform.queue=false` | 投递同步发出,失败即丢。这是当前状态 |
-| `DEPLOY_TARGET=node` | 目前无实现,构建会失败 |
+| `BUILD_PROFILE=static` | `activitypub` and `auth` are off. The build produces no Worker. `CF_KV_ID`, `CF_D1_ID` and `DEPLOY_TARGET` do not affect the output |
+| `BUILD_PROFILE=full` without `CF_KV_ID` or `CF_D1_ID` | `make deploy` fails. `make check` still runs |
+| `BUILD_PROFILE=full` with a wrong `CF_KV_ID` | `make deploy` succeeds. The Worker reads another namespace. **Nothing reports it** |
+| `activitypub=true` but a route is not injected | the actor advertises an endpoint that answers 404. **Nothing reports it.** The dispatchers in `federation.ts` and `PATHS` in `src/integrations/activitypub/index.ts` must match |
+| `platform.queue === false` | delivery is sent synchronously, and a failed delivery is not retried. This happens on Cloudflare when the `AP_QUEUE` binding is absent, and always under `DEPLOY_TARGET=node` |
+| `DEPLOY_TARGET=node` | the build uses `src/platform/node.ts` and the Node adapter. No make target or CI job builds it |
 
-## 不在这个仓库里
+## Not in this repository
 
-- **Cloudflare 的边缘跳转规则**,把 apex 上非联邦路径导向博客。不能做成中间件:静态资源先于 Worker 被服务,未匹配的路径由 assets 直接答 404,Worker 不会被调用
-- **`id.yaa.me` 仓库**,提供 handle 域的 WebFinger
-- **GitHub 仓库变量 `CF_KV_ID`**
+- **The Cloudflare redirect rule** that sends every path on the apex except the
+  federated ones to the blog. It cannot be middleware. Static assets are served
+  before the Worker. Assets answer an unmatched path with 404, and the Worker
+  is never invoked.
+- **The `id.yaa.me` repository**, which serves WebFinger for the handle domain.
+- **GitHub repository variables**: `CF_KV_ID`, `CF_D1_ID` and
+  `CLOUDFLARE_ACCOUNT_ID`.
+- **GitHub secrets**: `CLOUDFLARE_API_TOKEN` and `AP_KEY_JWK`. The `Actor key`
+  workflow installs `AP_KEY_JWK` into both Workers.
+- **The Worker secret `GITHUB_CLIENT_SECRET`.**
