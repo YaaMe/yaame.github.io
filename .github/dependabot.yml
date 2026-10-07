@@ -14,9 +14,9 @@ updates:
       actions:
         patterns: ["*"]
 
-  # npm. Every one of these runs at build time only: the site ships no external
-  # JavaScript, so a vulnerable transitive dependency reaches the build machine,
-  # not a reader. Monthly rather than daily for that reason.
+  # npm. Not everything here runs only at build time: under the full profile,
+  # Astro's server runtime, Fedify and Drizzle run inside the Worker and answer
+  # requests from other servers.
   #
   # Security advisories are a separate, repository-level setting and are not
   # throttled by this schedule.
@@ -26,13 +26,11 @@ updates:
       interval: monthly
     open-pull-requests-limit: 5
     groups:
-      # Everything in one pull request, so dependency churn lands on main as a
-      # single machine-made commit rather than as a scatter of them. Commits
-      # here are signed by GitHub, not by the author; keeping them to one keeps
-      # the authored history easy to pick out.
+      # Everything in one pull request, so dependency updates land on main as
+      # one commit signed by GitHub, not by the author.
       #
-      # The cost is real: a grouped update that breaks the build does not say
-      # which package broke it. `git bisect` does not help either, since it is
-      # one commit — read the pull request and revert the lockfile.
+      # The cost: a grouped update that breaks the build does not say which
+      # package broke it, and `git bisect` cannot narrow one commit. Read the
+      # pull request and revert the lockfile.
       deps:
         patterns: ["*"]

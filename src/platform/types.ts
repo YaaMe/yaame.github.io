@@ -12,11 +12,11 @@ export interface Platform {
    * `false` rather than absent, so every platform answers the same question and
    * a missing implementation cannot pass for a host that has nothing to offer.
    * And a plain `false` rather than a queue that accepts and discards: without
-   * one, delivery is synchronous and a failure is reported: with a silent
+   * one, delivery is synchronous and a failure is reported; with a silent
    * stand-in it would be lost instead.
    */
   queue: MessageQueue | false;
-  /** Small JSON records of our own: the follower list. */
+  /** Small JSON records of our own: followers, sessions, delivery bookkeeping. */
   get<T>(key: string): Promise<T | null>;
   /**
    * `ttl` is seconds, and is a request rather than a guarantee: a host that

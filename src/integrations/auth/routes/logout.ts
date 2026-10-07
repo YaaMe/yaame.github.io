@@ -18,10 +18,10 @@ export const prerender = false;
  * anywhere on the web. A cross-site POST is not a top-level GET, so the
  * cookie stays home and the method itself is the guard.
  *
- * 204 rather than the 303 this used to answer: the only caller is `fetch`
- * from the menu, and a redirect there is either followed — downloading the
- * whole of /login to discard it — or has to be explicitly switched off. The
- * caller navigates, because the caller is the one that knows where to.
+ * 204, not a redirect: every caller uses `fetch`, and a redirect there is
+ * either followed — downloading a whole page to discard it — or has to be
+ * explicitly switched off. The caller decides what to show next, because the
+ * caller is the one that knows.
  */
 export const POST: APIRoute = async ({ request }) => {
   // The record goes, not just the cookie. Clearing the cookie alone leaves a

@@ -20,12 +20,13 @@ export default defineConfig({
   // only decides whether the slashless form is a 404, and it must not be:
   // an ActivityPub actor id carries no trailing slash, and WebFinger's path is
   // fixed by the protocol at /.well-known/webfinger. Under "always" both
-  // answered 404, measured.
+  // answer 404.
   trailingSlash: "ignore",
   build: { format: "directory" },
 
-  // Every route is still prerendered, so this produces no server output until
-  // something opts out with `export const prerender = false`.
+  // Under the static profile every route is prerendered, so the adapter emits
+  // no server code. Under full, the routes the integrations inject are
+  // server-rendered.
   adapter: TARGET === "node" ? node({ mode: "standalone" }) : cloudflare(),
 
   // Absent from the array when the feature is off, so nothing it pulls in —
@@ -33,8 +34,8 @@ export default defineConfig({
   integrations: [
     features.activitypub && activitypub(),
     features.auth && auth(),
-    // Always on: it records whatever the other two left behind, and writes
-    // nothing when they left nothing.
+    // Always on: it records every route that is not prerendered, whatever
+    // added it, and writes nothing when there is none.
     dynamicRoutes(),
   ].filter(Boolean),
 
@@ -46,9 +47,9 @@ export default defineConfig({
     // Keep light-dark() intact. Below this target the CSS pipeline rewrites it
     // into a --lightningcss-light/--lightningcss-dark pair driven only by
     // `@media (prefers-color-scheme)` — which follows the OS and ignores the
-    // `color-scheme` property, so the theme button set a value nothing read.
-    // The whole dark theme is one light-dark() per token, so this is load
-    // bearing rather than a nicety. These four are where the function shipped.
+    // `color-scheme` property, so the theme button would set a value nothing
+    // reads. The whole dark theme is one light-dark() per token. These four are
+    // the first versions that support the function.
     build: { cssTarget: ["chrome123", "safari17.5", "firefox120", "edge123"] },
     resolve: {
       alias: {

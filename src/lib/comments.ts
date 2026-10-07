@@ -4,9 +4,9 @@ import { AP } from "../integrations/activitypub/config";
 export type Comment = CollectionEntry<"comments">["data"]["comments"][number];
 
 // Posts and notes share one ActivityPub namespace, so one lookup serves both.
-// Built here rather than stored on each comment: the address is already in
-// `rootId`, and a copy of the route pattern would agree today and diverge the
-// moment it changes, with nothing reporting it.
+// This must match the path ActivityPub objects are served at. If that path
+// changes, no stored `rootId` matches and every page shows no comments, with
+// nothing reporting it.
 const ROOT = `https://${AP.actorHost}/users/${AP.user}/notes/`;
 
 /**
@@ -24,12 +24,13 @@ export async function commentsFor(slug: string): Promise<Comment[]> {
     .filter((c) => c.rootId === rootId)
     .sort((a, b) => a.published.localeCompare(b.published));
 
-  // A withdrawn comment is shown only when something replies to it, where the
-  // reply below would otherwise answer nothing. Unreferenced, there is nothing
-  // to hold up and a line saying someone spoke here is still a record of them.
+  // A withdrawn comment (no `content`) is shown only when another comment
+  // replies to it; otherwise that reply would answer nothing. One that nothing
+  // replies to is hidden, because even a line saying someone spoke here is a
+  // record of them.
   //
-  // The tombstone job removes those from git on its own schedule; this does
-  // not wait for it to have run.
+  // Such entries are also removed from git, later and separately. This filter
+  // does not wait for that.
   const answered = new Set(under.map((c) => c.replyToId).filter(Boolean));
   return under.filter((c) => c.content !== undefined || answered.has(c.objectId));
 }
@@ -37,9 +38,9 @@ export async function commentsFor(slug: string): Promise<Comment[]> {
 /**
  * `@name@host`, derived from the actor's address.
  *
- * The stored record has no display name on purpose: it is theirs to change,
- * and a copy taken at promotion would be wrong the day after. The address is
- * the part that does not move.
+ * The address does not change when the author renames themselves. A stored
+ * `name` is a copy taken at promotion and can go stale, so the handle is shown
+ * beside it, or alone when there is no name.
  */
 export function handle(actorId: string): string {
   try {
@@ -51,16 +52,15 @@ export function handle(actorId: string): string {
   }
 }
 
+const LINK = /https?:\/\/[^\s<>"']+[^\s<>"'.,;:!?)）。，；：！？]/g;
+
 /**
  * One paragraph, split into what is a link and what is not.
  *
  * The text is rendered as text — escaped by the template, never handed to
  * `set:html` — so this only has to decide where an anchor starts and ends. A
- * mis-parse here shows a wrong link, not an injection, which is the whole
- * reason the content is stored as text. See docs/decisions/0006.
+ * mis-parse here shows a wrong link, not an injection. See docs/decisions/0006.
  */
-const LINK = /https?:\/\/[^\s<>"']+[^\s<>"'.,;:!?)）。，；：！？]/g;
-
 export function segments(paragraph: string): { text?: string; url?: string }[] {
   const out: { text?: string; url?: string }[] = [];
   let last = 0;

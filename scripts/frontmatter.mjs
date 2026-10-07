@@ -18,9 +18,9 @@ import { readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 const DIR = "src/content/posts";
-const FIELD = { desc: "description", tags: "tags" }; // 换主题时改这里（astro-paper 用同名）
+const FIELD = { desc: "description", tags: "tags" };
 
-const MAX = 30;              // 摘要上限（汉字计）
+const MAX = 30;              // description length cap, in characters
 const SENTENCE_END = /[。！？]/;
 
 const argv = new Set(process.argv.slice(2));
@@ -45,7 +45,7 @@ function makeDescription(body, fallback) {
 function inferTags(slug) {
   if (/^\d{4}-year$/.test(slug)) return ["summaries", "year"];
   if (/^\d{4}-\d{2}$/.test(slug)) return ["summaries", "month"];
-  return null;   // 认不出来就不猜，交给人
+  return null;   // no guess for an unrecognised name; a person picks the tags
 }
 
 const has = (fm, key) => new RegExp(`^${key}:\\s*\\S`, "m").test(fm);

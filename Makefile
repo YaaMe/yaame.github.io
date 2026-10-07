@@ -1,6 +1,6 @@
 # Every operation on this site. `make` or `make help` lists them.
 .DEFAULT_GOAL := help
-.PHONY: help install dev deploy deploy-site deploy-consumer ap-check promote tombstone build preview check frontmatter fix new po follow unfollow pin unpin newpost newtag tags urls links clean
+.PHONY: help install dev deploy deploy-site deploy-consumer ap-check promote tombstone build both types wrangler preview check frontmatter fix new po follow unfollow pin unpin newpost newtag tags urls links clean
 
 help: ## 显示这份清单
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) \
@@ -45,11 +45,12 @@ preview: build ## 构建后本地预览产物
 check: wrangler frontmatter types build links ## 全量校验：配置 → frontmatter → 类型 → 构建 → 链接（CI 跑这个）
 	@echo "  ✓ 全部通过"
 
-# 推之前跑这个，而不是 make check。
+# Run this before pushing, not make check.
 #
-# check 只构建 BUILD_PROFILE 指定的那一个，默认 static —— 于是只在 full 下存在的
-# 东西（动态路由、服务端岛）本地一次也没被检查过，第一次看见它们的是 CI 的部署。
-# 以 static 收尾是有意的：Deploy Pages 那个 job 会上传 make check 之后的 dist/。
+# check builds only the profile BUILD_PROFILE names, static by default. What
+# exists only under full (dynamic routes, server islands) is then never checked
+# locally, and the Workers deploy in CI is the first thing to build it.
+# Static runs last, so dist/ is left holding the static build.
 both: ## 两个 profile 都过一遍（推之前跑）
 	@BUILD_PROFILE=full $(MAKE) --no-print-directory check
 	@BUILD_PROFILE=static $(MAKE) --no-print-directory check
@@ -66,10 +67,11 @@ fix: ## 补全缺失的 description 和 tags（不覆盖已有的）
 new: ## 交互式新建（问你要建文章还是标签）
 	@node scripts/new.mjs
 
-# `make po 今天天气不错` takes the words after `po` as the body. Only when `po`
-# is the first goal, and only those words get an empty rule — a catch-all `%:`
-# would turn every mistyped target into a silent no-op. Use T="…" when the text
-# holds # or $, which make reads itself.
+# `make po 今天天气不错` passes the words after the target as arguments. This
+# happens only when one of these targets is the first goal, and only those
+# words get an empty rule: a catch-all `%:` would turn every mistyped target
+# into a silent no-op. Use T="…" when the text holds # or $, which make reads
+# itself.
 ifneq (,$(filter po follow unfollow pin unpin,$(firstword $(MAKECMDGOALS))))
   PO := $(wordlist 2,$(words $(MAKECMDGOALS)),$(MAKECMDGOALS))
   $(eval $(PO):;@:)
@@ -87,7 +89,7 @@ follow: ## 关注一个人。make follow @someone@example.com
 unfollow: ## 取关。make unfollow @someone@example.com
 	@node scripts/follow.mjs --remove $(filter-out $@,$(MAKECMDGOALS)) $(if $(T),"$(T)",)
 
-po: ## 写一条短文。make po 正文 / T="正文" / F=draft.md（APPLY=1 才动手）
+po: ## 写一条短文。make po 正文 / T="正文" 直接写入；F=draft.md 要加 APPLY=1 才写入
 	@node scripts/note.mjs $(if $(T),"$(T)",$(PO)) $(if $(F),--file "$(F)",)
 
 newpost: ## 新建文章。P=2026-year / P=2026-09 / P=2026-09-15，T=标题
@@ -104,7 +106,7 @@ promote: ## 把收下的评论有筛选地拉回 git（APPLY=1 才真的写）
 	@node scripts/wrangler-config.mjs >/dev/null
 	@node scripts/promote.mjs
 
-tombstone: ## 把已进 git 而后被撤回的评论改成墓碑（APPLY=1 才真的写）
+tombstone: ## 删掉已进 git 而后被撤回的评论，有回复的留墓碑（APPLY=1 才真的写）
 	@test -n "$$CF_D1_ID" || { echo "  需要 CF_D1_ID"; exit 1; }
 	@node scripts/wrangler-config.mjs >/dev/null
 	@node scripts/tombstone.mjs

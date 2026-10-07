@@ -43,9 +43,8 @@ const USAGE = [
   "    -h, --help        显示这段",
 ].join("\n");
 
-// Parsed explicitly, because the loose version silently ignored anything it did
-// not recognise and then fell through to its default — so a typo, or a --help
-// this script never had, wrote last month's summary instead of complaining.
+// An unknown flag or an extra argument is an error. Ignoring it would fall
+// through to the default, and a typo would write last month's summary.
 let title = null;
 const rest = [];
 for (let i = 0; i < args.length; i++) {
@@ -96,8 +95,8 @@ function isRealDay(y, m, d) {
   return dt.getUTCFullYear() === y && dt.getUTCMonth() === m - 1 && dt.getUTCDate() === d;
 }
 
-// Month and day are range-checked, not just shape-checked: \d{2} accepted
-// month 99, and the file was written before anything noticed.
+// Month and day are range-checked, not just shape-checked: the file is
+// written before anything else would notice a month 99.
 function kindOf(s) {
   if (/^\d{4}-year$/.test(s)) return { kind: "year", tags: ["summaries", "year"] };
 

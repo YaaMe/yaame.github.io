@@ -1,8 +1,9 @@
-These comments have already stopped being served: the runtime marked them
-deleted the moment the `Delete` arrived, which is what ActivityPub asks of us
-(§7.4) and is where the obligation is actually met.
+The runtime marked these comments deleted the moment the `Delete` arrived, so
+ActivityPub no longer serves them (§7.4). The blog pages still show them: the
+pages are built from git, so the text stays until this pull request is merged
+and the site deploys.
 
-What the runtime cannot reach is git, so this removes them there.
+The runtime cannot reach git, so this removes them there.
 
 The entry goes rather than being blanked. Withdrawal means the words go, and a
 row saying someone spoke here is still a record of them. The one exception is

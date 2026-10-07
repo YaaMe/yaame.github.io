@@ -17,23 +17,24 @@ const { Content } = await content(entry);
   <article class="story"><Content /></article>
   <style>
     /*
-     * 中文小说的印刷约定:衬线、首行缩进两字、段间不留空。
+     * The convention for Chinese fiction: serif, a two-character first-line
+     * indent, no space between paragraphs.
      *
-     * 缩进和零段距是一对。去掉其中任何一条,这种对话密集的文本立刻读回随笔
-     * —— 换行处没有缩进就分不出是新的一段还是同一段折行,而留了段距又等于
-     * 用空白替缩进做了一遍同样的事,两样都有则是双重记号。
+     * The indent and the zero paragraph spacing are a pair. Without the
+     * indent, a new paragraph looks like a wrapped line. With spacing as well,
+     * every paragraph is marked twice.
      *
-     * 行宽收到 30em:正文的 34em 是按论说文定的,小说的一行里有大量引号和
-     * 短对话,窄一点眼睛回行更快。
+     * Narrower than the essay measure: lines full of short dialogue read
+     * faster when the eye returns sooner.
      */
     .story { font-family: var(--serif); line-height: 1.95;
              max-width: 30em; margin-inline: auto; }
     .story :global(p) { text-indent: 2em; margin: 0; }
 
-    /* 章回号。居中、拉开字距,上面一条短线把上一章收住。 */
+    /* Chapter numerals. The short rule above closes the previous chapter. */
     .story :global(h2) {
       text-align: center; font-size: 1.15em; font-weight: 600;
-      letter-spacing: .6em; text-indent: .6em;   /* 字距会在末字右侧多出一格 */
+      letter-spacing: .6em; text-indent: .6em;   /* letter-spacing adds a gap after the last character too */
       color: var(--fg-secondary); margin-block: 2.6em 1.2em;
     }
     .story :global(h2)::before {

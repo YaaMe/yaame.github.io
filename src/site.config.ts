@@ -13,8 +13,8 @@
 // Node loads it for astro.config, where process.env is the only source; Vite
 // transforms it for the pages, where process.env is gone and the value arrives
 // through `define`. Reading only one of the two makes the same file answer
-// differently depending on who imported it — which it did, silently, until the
-// canonical link and the RSS feed disagreed.
+// differently depending on who imported it, and the canonical link and the RSS
+// feed then disagree.
 declare const __BUILD_PROFILE__: string | undefined;
 const PROFILE =
   (typeof __BUILD_PROFILE__ !== "undefined" ? __BUILD_PROFILE__ : undefined) ??
@@ -50,17 +50,15 @@ interface Site {
 export const site = {
   title: "Blogu",
   author: "yaame",
-  // Each profile publishes to its own address, and each is canonical to
-  // itself: they are two products, not two copies of one page.
+  // Each profile is canonical to itself.
   url: PROFILE === "full" ? FULL : STATIC,
-  lang: "zh-Hans",          // The old Hexo config said "en", which was always wrong
+  lang: "zh-Hans",
 
-  // The site publishes from here. Frontmatter dates carry an offset, but the
-  // /YYYY/MM/DD/ segments must be rendered in THIS zone: rendered as UTC, a
-  // 02:22+08:00 timestamp falls back a day and breaks the URL contract.
+  // Frontmatter dates carry an offset, but every date is shown in this zone.
+  // Shown as UTC, a 02:22+08:00 timestamp would fall back a day.
   timezone: "Asia/Shanghai",
 
-  // TODO: both subtitle and description were empty in the old NexT config
+  // TODO: empty, so a page without its own description gets no meta description.
   description: "",
 
   // The OpenPGP primary key that signs this repository's commits. The full
@@ -75,7 +73,7 @@ export const site = {
 
 /**
  * The block at the top of the index page.
- * With both fields empty the whole section is skipped — no empty box.
+ * With `greeting` empty the whole section is skipped — no empty box.
  */
 export const hero = {
   greeting: "咕咕",
@@ -91,9 +89,8 @@ export const social = [
   { label: "GitHub", href: "https://github.com/YaaMe" },
   { label: "Email", href: "mailto:i@yaa.me" },
 
-  // Slot reserved. Publish this once the public key is actually a discovery
-  // channel — served from WKD, the code host and the repository at once, so
-  // that it doubles as tamper detection and as the delivery path for a
-  // revocation certificate. Until then it is decoration.
+  // Publish this only once the public key is served from WKD, the code host
+  // and the repository at once. Before that it is decoration, not a channel a
+  // reader can check a key or a revocation against.
   // { label: "GPG", href: "https://github.com/YaaMe.gpg" },
 ] as const;

@@ -11,9 +11,7 @@
  * there when they wrote it. So nothing is promoted by default and every row
  * that goes in was selected by the rule in scripts/promote-filter.mjs.
  *
- * Local only: this needs the database and the working tree at once, and CI is
- * deliberately denied both — the runtime holds no git token, the deploy holds no
- * database credentials.
+ * Local only: no workflow runs it.
  */
 import { execFileSync } from "node:child_process";
 import { mkdirSync, readFileSync, writeFileSync, existsSync } from "node:fs";
@@ -28,11 +26,12 @@ import filter from "./promote-filter.mjs";
  * target being one thing. See
  * docs/decisions/0006-promoted-comments-are-stored-as-text.md.
  *
- * HTML is parsed here with regular expressions, which a sanitiser must never
- * do. The difference is whether the output is escaped: this output is plain
- * text and is escaped at render time, so a mis-parse is ugly. A sanitiser's
- * output goes onto the page verbatim, and every edge case is a security
- * boundary.
+ * Nothing calls this: each row is written with `content` exactly as it came
+ * from D1, HTML included.
+ *
+ * The HTML is parsed with regular expressions. That is safe only because the
+ * output is plain text and is escaped at render time. Never reuse this as a
+ * sanitiser, whose output goes onto the page verbatim.
  */
 function toText(html) {
   const entities = {
@@ -74,10 +73,9 @@ function query(sql) {
 /**
  * Which file a comment belongs in.
  *
- * One file per long post; notes will be archived by year, since one file each
- * would be a drift of fragments. Only long posts are recognised here — the
- * branch for notes lands when notes have comments, rather than on a guess about
- * what their ids will look like.
+ * One file per object, under posts/. Notes share the `/users/…/notes/` path
+ * with long posts, so a reply to a note also lands here, as
+ * `posts/<note id>.json`.
  */
 function fileFor(rootId) {
   const m = /\/users\/[^/]+\/notes\/([^/?#]+)$/.exec(rootId);
@@ -119,10 +117,8 @@ console.log(`  待提升 ${rows.length} 条，分属 ${threads.size} 条线程`)
 /**
  * What an actor calls itself, at the moment of promotion.
  *
- * Fetched here rather than recorded by the inbox: this is the step where a
- * comment stops being staging and becomes part of the repository, so it is
- * the honest moment to take a copy. An actor that has since gone leaves no
- * name, and the page falls back to the handle.
+ * Fetched at promotion, so the name is the one the actor used then. An actor
+ * that has since gone leaves no name, and the page falls back to the handle.
  */
 const names = new Map();
 async function nameOf(actorId) {

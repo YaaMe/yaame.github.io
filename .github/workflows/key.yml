@@ -6,10 +6,8 @@ name: Actor key
 # the key. Deploys run on every push and never see it; this runs when the key
 # changes, which is rarely and on purpose.
 #
-# The record lives in a GitHub secret rather than in Cloudflare so that it can
-# follow the code somewhere else — the platform seam exists to make a Node
-# deployment possible, and a key that only exists inside Workers would be the
-# one thing that could not move.
+# The key is kept in a GitHub secret, not only in Cloudflare, so it can move
+# with the code to another host. A key held only inside Workers could not.
 
 on:
   workflow_dispatch:

@@ -2,9 +2,8 @@
 /**
  * Check that every internal link in the build output resolves.
  *
- * The two shapes it catches: a missing trailing slash, which is a 404 under
- * `trailingSlash: "always"`, and a path declared in a layout that nothing
- * generates.
+ * What it catches is a path declared in a layout that nothing generates. A
+ * link without its trailing slash still passes when the directory exists.
  *
  * A dynamic route leaves no file, so without the manifest the build writes it
  * would be indistinguishable from a typo. Those are counted, not checked —

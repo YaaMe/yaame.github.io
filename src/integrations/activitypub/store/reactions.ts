@@ -64,8 +64,9 @@ export async function undo(
 /**
  * How many of each kind these objects carry.
  *
- * One grouped query for a whole page: a page holds up to twenty posts, and
- * D1's free plan allows fifty queries per invocation.
+ * One grouped query for every id passed, rather than one per post: callers
+ * can pass a whole timeline, and D1's free plan allows fifty queries per
+ * invocation.
  */
 export async function counts(
   objectIds: string[],

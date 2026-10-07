@@ -14,8 +14,8 @@ export const prerender = false;
  *
  * The page they left rides along in the same cookie, because it is the same
  * in-flight login and deserves the same ten minutes and the same single
- * clearing. Sign-in starts from the menu on any page now, so "back" is no
- * longer a fixed address. It comes from the referer, which a same-origin
+ * clearing. Sign-in can start from any page, so "back" is not a fixed
+ * address. It comes from the referer, which a same-origin
  * navigation sends in full; where a browser withholds it, the login ends on
  * the front page rather than failing.
  */

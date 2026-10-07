@@ -26,7 +26,7 @@
    *
    * A scroll timeline whose scroller cannot scroll is *inactive*, and an
    * animation on an inactive timeline produces no output — fill included — so
-   * the `opacity: 0` below shows through. The moment the page is long enough
+   * the `visibility: hidden` below shows through. The moment the page is long enough
    * to scroll, the timeline activates and the keyframe takes over. No
    * listener, no measurement, no JavaScript.
    *
@@ -51,8 +51,8 @@
    *
    * .55rem is measured, not tuned: an apostrophe's ink stops 4.0px above the
    * <pre>'s bottom edge (canvas actualBoundingBoxDescent at 12.8px mono), and
-   * the bird sits at .3rem = 4.8px, so the feet land at 8.8px. Eyeballing it
-   * first gave .44rem — 5.8px low. Re-measure if --size or --mono changes.
+   * the bird sits at .3rem = 4.8px, so the feet land at 8.8px. Re-measure if
+   * --size or --mono changes.
    */
   .track::before {
     content: ""; position: absolute; inset-inline: 0;

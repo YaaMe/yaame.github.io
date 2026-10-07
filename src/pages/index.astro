@@ -5,21 +5,16 @@ import { site, hero } from "../site.config";
 
 const posts = await allPosts();
 
-// 一条时间轴,不是两个列表。小结和散文的区别不需要小标题去讲 —— 左边那一格
-// 印不印「日」已经说了:`年结`、`02 月` 没有日,`10-18` 有。
+// One timeline. Coarser periods come first: under each year the year summary
+// leads, and a month summary leads its own month, so each one heads the posts
+// below it.
 //
-// 粗的在前,因为「结」是那一段时间的结尾,所以它列在那一段的开头:年份下面
-// 第一条是年结,月结也排在自己那个月的最前面。于是从上往下扫的时候,每一个
-// 时段标记都在给它下面的东西当表头 —— 夹在 `10 月` 和 `09 月` 之间的散文会
-// 自然读成十月的。
+// An essay still shows its own month (`10-18`, not `18`). A month may have no
+// summary post, so no heading above it is guaranteed to name the month.
 //
-// 但散文自己仍然带月份(`10-18`,不是 `18`)。上面那个表头不保证存在:那个月
-// 的月结不一定写过,没写就没有 `10 月` 这一行,只剩一个日吊在年份底下。
-// 顺序能帮读者省一次推断,不能替代那一格自己说清楚。
-//
-// 文件名倒序已经把年结排在月份前面(`2022-year` 的 `y` 大于 `2022-06` 的 `0`),
-// 唯一要单拎出来的是前缀关系:`2022-06-15` 字符串更长,倒序会把它排到
-// `2022-06` 前面,而它应该在后面。
+// Reverse filename order already puts `2022-year` before `2022-06` (`y` sorts
+// above `0`). The one case it gets wrong is a prefix: `2022-06-15` is longer,
+// so reverse order puts it before `2022-06`, where it belongs after.
 const coarseFirst = (a: string, b: string) =>
   a.startsWith(b) ? 1 : b.startsWith(a) ? -1 : b.localeCompare(a);
 
@@ -31,8 +26,8 @@ for (const p of [...posts].sort((a, b) => coarseFirst(a.id, b.id))) {
 }
 ---
 <Base title={site.title}>
-  {/* Guarded whole, not just its contents: a section with only a rule and
-      some padding in it is the empty-box bug the intro paragraph used to be. */}
+  {/* Guarded whole, not just its contents: an empty section would still draw
+      its rule and padding. */}
   {hero.greeting && (
     <section class="hero">
       <h1>{hero.greeting}</h1>
@@ -40,9 +35,8 @@ for (const p of [...posts].sort((a, b) => coarseFirst(a.id, b.id))) {
   )}
 
   {/*
-      日期在左、开篇第一句在右。这里的文章没有标题 —— frontmatter 的 title
-      就是文件名的日期 —— 所以承担标题职责的是 description。把 title 再印一遍
-      只会在每一行上重复右边那列已经说过的事。
+      Posts here have no real title: `title` is the date from the filename,
+      which the period column already shows. `description` stands in for it.
   */}
   <section class="archive">
     {[...byYear].map(([year, items]) => (
@@ -62,46 +56,40 @@ for (const p of [...posts].sort((a, b) => coarseFirst(a.id, b.id))) {
     .hero { padding-block: .5em 2em; border-bottom: 1px solid var(--border-subtle); }
     .hero h1 { margin: 0; font-size: 1.8em; }
     .archive { margin-block: 3em; }
-    /* 年份是骨架:等宽等距的数字,再一条细线横到右边。 */
     .year { margin-block: 2.2em; }
     .year h2 { display: flex; align-items: baseline; gap: .9em; margin: 0 0 .9em; }
     .year h2 b { font: 600 1.35em/1 var(--mono); color: var(--fg-secondary);
                  font-variant-numeric: tabular-nums; letter-spacing: .02em; }
     .year h2 i { flex: 1; height: 1px; background: var(--border-subtle); }
 
-    /*
-     * 一行两列。日期用等宽等距数字排成一列 —— 整列对齐,读的时候是坐标而不是
-     * 内容;右边那句话才是这一行的正文,所以只有它拿主色。
-     *
-     * 整行可点,不只是其中一个词:这一行没有「标题」那样一个天然的把手。
-     */
+    /* The whole row is the link: there is no title to click. */
     .entry { display: grid; grid-template-columns: 4.6em 1fr; gap: 0 1.2em;
              padding-block: .8em; border-bottom: 1px solid var(--border-subtle);
              color: inherit; text-decoration: none; }
     .year h2 + .entry { border-top: 1px solid var(--border-subtle); }
     /*
-     * 不用等宽了:这一格现在印的是「年结」「02 月」,是标签而不是时间戳,
-     * 里面的汉字在 --mono 下会掉到别的字体去。数字仍然等距,所以月份那一列
-     * 照样对齐。
+     * Not --mono: this cell holds Han characters (`年结`, `02 月`), which
+     * --mono would hand to another font. Tabular digits keep the column
+     * aligned.
      */
     .entry time { font-size: .82em; line-height: 1.9; color: var(--fg-secondary);
                   font-variant-numeric: tabular-nums; }
     /*
-     * 一条一行。这一格是这篇的标题(文章本身没有标题),所以它应该像标题那样
-     * 占一行、整列左端对齐 —— 折成两行的那几条会把整张表的节奏打断。
+     * One line per entry: this cell is the post's title.
      *
-     * min-width: 0 是必须的:grid 的子项默认 min-width: auto,不肯缩到内容
-     * 宽度以下,于是 overflow 永远不触发、ellipsis 永远不出现,而那一格会
-     * 把日期那列挤走。
+     * `min-width: 0` is required. A grid item defaults to `min-width: auto`
+     * and will not shrink below its content, so the overflow never triggers,
+     * the ellipsis never appears, and the cell pushes the date column away.
      *
-     * description 本来就截到 28 字左右且自带「…」,所以多数行根本到不了这里;
-     * ellipsis 只在真的放不下时才出现,不会和原文的省略号叠一块。
+     * Descriptions are already cut to about 28 characters plus "…", so most
+     * rows fit. The ellipsis appears only when one truly does not.
      */
     .entry span { line-height: 1.7; min-width: 0;
                   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .entry:hover span { color: var(--active); }
 
-    /* 窄到放不下两列就改成上下两行 —— 日期不能把那句话挤成一字一行。 */
+    /* Too narrow for two columns: stack them, or the date column squeezes the
+       sentence to one character per line. */
     @media (max-width: 26em) {
       .entry { grid-template-columns: 1fr; gap: .1em; }
       .entry time { line-height: 1.4; }

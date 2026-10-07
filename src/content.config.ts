@@ -1,7 +1,8 @@
 import { defineCollection } from "astro:content";
 // zod comes from the package, not from astro:content — that re-export is
-// deprecated in Astro 7. The version is pinned to the one Astro itself uses,
-// so a schema written here is the schema the content layer runs.
+// deprecated in Astro 7. Keep its version range compatible with Astro's own
+// zod dependency, so only one copy is installed and a schema written here is
+// the schema the content layer runs.
 import { z } from "zod";
 import { glob } from "astro/loaders";
 import { TAG_SLUGS } from "./tags";
@@ -27,18 +28,15 @@ const stamped = z.coerce.date().transform((d) => {
 const base = {
   title: z.string(),
   /**
-   * Pinned.
+   * Pinned. Stored on the post, so a rename carries it along.
    *
-   * On the post rather than a list of slugs in a config: pinning is a property
-   * of this post, so a rename carries it along. The list would quietly become a
-   * line pointing at nothing.
-   *
-   * Federation reads this as the actor's `featured` collection, which is the
-   * only way a new visitor sees anything at once — Mastodon never backfills a
-   * remote outbox and fetches that collection when it processes the actor.
+   * Federation serves pinned posts as the actor's `featured` collection. That
+   * is the only thing a new visitor sees at once: Mastodon never backfills a
+   * remote outbox, but it fetches `featured` when it processes the actor.
    */
   pinned: z.boolean().default(false),
-  // Filled in by scripts/frontmatter.mjs; hand-written values are never overwritten
+  // Filled in by scripts/frontmatter.mjs. A hand-written value is kept unless
+  // that script runs with --force.
   description: z.string().optional(),
   tags,
 };
@@ -46,25 +44,18 @@ const base = {
 /**
  * Promoted comments — the ones chosen to keep.
  *
- * In git rather than read from the database at request time, so both profiles
- * show the same thing: the static site has no database, and a comment that
- * appeared on one domain and not the other would make the two sites disagree
- * about the same post.
+ * Read from git, not from the database, so both profiles show the same
+ * comments: the static site has no database.
  *
- * Grouped by what they hang off:
+ *   posts/<slug>.json   one file per blog post
+ *   notes/<YYYY>.json   one file per year of notes
  *
- *   posts/<slug>.json      a blog post — a long-lived anchor, one file each
- *   notes/<YYYY>.json      short posts, by year — there will be many, and one
- *                          file per short post would be a directory of scraps
+ * Every entry carries `rootId`, because a yearly file cannot infer it from its
+ * name. Both kinds of file share this one schema.
  *
- * Which is why every entry carries `rootId` even though the post files could
- * infer it from their name: the yearly files cannot, and one schema for both
- * beats two that drift. Should a year ever grow unwieldy, splitting it is
- * mechanical — every entry already knows its post and its date.
- *
- * Deletion replaces a comment's content with a tombstone rather than removing
- * the entry — see docs/interactions.md — and that is an in-place edit here,
- * which reads far better in a pull request than a file disappearing.
+ * When a comment is withdrawn, its entry is removed. The exception is an entry
+ * that another entry replies to: it stays as a tombstone, without `content`
+ * and with `deletedAt`.
  */
 const comment = z.object({
   /**
@@ -80,18 +71,16 @@ const comment = z.object({
   /**
    * What the author called themselves when this was promoted.
    *
-   * A copy, and knowingly one: it is theirs to change and this will not follow.
-   * Kept anyway, because the alternative on a page is `@name@host` for
-   * everyone, and a name is how a conversation reads as people rather than
-   * addresses. Absent when the actor could not be reached at promotion, and
-   * the handle stands in.
+   * A copy: the author can change their name, and this will not follow.
+   * Absent when the actor could not be reached at promotion; the page then
+   * shows the `@name@host` handle instead.
    */
   name: z.string().optional(),
   /**
    * Plain text, not HTML — extracted from the sender's markup on promotion.
    * See docs/decisions/0006-promoted-comments-are-stored-as-text.md.
    *
-   * The field is gone once the comment is withdrawn; the record stays.
+   * Absent on a tombstone: a withdrawn comment that something replies to.
    */
   content: z.string().optional(),
   published: z.string(),
@@ -101,17 +90,12 @@ const comment = z.object({
 });
 
 /**
- * Notes — written here, and without titles.
- *
- * A file per year, because one file each would be a drift of fragments. With no
- * title, tags or structure a note is closer to a record than a document, which
- * is what JSON fits better than markdown. The body is still read as markdown:
- * plain text is valid markdown, and an unparsed link shows as a bare URL.
+ * Notes: one JSON file per year, no titles. The body is read as markdown.
  *
  * `id` is separate from the time, because several notes in one day are ordinary
- * and a timestamp cannot be an identity. A note's id is a non-date-shaped
- * string and a long post's slug is date-shaped (`2025-year`, `2023-07`), so
- * they share `/users/…/notes/` without colliding.
+ * and a timestamp cannot be an identity. A note's id must not be date-shaped:
+ * a long post's slug is (`2025-year`, `2023-07`), and the two share
+ * `/users/…/notes/`, so a date-shaped id could collide with a post.
  */
 const notes = defineCollection({
   loader: glob({ base: "./src/content/notes", pattern: "**/*.json" }),
@@ -138,7 +122,7 @@ export const collections = {
   }),
   komorebi: defineCollection({
     loader: glob({ base: "./src/content/komorebi", pattern: "**/*.md" }),
-    // index.md still carries a leftover Hexo `type` field: accepted, unused
+    // `type` is a Hexo field. It is accepted and never read; no entry sets it.
     schema: z.object({ ...base, date: stamped.optional(), type: z.any().optional() }),
   }),
 };

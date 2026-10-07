@@ -14,7 +14,6 @@ permissions:
   pages: write
   id-token: write
 
-# One deployment at a time, without cancelling one already in flight
 concurrency:
   group: pages
   cancel-in-progress: false
@@ -29,8 +28,6 @@ jobs:
           node-version: 22
           cache: npm
       - run: make install
-      # frontmatter check, build, and internal link check — the same
-      # command as `make check` locally
       - run: make check
         env:
           # Pages gets the static profile: every route prerendered, no Worker.

@@ -6,16 +6,14 @@
  * only that second layer is used outside this file — so "what colour is a date
  * stamp" has one answer, and changing it is one edit rather than a search.
  *
- * A third layer, one token per component, is what a design tool's export would
- * add. It is not here: there is no such pipeline, and inventing one for ten
- * components would be ceremony.
+ * There is no third, per-component layer.
  *
  * See docs/decisions/0011-colour-tokens-name-a-role-not-a-value.md.
  */
 :root {
   color-scheme: light dark;
 
-  /* ---- the only literals ---- */
+  /* Literals. The only place a colour value is written. */
   --paper:        #fdfdfc;
   --paper-raised: #f4f4f1;
   --ink:          #2b2b28;
@@ -32,7 +30,7 @@
   --sky:          #8fb4d4;
   --ember:        #dda063;
 
-  /* ---- what each one is for ---- */
+  /* Roles. Only these are used outside this file. */
   --bg-page:       light-dark(var(--paper), var(--night));
   --bg-raised:     light-dark(var(--paper-raised), var(--night-raised));
 
@@ -42,10 +40,8 @@
   /*
    * Text on an accent-coloured ground.
    *
-   * Here so the question has an answer before it is asked. Without it the
-   * first coloured button takes whatever looked right that afternoon, and the
-   * dark theme gets it backwards — the accent inverts between themes and the
-   * text on it has to invert the other way.
+   * The accent inverts between themes, so text on it must invert the other
+   * way. A value picked by eye for one theme gets the other backwards.
    */
   --fg-on-accent:  light-dark(var(--paper), var(--night));
 
@@ -54,14 +50,16 @@
   --link:          light-dark(var(--steel), var(--sky));
 
   /*
-   * 整套色里唯一的暖调。全冷没有鲜明感,但暖色一旦也去当链接,两种蓝橙就都
-   * 只是「可以点」的同义词,谁也不鲜明了。所以分工:
+   * The only warm colour. Never use it for links: if both colours mean
+   * "clickable", neither stands out. The split:
    *
-   *   --link     这是一个链接（读的时候看到的）
-   *   --active   你正在动它，或者你选中了它（hover、菜单展开、片段命中）
+   *   --link     this is a link (seen while reading)
+   *   --active   you are acting on it or have selected it (hover, an open
+   *              menu, a fragment target)
    *
-   * 量过,不是挑的:亮色 #9d5a2a 对 --paper 是 5.25，暗色 #dda063 对 --night
-   * 是 7.70（--sky 是 8.00）——和冷色同一个份量，鲜明来自色相而不是响度。
+   * Contrast is measured, not picked: light #9d5a2a on --paper is 5.25, dark
+   * #dda063 on --night is 7.70 (--sky is 8.00). Same weight as the cool
+   * colour, so it stands out by hue, not loudness.
    */
   --active:        light-dark(var(--rust), var(--ember));
 
@@ -71,7 +69,7 @@
   --font: system-ui, "PingFang SC", "Noto Sans CJK SC", "Hiragino Sans GB", sans-serif;
   /* Character art needs a grid; a proportional font collapses it. */
   --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-  /* 小说要衬线,和 --mono 同一类理由:排版需要,不是风格。 */
+  /* The novel is set in serif. Like --mono, a typesetting need, not a style. */
   --serif: "Songti SC", "Source Han Serif SC", "Noto Serif CJK SC", "SimSun", serif;
   --size: 17px;
   --lh: 1.85;          /* Chinese needs more than Latin; 1.5 is cramped */

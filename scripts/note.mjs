@@ -17,10 +17,8 @@
  * nowhere to put them. It defaults to a dry run because it removes the file it
  * read, and a draft is usually not in git to recover from.
  *
- * This is the terminal half of publishing — straight into git, visible after a
- * commit and a deploy. The other half writes D1 from the routing layer, is
- * federated at once, and is promoted back into git afterwards. Both land in the
- * same place.
+ * The note goes straight into git and is visible after a commit and a deploy.
+ * Nothing at runtime writes notes: D1 holds comments and reactions only.
  */
 import { execFileSync } from "node:child_process";
 import { readFileSync, existsSync, rmSync } from "node:fs";
@@ -101,8 +99,8 @@ async function fromFile(path) {
       );
     }
 
-    // Read out of the source rather than importing it: config.ts is TypeScript,
-    // and pulling in a compiler to learn two strings costs more than this.
+    // Read out of the source rather than imported: config.ts is TypeScript,
+    // and this script runs without a compiler.
     const config = readFileSync("src/integrations/activitypub/config.ts", "utf8");
     const field = (n) => config.match(new RegExp(`${n}:\\s*"([^"]+)"`))?.[1];
     const host = field("actorHost");
@@ -137,10 +135,10 @@ async function fromFile(path) {
 
 const from = source ? await fromFile(source) : { body: text, when: new Date(), dated: true };
 
-// Normalised to UTC, because `allNotes()` orders by comparing these strings and
-// a mix of `Z` and `+08:00` does not compare: 09:00+08:00 sorts after 02:00Z
-// while being an hour earlier. The outbox is an OrderedCollection, so the order
-// is the specification's business rather than a presentation choice.
+// Normalised to UTC, because the site orders notes by comparing these strings,
+// and a mix of `Z` and `+08:00` does not compare: 09:00+08:00 sorts after
+// 02:00Z while being an hour earlier. The outbox is an OrderedCollection, so a
+// wrong order breaks the specification, not just the page.
 const published = from.when.toISOString().replace(/\.\d{3}Z$/, "Z");
 // UTC, deliberately not the site's timezone: this number becomes the note's
 // permanent address, and it must not depend on a setting that can be edited.

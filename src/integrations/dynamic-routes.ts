@@ -10,9 +10,9 @@ import type { AstroIntegration } from "astro";
  * a copy that goes stale the first time a route is added and nobody
  * remembers; this is Astro's own route table, so it cannot disagree.
  *
- * It catches routes nobody wrote, `/_server-islands/[name]` among them, which
- * is why deriving beats enumerating: that one is linked from every page and
- * appears in no file here.
+ * It also catches routes Astro adds on its own, such as
+ * `/_server-islands/[name]` once a page uses a server island. Those appear in
+ * no file here.
  *
  * Two hooks because neither has both halves: the routes are resolved before
  * the build, and the output directory is only known after it. Nothing is

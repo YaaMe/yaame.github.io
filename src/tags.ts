@@ -1,10 +1,8 @@
 /**
  * The tag registry — single source of truth.
  *
- * content.config.ts validates against it at build time: a tag that is not
- * listed here fails the build, rather than quietly producing a /tags/xxx/
- * page nobody will ever visit. (That is how the summarize/summaries
- * spelling drift happened.)
+ * A tag that is not listed here fails the build, rather than quietly
+ * producing a /tags/xxx/ page nobody will ever visit.
  *
  * To add a tag: add a line here, then `make check`.
  */

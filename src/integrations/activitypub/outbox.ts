@@ -231,7 +231,7 @@ async function announceEdits(ctx: Context<void>, notes: Note[]): Promise<void> {
  *
  * The content lives in git, so the activity history is a projection of it: the
  * same commits produce the same outbox, and there is no second copy to drift.
- * Only what arrives from outside — followers, and later replies — needs to be
+ * Only what arrives from outside — followers, replies, reactions — needs to be
  * stored.
  */
 federation
@@ -240,7 +240,7 @@ federation
 
     const items = (await timeline()).slice(0, window());
     const ids = items.map((i) => ctx.getObjectUri(Note, { identifier: AP.user, slug: i.slug }).href);
-    // Two grouped queries for the page, not two per post.
+    // Two grouped queries for the whole window, not two per post.
     const [replyTally, reactionTally] = await Promise.all([
       replyCounts(ids),
       reactionCounts(ids),
@@ -310,8 +310,8 @@ federation.setFeaturedDispatcher(`/users/{identifier}/featured`, async (ctx, ide
  * that re-fetches to verify, or to resolve a reply, gets a 404 — and the
  * failure belongs to the post, not to the request that surfaced it.
  *
- * The slug is the post's own id, so the address is stable across builds for as
- * long as the file keeps its name.
+ * The slug is a post's file name or a note's id, so the address is stable
+ * across builds for as long as that does not change.
  */
 federation.setObjectDispatcher(
   Note,

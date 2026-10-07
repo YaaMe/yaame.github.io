@@ -2,8 +2,8 @@ import { getCollection } from "astro:content";
 import { marked } from "marked";
 import { site } from "../site.config";
 
-// Same formatter the posts use, so a note and a post written in the same hour
-// never show different dates.
+// Must format exactly as post dates are formatted, or a note and a post written
+// in the same hour can show different dates.
 const ymd = new Intl.DateTimeFormat("en-CA", {
   timeZone: site.timezone, year: "numeric", month: "2-digit", day: "2-digit",
 });
@@ -62,10 +62,10 @@ export function noteHref(n: Note) {
 }
 
 /**
- * A note's markup, defined once for the page and for delivery.
+ * A note's markup, for both the page and federation.
  *
- * Two conversions would be two definitions of what a note is, and the drift
- * would show as a remote copy that disagrees with ours about our own words.
+ * A second conversion anywhere would let a remote copy disagree with ours
+ * about our own words.
  */
 export function noteHtml(n: Note): string {
   return marked.parse(n.content, { async: false }) as string;

@@ -32,10 +32,8 @@ export const AUTH = {
    * Everyone else who is more than a stranger. Same rule: the id decides.
    *
    * TODO: entries carry identity and nothing else, because no privilege exists
-   * yet to grant. A `can: [...]` invented now would be a guess at names and
-   * granularity, and the cost of guessing wrong is not the code — it is the
-   * data: once real people are written down, changing the shape means
-   * rewriting their entries. Decide it when the first privilege is real.
+   * yet to grant. Decide the shape when the first privilege is real: once
+   * real people are listed, changing it means rewriting their entries.
    *
    * Nothing has to be migrated when that day comes. `roleOf` is asked on every
    * read rather than stored in the session, so a change here reaches sessions

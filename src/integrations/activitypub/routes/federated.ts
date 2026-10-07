@@ -4,9 +4,8 @@ import { federation } from "../federation";
 // Registers the outbox dispatcher; only the Astro build can resolve its imports.
 import "../outbox";
 
-// On-demand: these are the only dynamic routes the site has, and their presence
-// is what makes a Worker exist at all. With the feature off they are never
-// injected and the build produces static files alone.
+// On demand. A route that is not prerendered is what makes the build produce a
+// Worker. With the feature off these are never injected.
 export const prerender = false;
 
 const AS2 = "application/activity+json";
@@ -25,10 +24,8 @@ const ACTOR = /^\/users\/[^/]+$/;
  *                  landed on by accident, and what the person wanted was the
  *                  person.
  *   anything else  the same document, labelled as JSON so the browser renders
- *                  it. These are visited on purpose. 406 was technically
- *                  correct and read as a broken endpoint — which, after a day
- *                  spent removing endpoints that were advertised and did not
- *                  answer, is the same defect wearing a correct status code.
+ *                  it. These are visited on purpose, and a 406, though
+ *                  correct, reads as a broken endpoint.
  */
 const handle: APIRoute = async ({ request }) => {
   const path = new URL(request.url).pathname;
@@ -38,8 +35,8 @@ const handle: APIRoute = async ({ request }) => {
 
   // `*/*`, or no Accept at all, means every representation is acceptable —
   // RFC 7231 §5.3.2, and 406 is for when none of them is. Fedify refuses it, so
-  // a plain `curl` got 406 from an endpoint that had the document in hand,
-  // which is indistinguishable from the endpoint being broken.
+  // without this a plain `curl` gets 406 from an endpoint that has the
+  // document, which looks exactly like a broken endpoint.
   const anything = get && (accept.trim() === "" || /^\s*\*\/\*\s*(;.*)?$/.test(accept));
 
   if (wantsHtml && ACTOR.test(path)) return Response.redirect(AP.blogUrl, 302);

@@ -5,10 +5,11 @@
  *   node scripts/tombstone.mjs          show what would change
  *   APPLY=1 node scripts/tombstone.mjs  write it
  *
- * The runtime already stopped serving them the moment the `Delete` arrived,
- * which is where ActivityPub §7.4 is satisfied. What the runtime cannot reach is
- * git, so this reads the pair out, rewrites the files and opens a pull request
- * for a person to decide on.
+ * The runtime stopped serving them over ActivityPub the moment the `Delete`
+ * arrived (§7.4). The blog pages are built from git and keep the text until
+ * these files change and the site deploys. The runtime cannot reach git, so
+ * this reads the withdrawn rows out and rewrites the files. A workflow then
+ * opens a pull request for a person to decide on.
  *
  * The entry goes, rather than being blanked. Withdrawal means the words go,
  * and a row saying someone spoke here is still a record of them. The one

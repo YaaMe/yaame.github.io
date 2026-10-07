@@ -15,9 +15,8 @@ export const AP = {
    *
    * A consumer cannot tell these apart from absent — Mastodon reads
    * `@json['discoverable'] || false` either way. The difference is on this
-   * side: absent is what nobody decided, and it stayed absent for as long as
-   * nothing looked. Written down, turning either on is an edit rather than a
-   * discovery.
+   * side: absent means nobody decided. Written down, turning either on is an
+   * edit rather than a discovery.
    *
    *   discoverable  appear in directories and suggestions
    *   indexable     content enters the other server's full-text search

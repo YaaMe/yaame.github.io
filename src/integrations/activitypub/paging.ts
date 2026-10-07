@@ -4,12 +4,9 @@
  * ActivityPub leaves page size to the implementer and only advises capping it
  * (§B.9) so a client is not handed an unbounded document.
  *
- * The cursor is an offset. That is the simplest thing that works over a list
- * computed from git, and it has the failure mode offsets always have: an item
+ * The cursor is an offset into a list rebuilt on every request. An item
  * inserted while a reader is paging shifts everything after it, so the reader
- * can see one item twice or miss one. For an archive that grows at one end and
- * a reader that pages in seconds, that is a smaller cost than carrying a
- * sort-key cursor through a collection with no stable key of its own.
+ * can see one item twice or miss one.
  */
 export const PAGE_SIZE = 20;
 

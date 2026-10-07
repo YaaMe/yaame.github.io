@@ -1,9 +1,9 @@
 /**
  * Replies, as they arrive and as they are read back.
  *
- * The only file that queries the comments table. Everything goes through
- * Drizzle, so a deployment that brings its own database changes the driver and
- * nothing here.
+ * The only code under src/ that queries the comments table. Everything goes
+ * through Drizzle, so a deployment that brings its own database changes the
+ * driver and nothing here.
  */
 import { and, asc, count, eq, inArray, isNull } from "drizzle-orm";
 import { platform } from "../../../platform";
@@ -85,10 +85,10 @@ export async function record(
   const root = await rootOf(db, reply.replyToId, ours);
   if (root === null) return false;
 
-  // RETURNING rather than a changed-row count. The two drivers disagree about
-  // that count — D1 reports `rowsAffected`, node:sqlite `changes` — so reading
-  // it would have made every insert on node look like a duplicate while it
-  // quietly succeeded. What comes back here is rows, which both spell the same.
+  // RETURNING rather than a changed-row count. The two drivers name that count
+  // differently — D1 `rowsAffected`, node:sqlite `changes` — and reading the
+  // wrong one makes every successful insert look like a duplicate. Returned
+  // rows look the same on both.
   const written = await db
     .insert(comments)
     .values({
@@ -133,9 +133,9 @@ export async function thread(rootId: string): Promise<Comment[]> {
 /**
  * How many replies each of these posts has.
  *
- * One grouped query for the whole page rather than one per post: a page holds
- * up to twenty, and D1's free plan allows fifty queries per invocation — a
- * per-post count would spend the budget on arithmetic.
+ * One grouped query for every id passed, rather than one per post: callers
+ * can pass a whole timeline, and D1's free plan allows fifty queries per
+ * invocation.
  *
  * Deleted replies are excluded. The row survives as a record, but a count is a
  * claim about what a reader can find, and they cannot find that one.
@@ -151,7 +151,7 @@ export async function replyCounts(rootIds: string[]): Promise<Map<string, number
   return new Map(rows.map((r) => [r.rootId, Number(r.n)]));
 }
 
-/** One page of the replies under a post, oldest first, deleted ones left out. */
+/** The replies under a post, oldest first, deleted ones left out. */
 export async function replies(rootId: string): Promise<Comment[]> {
   const db = await store();
   return db

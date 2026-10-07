@@ -1,8 +1,9 @@
 /**
  * The tables, declared once for both hosts.
  *
- * Drizzle renders these into SQLite for D1 and for node:sqlite. Nothing above
- * this file writes SQL.
+ * Drizzle renders these into SQLite for D1 and for node:sqlite. Nothing else
+ * under src/ writes SQL. Scripts outside src/ send raw SQL to the comments
+ * table on D1, so a column change there must reach them too.
  *
  * Times are ISO 8601 strings. SQLite has no date type, every dialect reads an
  * ISO string the same way, and a numeric epoch would have to be decoded by hand

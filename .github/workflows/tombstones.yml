@@ -3,12 +3,13 @@ name: Tombstones
 # Turn comments that reached git and were later withdrawn into tombstones, and
 # open a pull request for a person to decide on.
 #
-# The runtime stops serving them the moment the Delete arrives, but it cannot
-# write git. CI holds a git token and nothing else, which is the deliberate
-# split — so the work happens here, and only as a proposal.
+# The runtime stops serving them over ActivityPub the moment the Delete
+# arrives. The blog pages are built from git, so they keep showing the text
+# until this pull request is merged and the site deploys. The runtime holds no
+# git token, so the work happens here, and only as a proposal.
 #
-# Weekly is enough: the immediate half is the runtime's, and a few days here
-# only affects the repository, where a person has to look anyway.
+# Weekly means a withdrawn comment can stay on the blog for up to a week, plus
+# however long the pull request waits.
 
 on:
   schedule:

@@ -4,8 +4,8 @@ import { site, nav, social, features, other } from "../site.config";
 interface Props { title: string; description?: string }
 const { title, description } = Astro.props;
 
-// With a trailing slash is canonical. Both spellings resolve — see
-// astro.config.mjs — so say which is meant, or one page counts as two.
+// With a trailing slash is canonical. Both spellings resolve
+// (`trailingSlash: "ignore"`), so say which is meant, or one page counts as two.
 const canonical = new URL(
   Astro.url.pathname.endsWith("/") ? Astro.url.pathname : Astro.url.pathname + "/",
   site.url,
@@ -61,8 +61,7 @@ import Progress from "../components/Progress.astro";
           <details id="session">
             {/*
               A native disclosure. Opening, closing, Enter and Space are the
-              browser's, so this works with scripting off — the same standard
-              the bird and the shrinking header are held to.
+              browser's, so this works with scripting off.
 
               The name stays `menu` in both states. `aria-label` overrides the
               visible text, so a screen reader hears `menu` rather than the
@@ -71,13 +70,10 @@ import Progress from "../components/Progress.astro";
             <summary aria-label="menu">@</summary>
             <div class="panel">
               {/*
-                Straight at the flow, not at a page that holds a button to
-                start it. /login stays a route — the callback sends its errors
-                there — but nothing navigates to it just to log in.
+                Straight into the OAuth flow. /login must stay a route: the
+                callback sends its errors there.
 
-                The mark alone, because GitHub is the whole of what this does:
-                a word beside it would be saying the same thing twice. The
-                name is on the link, since the drawing carries none.
+                The name is on the link, since the drawing carries none.
               */}
               <a href="/auth/github" aria-label="用 GitHub 登录">
                 <svg class="gh" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true">
@@ -87,17 +83,14 @@ import Progress from "../components/Progress.astro";
             </div>
             <script is:inline>
               // Inline and immediately after the element, so it runs while the
-              // header is being parsed and before anything is painted — the
-              // same reason the theme script is where it is. Deferring this,
-              // or fetching it, is what made every navigation flash the
-              // signed-out bar before the name arrived.
+              // header is being parsed and before anything is painted.
+              // Deferred or fetched, it would flash the signed-out bar on
+              // every navigation before the name arrived.
               //
-              // Read from a cookie the server writes beside the session and
-              // clears beside it. This side never writes it: a hint one page
-              // wrote and every page read went stale the moment sign-in
-              // stopped landing on that page. It is a display hint and no
-              // path treats it as evidence — every privileged one asks the
-              // server, which asks the session.
+              // Read from a cookie the server sets beside the session and
+              // clears beside it. This side never writes it. It is a display
+              // hint and no path treats it as evidence — every privileged one
+              // asks the server, which asks the session.
               try {
                 const d = document.getElementById("session");
                 const summary = d.querySelector("summary");
@@ -117,10 +110,8 @@ import Progress from "../components/Progress.astro";
 
                   panel.textContent = "";
 
-                  // Not a link: the summary above already says this, and
-                  // /login has nothing further to offer once 登出 is here. It
-                  // stays as text because `aria-label` hides the summary's own
-                  // wording, so this is where the handle is actually read out.
+                  // Text, not a link. `aria-label` hides the summary's own
+                  // wording, so this is where a screen reader hears the handle.
                   const me = document.createElement("span");
                   me.className = "who";
                   me.textContent = "@" + who;
@@ -136,12 +127,10 @@ import Progress from "../components/Progress.astro";
                   out.addEventListener("click", async () => {
                     out.disabled = true;
                     try {
-                      // Only on a 2xx. The key is a display hint and decides
-                      // nothing, so clearing it after a request that never
-                      // landed would show a signed-out bar over a session
+                      // Only on a 2xx. Resetting the bar after a request that
+                      // failed would show a signed-out bar over a session
                       // still open on the server — the one lie this must not
-                      // tell. A 204 is the client learning, authoritatively,
-                      // that the session is gone.
+                      // tell. A 204 is the server saying the session is gone.
                       const res = await fetch("/auth/logout", { method: "POST" });
                       if (!res.ok) { out.disabled = false; return; }
 
@@ -156,8 +145,8 @@ import Progress from "../components/Progress.astro";
                     } catch { out.disabled = false; }
                   });
 
-                  // Built as nodes rather than markup: the handle comes back
-                  // out of storage, and innerHTML would make it executable.
+                  // Built as nodes rather than markup: the handle comes from a
+                  // cookie, and innerHTML would make it executable.
                   panel.append(me, out);
                 }
 
@@ -210,15 +199,14 @@ import Progress from "../components/Progress.astro";
         margin: 0;
       }
       header, main, footer { max-width: var(--measure); margin-inline: auto; padding-inline: var(--gutter); }
-      /* 站名在左,路由在右 —— 两端各一头,中间是空的。 */
       header .bar { display: flex; flex-wrap: wrap; justify-content: space-between;
                     gap: 1em 1.4em; align-items: baseline; }
       header nav { display: flex; gap: 1.2em; align-items: baseline; }
       /*
        * `font-family: inherit` is the load-bearing line. A button does not
-       * inherit the page font, so this was resolving to the UA stack, Arial
-       * had no U+25D0, and the glyph came from Hiragino Sans — a Japanese
-       * face, with metrics that match nothing beside it.
+       * inherit the page font. Without it the UA stack applies, Arial has no
+       * U+25D0, and the glyph comes from Hiragino Sans — a Japanese face, with
+       * metrics that match nothing beside it.
        *
        * Then .88em: measured at 17px, the disc's ink is 13.2 tall against the
        * 11.4 of the text next to it. Scaling lands both within .3px, and a
@@ -230,9 +218,8 @@ import Progress from "../components/Progress.astro";
                font-size: .88em; line-height: 1; }
       #theme:hover { color: var(--active); }
       /*
-       * The session menu. `--bg-raised` earns its first user here: a panel
-       * over running text is exactly the case the token was defined for, and
-       * it is the only surface on the site that sits above another one.
+       * The session menu: a panel over running text, which is what
+       * `--bg-raised` is for.
        */
       #session { position: relative; }
       #session > summary {

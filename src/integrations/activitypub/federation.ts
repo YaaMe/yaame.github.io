@@ -186,7 +186,7 @@ const recipientOf = (actor: Actor) => ({
  *
  * This half cannot run in CI: sending a Follow needs the signing key, which
  * exists only in the Worker's environment. The half that writes git — comment
- * tombstones, note promotion — cannot run here, for the mirror reason.
+ * tombstones, comment promotion — cannot run here, for the mirror reason.
  */
 export async function reconcileFollowing(ctx: RequestContext<void>): Promise<void> {
   const wanted = new Set(intent.follow);
@@ -293,10 +293,9 @@ federation
       outbox: ctx.getOutboxUri(identifier),
       discoverable: AP.discoverable,
       indexable: AP.indexable,
-      // The assertion reconciles two Temporals, as the notes' `published` does:
-      // Fedify's signature names an ambient global that exists in neither
-      // runtime we deploy to, while the polyfill it bundles produces an Instant
-      // that works. A string throws.
+      // The assertion reconciles two Temporals: Fedify's signature names an
+      // ambient global that exists in neither runtime we deploy to, while the
+      // polyfill it bundles produces an Instant that works. A string throws.
       published: Temporal.Instant.from(AP.since) as unknown as ConstructorParameters<
         typeof Person
       >[0]["published"],
@@ -343,7 +342,7 @@ federation
 type Follower = { id: string; inbox: string; sharedInbox?: string };
 
 // Some stored entries are bare actor URIs. Their real inbox is not at hand, so
-// the derived one stands until that follower next sends something.
+// the derived one stands until that follower sends another Follow.
 const readFollowers = async (): Promise<Follower[]> => {
   // Annotated, not inferred: `(T[] | null) ?? []` is a union of two array types,
   // and `.map` resolves no overload against a union.
