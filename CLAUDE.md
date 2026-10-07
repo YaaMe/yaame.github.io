@@ -94,7 +94,7 @@ make tags      the registry and its usage counts
 ## Language
 
 **English for everything the repository says about itself** — commit messages,
-code comments, `docs/`, this file. **Chinese for everything the site says to a
+code comments, `docs/`, GitHub issues, this file. **Chinese for everything the site says to a
 reader** — nav labels, tag labels, pagination, and the prose in
 `src/content/`.
 
