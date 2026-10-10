@@ -17,3 +17,12 @@ docs/identity.md
 worker-configuration.d.ts
 worker/wrangler.generated.jsonc
 .data/
+
+# Local planning and review notes.
+/milestone.md
+/novel-outline.md
+/novel-revision-notes.md
+/novel-techniques.md
+/review.md
+# What working sessions turn up, kept out of the repository until it proves useful.
+/session-notes/
