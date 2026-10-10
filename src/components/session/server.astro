@@ -1,0 +1,8 @@
+---
+import { current } from "../../integrations/auth/session";
+import Panel from "./panel.astro";
+
+Astro.response.headers.set("Cache-Control", "private, no-store");
+const session = await current(Astro.request);
+---
+<Panel login={session?.login} />

@@ -102,7 +102,7 @@ anything with them alone.
 |---|---|
 | `darkMode` | the light/dark toggle button in the header navigation |
 | `activitypub` | federation. Its routes are server-rendered |
-| `auth` | GitHub login. Its routes are server-rendered |
+| `auth` | GitHub login. Its routes are server-rendered; in `full`, the head-bar identity is a deferred server island reading the HttpOnly session, while `static` aliases it to an empty component |
 | `comments` | promoted comments under a post. On in both profiles: they are read from git, not from the database |
 | `search` | **`false` means it has not been built.** It does not mean "built and switched off" |
 

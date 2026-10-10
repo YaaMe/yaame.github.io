@@ -253,6 +253,11 @@ profile. It serves `/login`, `/auth/github`, `/auth/github/callback` and
   cookie. So there is one less secret to place by hand, and a session can be
   revoked. Sessions last 30 days. Logout deletes the record, not only the
   cookie.
+- **The head bar reads identity on the server.** Its prerendered HTML contains
+  only the empty structural placeholder. In the `full` profile a deferred server
+  island reads the HttpOnly `session` cookie and its KV record, and its response
+  is private and not shared-cached. The `static` profile aliases that component
+  to an empty implementation. There is no separate display cookie.
 - **The only secret placed by hand is `GITHUB_CLIENT_SECRET`.** The client id
   is public and is in `src/integrations/auth/config.ts`.
 

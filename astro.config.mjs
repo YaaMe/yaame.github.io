@@ -12,6 +12,12 @@ import dynamicRoutes from "./src/integrations/dynamic-routes";
 // have to resolve. See the second architectural rule in CLAUDE.md.
 const TARGET = process.env.DEPLOY_TARGET ?? "cloudflare";
 const PROFILE = process.env.BUILD_PROFILE ?? "static";
+// The static profile has no identity slot or server island. Choosing the
+// component before the build keeps the full profile's auth import out of its
+// module graph, as with the host boundary above.
+const SESSION_BAR = PROFILE === "full"
+  ? "/src/components/session/full.astro"
+  : "/src/components/session/static.astro";
 
 export default defineConfig({
   site: site.url,
@@ -54,6 +60,7 @@ export default defineConfig({
     resolve: {
       alias: {
         "virtual:platform": `/src/platform/${TARGET}.ts`,
+        "virtual:session-bar": SESSION_BAR,
       },
     },
   },

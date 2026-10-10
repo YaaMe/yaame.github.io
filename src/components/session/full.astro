@@ -1,0 +1,65 @@
+---
+import ServerPanel from "./server.astro";
+import Panel from "./panel.astro";
+---
+<div id="session-slot">
+  <ServerPanel server:defer><Panel variant="placeholder" slot="fallback" /></ServerPanel>
+</div>
+<template id="session-signed-out"><Panel variant="signed-out" /></template>
+<script is:inline>
+  const slot = document.getElementById("session-slot");
+  const signedOutTemplate = document.getElementById("session-signed-out");
+  if (slot) {
+    const pendingIsland = () => slot.querySelector("script[data-island-id]");
+
+    const restoreSignedOut = () => {
+      pendingIsland()?.remove();
+      if (signedOutTemplate instanceof HTMLTemplateElement) {
+        slot.replaceChildren(signedOutTemplate.content.cloneNode(true));
+      }
+    };
+
+    document.addEventListener("click", (event) => {
+      const target = event.target;
+      if (target instanceof Element && target.closest("#logout")) {
+        // A logout action outside this bar must close the race before its
+        // request can be followed by a page reload.
+        pendingIsland()?.remove();
+      }
+    });
+
+    document.addEventListener("click", async (event) => {
+      const target = event.target;
+      const out = target instanceof Element
+        ? target.closest("[data-session-logout]")
+        : null;
+      if (!(out instanceof HTMLButtonElement) || !slot.contains(out) || out.disabled) return;
+
+      out.disabled = true;
+      // The island may still be waiting on KV. Removing its script makes the
+      // built-in replacer ignore a late signed-in answer after this logout.
+      pendingIsland()?.remove();
+      try {
+        const response = await fetch("/auth/logout", { method: "POST" });
+        if (!response.ok) { out.disabled = false; return; }
+        restoreSignedOut();
+      } catch {
+        out.disabled = false;
+      }
+    });
+
+    document.addEventListener("keydown", (event) => {
+      const details = slot.querySelector("#session");
+      if (event.key === "Escape" && details?.open) {
+        details.open = false;
+        details.querySelector("summary")?.focus();
+      }
+    });
+    document.addEventListener("pointerdown", (event) => {
+      const details = slot.querySelector("#session");
+      if (details?.open && event.target instanceof Node && !details.contains(event.target)) {
+        details.open = false;
+      }
+    });
+  }
+</script>

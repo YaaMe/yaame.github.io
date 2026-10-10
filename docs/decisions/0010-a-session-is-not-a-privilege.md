@@ -28,8 +28,8 @@ Three tiers, derived from the session, never stored in it:
 `roleOf(userId)` is the only way to ask. **No path may ask whether a session
 exists** — that question answers `true` for any stranger who clicked the
 button, which is the failure this separation exists to prevent. The sentence
-that survives from `interactions.md` is the reason: GitHub 登录只证明"是某个
-GitHub 用户",不证明是你.
+that survives from `interactions.md` is the reason: “A GitHub login proves only
+that the visitor is some GitHub user, not that it is you.”
 
 Identity is compared by **numeric GitHub id**. A username can be changed and
 the abandoned one becomes available to register, so a list written in usernames
