@@ -12,6 +12,10 @@ import { comments, migrate } from "./schema";
 
 export type Comment = typeof comments.$inferSelect;
 
+// D1 permits at most 100 bound parameters per query.
+// https://developers.cloudflare.com/d1/platform/limits/
+const D1_MAX_BOUND_PARAMETERS = 100;
+
 /**
  * The database, with its schema known to be current.
  *
@@ -143,12 +147,21 @@ export async function thread(rootId: string): Promise<Comment[]> {
 export async function replyCounts(rootIds: string[]): Promise<Map<string, number>> {
   if (rootIds.length === 0) return new Map();
   const db = await store();
-  const rows = await db
-    .select({ rootId: comments.rootId, n: count() })
-    .from(comments)
-    .where(and(inArray(comments.rootId, rootIds), isNull(comments.deletedAt)))
-    .groupBy(comments.rootId);
-  return new Map(rows.map((r) => [r.rootId, Number(r.n)]));
+  const countsByRoot = new Map<string, number>();
+  for (let i = 0; i < rootIds.length; i += D1_MAX_BOUND_PARAMETERS) {
+    const rows = await db
+      .select({ rootId: comments.rootId, n: count() })
+      .from(comments)
+      .where(
+        and(
+          inArray(comments.rootId, rootIds.slice(i, i + D1_MAX_BOUND_PARAMETERS)),
+          isNull(comments.deletedAt),
+        ),
+      )
+      .groupBy(comments.rootId);
+    for (const row of rows) countsByRoot.set(row.rootId, Number(row.n));
+  }
+  return countsByRoot;
 }
 
 /** The replies under a post, oldest first, deleted ones left out. */

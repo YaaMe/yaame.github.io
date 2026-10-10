@@ -9,6 +9,10 @@ import { store } from "./comments";
 
 export type Kind = "Announce" | "Like";
 
+// D1 permits at most 100 bound parameters per query.
+// https://developers.cloudflare.com/d1/platform/limits/
+const D1_MAX_BOUND_PARAMETERS = 100;
+
 /**
  * Record a boost or a like.
  *
@@ -75,17 +79,24 @@ export async function counts(
   if (objectIds.length === 0) return empty;
 
   const db = await store();
-  const rows = await db
-    .select({ objectId: reactions.objectId, kind: reactions.kind, n: count() })
-    .from(reactions)
-    .where(and(inArray(reactions.objectId, objectIds), isNull(reactions.undoneAt)))
-    .groupBy(reactions.objectId, reactions.kind);
+  for (let i = 0; i < objectIds.length; i += D1_MAX_BOUND_PARAMETERS) {
+    const rows = await db
+      .select({ objectId: reactions.objectId, kind: reactions.kind, n: count() })
+      .from(reactions)
+      .where(
+        and(
+          inArray(reactions.objectId, objectIds.slice(i, i + D1_MAX_BOUND_PARAMETERS)),
+          isNull(reactions.undoneAt),
+        ),
+      )
+      .groupBy(reactions.objectId, reactions.kind);
 
-  for (const row of rows) {
-    const entry = empty.get(row.objectId) ?? { likes: 0, shares: 0 };
-    if (row.kind === "Like") entry.likes = Number(row.n);
-    else entry.shares = Number(row.n);
-    empty.set(row.objectId, entry);
+    for (const row of rows) {
+      const entry = empty.get(row.objectId) ?? { likes: 0, shares: 0 };
+      if (row.kind === "Like") entry.likes = Number(row.n);
+      else entry.shares = Number(row.n);
+      empty.set(row.objectId, entry);
+    }
   }
   return empty;
 }

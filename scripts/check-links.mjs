@@ -3,7 +3,7 @@
  * Check that every internal link in the build output resolves.
  *
  * What it catches is a path declared in a layout that nothing generates. A
- * link without its trailing slash still passes when the directory exists.
+ * link without its trailing slash is invalid when it names a generated page.
  *
  * A dynamic route leaves no file, so without the manifest the build writes it
  * would be indistinguishable from a typo. Those are counted, not checked —
@@ -54,9 +54,14 @@ for (const f of files.filter((f) => f.endsWith(".html"))) {
   for (const m of readFileSync(f, "utf8").matchAll(/(?:href|src)="(\/[^"]*)"/g)) {
     const url = m[1].split(/[?#]/)[0];
     total++;
-    const ok = url.endsWith("/")
-      ? pages.has(url)
-      : existsSync(join(DIST, url));
+    const target = join(DIST, url);
+    const directoryWithoutSlash =
+      !url.endsWith("/") && existsSync(target) && statSync(target).isDirectory();
+    if (directoryWithoutSlash) {
+      bad.push(`${url}   ← 来自 ${from}`);
+      continue;
+    }
+    const ok = url.endsWith("/") ? pages.has(url) : existsSync(target);
     if (ok) continue;
     if (dynamic.some((re) => re.test(url))) {
       served.add(url);

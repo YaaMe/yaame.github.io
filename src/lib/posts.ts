@@ -98,7 +98,7 @@ export async function novel(): Promise<Chapter | undefined> {
 export async function chapterCount(): Promise<number> {
   const n = await novel();
   if (!n) return 0;
-  return (n.body ?? "").match(/^[一二三四五六七八九十]+$/gm)?.length ?? 0;
+  return (n.body ?? "").match(/^## [一二三四五六七八九十]+$/gm)?.length ?? 0;
 }
 
 
