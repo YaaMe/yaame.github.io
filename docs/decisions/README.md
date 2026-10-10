@@ -75,3 +75,4 @@ decisions land here.
 | [0012](0012-the-progress-bar-carries-a-bird.md) | The progress bar carries a bird |
 | [0013](0013-the-mark-is-a-cat-and-the-b-is-the-bird.md) | The mark is a cat, and the b is the bird |
 | [0014](0014-full-profile-renders-comments-from-live-withdrawals.md) | Full-profile comments use a deferred server island |
+| [0015](0015-promoted-comments-keep-structured-runs.md) | Promoted comments keep structured runs, not sender HTML |

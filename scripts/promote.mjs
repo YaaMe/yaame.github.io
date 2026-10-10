@@ -17,7 +17,7 @@ import { execFileSync } from "node:child_process";
 import { mkdirSync, readFileSync, writeFileSync, existsSync, readdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import filter from "./promote-filter.mjs";
-import { toText } from "./promote-text.mjs";
+import { toContent } from "./promote-text.mjs";
 
 const APPLY = process.env.APPLY === "1";
 const DB = "yaame-ap-interactions";
@@ -71,7 +71,7 @@ export function promotedComment(row) {
     rootId: row.root_id,
     replyToId: row.reply_to_id,
     actorId: row.actor_id,
-    content: toText(row.content),
+    content: toContent(row.content),
     published: row.published,
   };
 }

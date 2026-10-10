@@ -41,6 +41,14 @@ const base = {
   tags,
 };
 
+const commentHref = z.url({ protocol: /^https?$/ });
+const commentRun = z.discriminatedUnion("type", [
+  z.object({ type: z.literal("text"), text: z.string() }),
+  z.object({ type: z.literal("link"), href: commentHref, label: z.string() }),
+  z.object({ type: z.literal("mention"), href: commentHref, handle: z.string() }),
+  z.object({ type: z.literal("hashtag"), href: commentHref, name: z.string() }),
+]);
+
 /**
  * Promoted comments — the ones chosen to keep.
  *
@@ -77,16 +85,19 @@ const comment = z.object({
    */
   name: z.string().optional(),
   /**
-   * Plain text, not HTML — extracted from the sender's markup on promotion.
-   * See docs/decisions/0006-promoted-comments-are-stored-as-text.md.
+   * Paragraphs of typed runs, never HTML. The template must escape every
+   * string and render each run itself; promotion is not a sanitiser.
    *
    * Absent on a tombstone: a withdrawn comment that something replies to.
    */
-  content: z.string().optional(),
+  content: z.array(z.array(commentRun)).optional(),
   published: z.string(),
   replyToId: z.url().nullable().default(null),
   /** Set when a Delete arrived after this was promoted. */
   deletedAt: z.string().optional(),
+}).refine((entry) => entry.deletedAt === undefined || entry.content === undefined, {
+  message: "A withdrawn comment must have no content",
+  path: ["content"],
 });
 
 /**

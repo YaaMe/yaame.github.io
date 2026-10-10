@@ -50,7 +50,7 @@ What `src/lib/` exports:
 | `comments.ts` | `commentsFor(slug)` | the promoted comments under one post or note |
 | | `handle(actorId)` | a stored actor id prepared for display |
 | `comment-view.ts` | `visibleComments()` | withdrawal and fixed-point tombstone visibility |
-| `comment-text.ts` | `paragraphs()` / `segments()` | comment text, prepared for display |
+| `comment-runs.ts` | `runLabel()` / `renderedText()` | typed comment runs, prepared for display |
 | `comments-live.ts` | `liveCommentsFor(slug)` | the full profile's current withdrawal view |
 
 This list is everything the design layer can get. To add new data, add it

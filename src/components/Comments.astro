@@ -1,5 +1,6 @@
 ---
-import { handle, paragraphs, segments, type Comment } from "../lib/comments";
+import { handle, type Comment } from "../lib/comments";
+import { runLabel } from "../lib/comment-runs";
 
 interface Props {
   comments: Comment[];
@@ -43,10 +44,12 @@ const stamp = (iso: string) => iso.slice(0, 10);
                   已由作者删除{c.deletedAt && <> · {stamp(c.deletedAt)}</>}
                 </p>
               ) : (
-                paragraphs(c.content).map((para) => (
+                c.content.map((paragraph) => (
                   <p class="body">
-                    {segments(para).map((s) =>
-                      s.url ? <a href={s.url} rel="nofollow ugc">{s.url}</a> : s.text,
+                    {paragraph.map((run) =>
+                      run.type === "text" ? run.text : (
+                        <a href={run.href} rel="nofollow ugc">{runLabel(run)}</a>
+                      ),
                     )}
                   </p>
                 ))

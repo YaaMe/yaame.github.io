@@ -134,9 +134,14 @@ That file provides `byAuthor`, `wholeThread` and `nothing`. The default is
 what to keep is a social judgement, not a data-structure question, so the
 unit of selection is not fixed.
 
-Promotion stores the comment as text, not as the sender's HTML. See
-[0006](decisions/0006-promoted-comments-are-stored-as-text.md). It also
-fetches the author's display name and stores it as `name`.
+Promotion stores the comment as structured paragraphs of typed runs, not as
+the sender's HTML. Links keep their `href` and label; mentions keep their
+profile `href` and handle; hashtags keep their tag `href` and name. Only
+`http(s)` targets are linked, and other targets become text. This is a format
+conversion, not a sanitiser: the archive contains no HTML and the template
+escapes and renders each run. See
+[0015](decisions/0015-promoted-comments-keep-structured-runs.md). Promotion
+also fetches the author's display name and stores it as `name`.
 
 ### What the specification requires
 
@@ -322,10 +327,9 @@ a withdrawal. The choice is [0014](decisions/0014-full-profile-renders-comments-
 
 `src/components/Comments.astro` renders them under the heading "回应". Each
 comment shows the author's name or `@name@host`, a date that links to the
-original, and the text. The text is plain text (see
-[0006](decisions/0006-promoted-comments-are-stored-as-text.md)). The template
-escapes it. Blank lines separate paragraphs, and URLs become links with
-`rel="nofollow ugc"`. There is no sanitiser and no `set:html`.
+original, and the content runs. The template escapes every run value and
+renders links, mentions and hashtags with `rel="nofollow ugc"`. There is no
+stored HTML, no sanitiser boundary, and no `set:html`.
 
 Notes render their promoted comments below the note on `/notes/{year}/` only.
 The `/notes/` index has no anchors and no comments. `scripts/promote.mjs` writes

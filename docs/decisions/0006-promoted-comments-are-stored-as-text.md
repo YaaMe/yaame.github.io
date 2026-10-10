@@ -1,6 +1,6 @@
 # 0006. Promoted comments are stored as text, not as the sender's markup
 
-Status: accepted
+Status: superseded by 0015
 Date: 2026-09-19
 
 ## Context

@@ -1,7 +1,7 @@
 export type CommentLike = {
   objectId: string;
   replyToId: string | null;
-  content?: string;
+  content?: unknown;
   deletedAt?: string;
 };
 
