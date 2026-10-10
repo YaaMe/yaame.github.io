@@ -11,6 +11,12 @@ const intent = intentJson as { follow: string[] };
 import { record, remove } from "./store/comments";
 import * as reactions from "./store/reactions";
 import { FIRST, page } from "./paging";
+import {
+  handleCommentDelete,
+  handleFollow,
+  handleUndoFollow,
+  type Follower,
+} from "./inbox-handlers";
 
 // Without a sink, everything below the application — signature verification,
 // delivery, Fedify's own retries — reports to nobody.
@@ -332,15 +338,6 @@ federation
     }];
   });
 
-/**
- * A follower, as much of it as delivery needs.
- *
- * The inbox is stored, not derived. `<actor>/inbox` is Mastodon's layout rather
- * than a rule, and deriving it posts to a 404 on anything that chose otherwise —
- * silently, because delivery is asynchronous and no one is waiting on the answer.
- */
-type Follower = { id: string; inbox: string; sharedInbox?: string };
-
 // Some stored entries are bare actor URIs. Their real inbox is not at hand, so
 // the derived one stands until that follower sends another Follow.
 const readFollowers = async (): Promise<Follower[]> => {
@@ -354,12 +351,19 @@ const readFollowers = async (): Promise<Follower[]> => {
 const readFollowing = async (): Promise<string[]> =>
   (await platform.get<string[]>("ap:following")) ?? [];
 
+const followerStore = {
+  read: readFollowers,
+  write: (followers: Follower[]) => platform.put("ap:followers", followers),
+  departure: (id: string) => recordDeparture(id, "unfollowed"),
+};
+
 federation
   .setInboxListeners(`/users/{identifier}/inbox`, "/inbox")
   // Fedify has already verified the signature and that the sender speaks for
   // the actor it names before a listener runs.
   .on(Follow, async (ctx, follow) => {
-    if (follow.objectId?.href !== ctx.getActorUri(AP.user).href) return;
+    const ownActorId = ctx.getActorUri(AP.user);
+    if (follow.objectId?.href !== ownActorId.href) return;
     const follower = await follow.getActor();
     // No inbox means nothing can be delivered to them, the Accept below
     // included — so there is nothing to record either.
@@ -372,27 +376,35 @@ federation
         ? { sharedInbox: follower.endpoints.sharedInbox.href }
         : {}),
     };
-    // Replaced rather than skipped when already present: a repeat Follow is how
-    // a moved inbox reaches us.
-    const list = await readFollowers();
-    await platform.put("ap:followers", [entry, ...list.filter((f) => f.id !== entry.id)]);
-    // Rebuilt from its three identifiers, not echoed: echoing serialises
-    // whatever the object carries, and the actor fetched above fills it with
-    // the sender's entire Person, so `object.actor` goes out as kilobytes of
-    // inlined document where a URI belongs.
-    //
-    // A remote end answers 202 whether or not it could match the Accept to the
-    // request it is waiting on, so a useless delivery looks like a working one.
-    const accept = new Accept({
-      actor: ctx.getActorUri(AP.user),
-      object: new Follow({
-        id: follow.id,
-        actor: follow.actorId,
-        object: ctx.getActorUri(AP.user),
-      }),
-    });
-
-    await ctx.sendActivity({ identifier: AP.user }, follower, accept);
+    await handleFollow(
+      {
+        id: follow.id?.href ?? null,
+        actorId: follow.actorId?.href ?? null,
+        objectId: follow.objectId?.href ?? null,
+      },
+      entry,
+      ownActorId.href,
+      followerStore,
+      async (accepted) => {
+        // Rebuilt from its three identifiers, not echoed: echoing serialises
+        // whatever the object carries, and the actor fetched above fills it
+        // with the sender's entire Person, so `object.actor` goes out as
+        // kilobytes of inlined document where a URI belongs.
+        //
+        // A remote end answers 202 whether or not it could match the Accept to
+        // the request it is waiting on, so a useless delivery looks like a
+        // working one.
+        const accept = new Accept({
+          actor: ownActorId,
+          object: new Follow({
+            id: accepted.id ? new URL(accepted.id) : null,
+            actor: accepted.actorId ? new URL(accepted.actorId) : null,
+            object: new URL(accepted.objectId),
+          }),
+        });
+        await ctx.sendActivity({ identifier: AP.user }, follower, accept);
+      },
+    );
   })
   // Only replies to something of ours are kept. A Create can address us for
   // other reasons — a mention with no reply target, a post merely delivered to
@@ -464,7 +476,7 @@ federation
     // Otherwise a comment. ActivityPub §7.4 says we SHOULD remove our
     // representation; the row survives as a record that something was here, and
     // if it was carried into git the removal there is raised against it.
-    await remove(del.objectId.href, del.actorId.href);
+    await handleCommentDelete(del.objectId.href, del.actorId.href, remove);
   })
   // Without this half `ap:following` stays empty for good: Follows go out, no
   // agreement is ever recorded, and the public collection says we follow nobody.
@@ -504,10 +516,11 @@ federation
     if (!undo.actorId) return;
 
     if (object instanceof Follow) {
-      const list = await readFollowers();
-      const who = undo.actorId.href;
-      if (list.some((f) => f.id === who)) await recordDeparture(who, "unfollowed");
-      await platform.put("ap:followers", list.filter((f) => f.id !== who));
+      await handleUndoFollow(
+        undo.actorId.href,
+        object.actorId?.href ?? null,
+        followerStore,
+      );
       return;
     }
 
