@@ -2,6 +2,8 @@
 import Base from "../../layouts/Base.astro";
 import NoteList from "../../components/NoteList.astro";
 import { allNotes, noteYears } from "../../lib/notes";
+import { features } from "../../site.config";
+import NoteComments from "virtual:note-comments";
 
 export async function getStaticPaths() {
   const notes = await allNotes();
@@ -15,7 +17,11 @@ const { year, notes } = Astro.props;
 ---
 <Base title={`notes ${year}`}>
   <h1>notes <span>{year}</span></h1>
-  <NoteList notes={notes} anchors />
+  {features.comments ? (
+    <NoteComments year={year} notes={notes} anchors />
+  ) : (
+    <NoteList notes={notes} anchors />
+  )}
   <p class="back"><a href="/notes/">← 全部</a></p>
   <style>
     h1 { margin: 0 0 1.5em; font-size: 1.8em; }

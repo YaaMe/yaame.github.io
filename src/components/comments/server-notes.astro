@@ -1,0 +1,14 @@
+---
+import { allNotes } from "../../lib/notes";
+import Comments from "../Comments.astro";
+import { liveCommentsForMany } from "../../lib/comments-live";
+
+interface Props { year: string }
+Astro.response.headers.set("Cache-Control", "private, no-store");
+const { year } = Astro.props;
+const notes = (await allNotes()).filter((note) => note.year === year);
+const comments = await liveCommentsForMany(notes.map((note) => note.id));
+---
+{notes.map((note) => (
+  <Comments forId={note.id} comments={comments.get(note.id) ?? []} state="loaded" />
+))}

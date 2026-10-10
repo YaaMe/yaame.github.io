@@ -1,0 +1,15 @@
+---
+import NoteList from "../NoteList.astro";
+import { commentsFor } from "../../lib/comments";
+import type { Note } from "../../lib/notes";
+
+interface Props {
+  notes: Note[];
+  anchors?: boolean;
+}
+const { notes, anchors = false } = Astro.props;
+const comments = new Map(
+  await Promise.all(notes.map(async (note) => [note.id, await commentsFor(note.id)] as const)),
+);
+---
+<NoteList notes={notes} anchors={anchors} comments={comments} />

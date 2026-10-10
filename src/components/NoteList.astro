@@ -1,12 +1,18 @@
 ---
 import { noteHref, noteHtml, type Note } from "../lib/notes";
+import type { Comment } from "../lib/comments";
+import Comments from "./Comments.astro";
 
 interface Props {
   notes: Note[];
   /** Give each note the id its permalink points at. Only the archives may. */
   anchors?: boolean;
+  /** Comments keyed by note id; the year archive supplies these, the index does not. */
+  comments?: ReadonlyMap<string, Comment[]>;
+  /** Leave an empty keyed slot for the full-profile archive island. */
+  commentSlots?: boolean;
 }
-const { notes, anchors = false } = Astro.props;
+const { notes, anchors = false, comments = new Map(), commentSlots = false } = Astro.props;
 ---
 <ul>
   {notes.map((n) => (
@@ -15,6 +21,17 @@ const { notes, anchors = false } = Astro.props;
         <time datetime={n.published}>{n.date.y}-{n.date.mo}-{n.date.d}</time>
       </a>
       <div class="body" set:html={noteHtml(n)} />
+      {commentSlots ? (
+        <div
+          class="comments-slot"
+          data-comments-slot
+          data-comments-for={n.id}
+          data-comments-state="pending"
+          aria-busy="true"
+        />
+      ) : (
+        <Comments comments={comments.get(n.id) ?? []} />
+      )}
     </li>
   ))}
 </ul>

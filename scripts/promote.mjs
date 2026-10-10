@@ -14,49 +14,15 @@
  * Local only: no workflow runs it.
  */
 import { execFileSync } from "node:child_process";
-import { mkdirSync, readFileSync, writeFileSync, existsSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync, existsSync, readdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import filter from "./promote-filter.mjs";
-
-/**
- * Extract text from the sender's HTML.
- *
- * Paragraphs and links survive: `</p>` and `<br>` become newlines, and
- * `<a href="U">T</a>` keeps T with U after it. What is lost is anchor text and
- * target being one thing. See
- * docs/decisions/0006-promoted-comments-are-stored-as-text.md.
- *
- * Nothing calls this: each row is written with `content` exactly as it came
- * from D1, HTML included.
- *
- * The HTML is parsed with regular expressions. That is safe only because the
- * output is plain text and is escaped at render time. Never reuse this as a
- * sanitiser, whose output goes onto the page verbatim.
- */
-function toText(html) {
-  const entities = {
-    "&amp;": "&", "&lt;": "<", "&gt;": ">", "&quot;": '"', "&#39;": "'",
-    "&apos;": "'", "&nbsp;": " ",
-  };
-  return html
-    .replace(/<a\b[^>]*\bhref=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi, (_, url, inner) => {
-      const label = inner.replace(/<[^>]+>/g, "").trim();
-      // Not twice when the anchor text is the address: Mastodon routinely
-      // truncates a long link for display.
-      return !label || url.startsWith(label) || label.startsWith(url) ? url : `${label}（${url}）`;
-    })
-    .replace(/<br\s*\/?>/gi, "\n")
-    .replace(/<\/p>/gi, "\n\n")
-    .replace(/<[^>]+>/g, "")
-    .replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(Number(n)))
-    .replace(/&[a-z]+;/gi, (e) => entities[e.toLowerCase()] ?? e)
-    .replace(/\n{3,}/g, "\n\n")
-    .trim();
-}
+import { toText } from "./promote-text.mjs";
 
 const APPLY = process.env.APPLY === "1";
 const DB = "yaame-ap-interactions";
 const DIR = "src/content/comments";
+const NOTES = "src/content/notes";
 
 /** One read from D1. `--json` still prints a banner, so only the array counts. */
 function query(sql) {
@@ -73,121 +39,146 @@ function query(sql) {
 /**
  * Which file a comment belongs in.
  *
- * One file per object, under posts/. Notes share the `/users/…/notes/` path
- * with long posts, so a reply to a note also lands here, as
- * `posts/<note id>.json`.
+ * Long-post threads use one file per object. Note threads use the year archive
+ * that contains their root note, so the page and the archive have one owner.
  */
-function fileFor(rootId) {
+function noteYear(id) {
+  let files;
+  try {
+    files = readdirSync(NOTES);
+  } catch {
+    return null;
+  }
+  for (const name of files) {
+    if (!name.endsWith(".json")) continue;
+    const doc = JSON.parse(readFileSync(join(NOTES, name), "utf8"));
+    if (doc.notes.some((note) => note.id === id)) return name.slice(0, -5);
+  }
+  return null;
+}
+
+export function fileFor(rootId) {
   const m = /\/users\/[^/]+\/notes\/([^/?#]+)$/.exec(rootId);
   if (!m) return null;
-  return join(DIR, "posts", `${m[1]}.json`);
+  const year = noteYear(m[1]);
+  return join(DIR, year === null ? "posts" : "notes", `${year ?? m[1]}.json`);
 }
 
-const rows = query(
-  `SELECT activity_id, object_id, root_id, reply_to_id, actor_id, content, published
-   FROM comments
-   WHERE promoted_at IS NULL AND deleted_at IS NULL
-   ORDER BY published ASC`,
-);
-
-if (rows.length === 0) {
-  console.log("  没有待提升的评论");
-  process.exit(0);
+export function promotedComment(row) {
+  return {
+    activityId: row.activity_id,
+    objectId: row.object_id,
+    rootId: row.root_id,
+    replyToId: row.reply_to_id,
+    actorId: row.actor_id,
+    content: toText(row.content),
+    published: row.published,
+  };
 }
 
-// Grouped by thread: a filter receives the whole chain, because "keep the
-// entire reply chain" cannot be expressed from a single row.
-const threads = new Map();
-for (const r of rows) {
-  const thread = threads.get(r.root_id) ?? [];
-  thread.push({
-    activityId: r.activity_id,
-    objectId: r.object_id,
-    rootId: r.root_id,
-    replyToId: r.reply_to_id,
-    actorId: r.actor_id,
-    content: r.content,
-    published: r.published,
-  });
-  threads.set(r.root_id, thread);
-}
+async function main() {
+  const rows = query(
+    `SELECT activity_id, object_id, root_id, reply_to_id, actor_id, content, published
+     FROM comments
+     WHERE promoted_at IS NULL AND deleted_at IS NULL
+     ORDER BY published ASC`,
+  );
 
-console.log(`  待提升 ${rows.length} 条，分属 ${threads.size} 条线程`);
+  if (rows.length === 0) {
+    console.log("  没有待提升的评论");
+    process.exit(0);
+  }
 
-/**
- * What an actor calls itself, at the moment of promotion.
- *
- * Fetched at promotion, so the name is the one the actor used then. An actor
- * that has since gone leaves no name, and the page falls back to the handle.
- */
-const names = new Map();
-async function nameOf(actorId) {
-  if (names.has(actorId)) return names.get(actorId);
-  let name;
-  try {
-    const res = await fetch(actorId, { headers: { accept: "application/activity+json" } });
-    if (res.ok) {
-      const a = await res.json();
-      name = typeof a.name === "string" && a.name.trim() ? a.name.trim() : a.preferredUsername;
+  // Grouped by thread: a filter receives the whole chain, because "keep the
+  // entire reply chain" cannot be expressed from a single row.
+  const threads = new Map();
+  for (const r of rows) {
+    const thread = threads.get(r.root_id) ?? [];
+    thread.push(promotedComment(r));
+    threads.set(r.root_id, thread);
+  }
+
+  console.log(`  待提升 ${rows.length} 条，分属 ${threads.size} 条线程`);
+
+  /**
+   * What an actor calls itself, at the moment of promotion.
+   *
+   * Fetched at promotion, so the name is the one the actor used then. An actor
+   * that has since gone leaves no name, and the page falls back to the handle.
+   */
+  const names = new Map();
+  async function nameOf(actorId) {
+    if (names.has(actorId)) return names.get(actorId);
+    let name;
+    try {
+      const res = await fetch(actorId, { headers: { accept: "application/activity+json" } });
+      if (res.ok) {
+        const a = await res.json();
+        name = typeof a.name === "string" && a.name.trim() ? a.name.trim() : a.preferredUsername;
+      }
+    } catch {
+      // Unreachable, gone, or not answering ActivityPub. The handle is enough.
     }
-  } catch {
-    // Unreachable, gone, or not answering ActivityPub. The handle is enough.
-  }
-  names.set(actorId, name);
-  return name;
-}
-
-const writes = new Map();
-const promoted = [];
-
-for (const [rootId, thread] of threads) {
-  const keep = filter(thread) ?? [];
-  if (keep.length === 0) continue;
-
-  const file = fileFor(rootId);
-  if (file === null) {
-    console.warn(`  ✗ 不认识的 root，跳过：${rootId}`);
-    continue;
+    names.set(actorId, name);
+    return name;
   }
 
-  // Merged with what is already there: a re-run must not duplicate, and must
-  // not overwrite what was selected before.
-  const existing = writes.get(file) ?? (existsSync(file)
-    ? JSON.parse(readFileSync(file, "utf8")).comments
-    : []);
-  const seen = new Set(existing.map((c) => c.activityId));
-  for (const c of keep) {
-    if (seen.has(c.activityId)) continue;
-    const name = await nameOf(c.actorId);
-    existing.push(name ? { ...c, name } : c);
-    promoted.push(c.activityId);
+  const writes = new Map();
+  const promoted = [];
+
+  for (const [rootId, thread] of threads) {
+    const keep = filter(thread) ?? [];
+    if (keep.length === 0) continue;
+
+    const file = fileFor(rootId);
+    if (file === null) {
+      console.warn(`  ✗ 不认识的 root，跳过：${rootId}`);
+      continue;
+    }
+
+    // Merged with what is already there: a re-run must not duplicate, and must
+    // not overwrite what was selected before.
+    const existing = writes.get(file) ?? (existsSync(file)
+      ? JSON.parse(readFileSync(file, "utf8")).comments
+      : []);
+    const seen = new Set(existing.map((c) => c.activityId));
+    for (const c of keep) {
+      if (seen.has(c.activityId)) continue;
+      const name = await nameOf(c.actorId);
+      existing.push(name ? { ...c, name } : c);
+      promoted.push(c.activityId);
+    }
+    existing.sort((a, b) => a.published.localeCompare(b.published));
+    writes.set(file, existing);
   }
-  existing.sort((a, b) => a.published.localeCompare(b.published));
-  writes.set(file, existing);
+
+  if (promoted.length === 0) {
+    console.log("  筛选之后没有要留的（规则在 scripts/promote-filter.mjs）");
+    process.exit(0);
+  }
+
+  for (const [file, comments] of writes) {
+    console.log(`  ${APPLY ? "写入" : "将写入"} ${file}：共 ${comments.length} 条`);
+    if (!APPLY) continue;
+    mkdirSync(dirname(file), { recursive: true });
+    writeFileSync(file, `${JSON.stringify({ comments }, null, 2)}\n`);
+  }
+
+  if (!APPLY) {
+    console.log(`\n  ${promoted.length} 条会被提升。加 APPLY=1 才会真的动手。`);
+    process.exit(0);
+  }
+
+  // Recorded after the files are written. The other order lets a failed write
+  // mark these as promoted while git does not hold them — a loss nothing retries.
+  const list = promoted.map((id) => `'${id.replace(/'/g, "''")}'`).join(",");
+  query(
+    `UPDATE comments SET promoted_at = '${new Date().toISOString()}' WHERE activity_id IN (${list})`,
+  );
+  console.log(`\n  已提升 ${promoted.length} 条，数据库已回写。`);
+  console.log("  现在 git status 看一眼，满意再提交 —— 进了 git 就撤不回来了。");
 }
 
-if (promoted.length === 0) {
-  console.log("  筛选之后没有要留的（规则在 scripts/promote-filter.mjs）");
-  process.exit(0);
+if (process.argv[1] && new URL(`file://${process.argv[1]}`).href === import.meta.url) {
+  await main();
 }
-
-for (const [file, comments] of writes) {
-  console.log(`  ${APPLY ? "写入" : "将写入"} ${file}：共 ${comments.length} 条`);
-  if (!APPLY) continue;
-  mkdirSync(dirname(file), { recursive: true });
-  writeFileSync(file, `${JSON.stringify({ comments }, null, 2)}\n`);
-}
-
-if (!APPLY) {
-  console.log(`\n  ${promoted.length} 条会被提升。加 APPLY=1 才会真的动手。`);
-  process.exit(0);
-}
-
-// Recorded after the files are written. The other order lets a failed write
-// mark these as promoted while git does not hold them — a loss nothing retries.
-const list = promoted.map((id) => `'${id.replace(/'/g, "''")}'`).join(",");
-query(
-  `UPDATE comments SET promoted_at = '${new Date().toISOString()}' WHERE activity_id IN (${list})`,
-);
-console.log(`\n  已提升 ${promoted.length} 条，数据库已回写。`);
-console.log("  现在 git status 看一眼，满意再提交 —— 进了 git 就撤不回来了。");

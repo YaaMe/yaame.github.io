@@ -1,0 +1,9 @@
+---
+import ServerComments from "./server.astro";
+
+interface Props { slug: string }
+const { slug } = Astro.props;
+---
+<ServerComments slug={slug} server:defer>
+  <div data-comments-state="pending" aria-busy="true" hidden slot="fallback" />
+</ServerComments>

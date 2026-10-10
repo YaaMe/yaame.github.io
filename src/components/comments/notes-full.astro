@@ -1,0 +1,50 @@
+---
+import type { Note } from "../../lib/notes";
+import NoteList from "../NoteList.astro";
+import ServerNotes from "./server-notes.astro";
+
+interface Props {
+  year: string;
+  notes: Note[];
+  anchors?: boolean;
+}
+const { year, notes, anchors = false } = Astro.props;
+---
+<NoteList notes={notes} anchors={anchors} commentSlots />
+<div data-comments-island data-comments-state="pending" aria-busy="true" hidden>
+  <ServerNotes year={year} server:defer>
+    <span hidden slot="fallback" />
+  </ServerNotes>
+</div>
+<script is:inline>
+  const island = document.querySelector("[data-comments-island]");
+  if (island) {
+    const slots = new Map(
+      [...document.querySelectorAll("[data-comments-slot]")]
+        .filter((slot) => slot instanceof HTMLElement)
+        .map((slot) => [slot.getAttribute("data-comments-for"), slot]),
+    );
+
+    const place = () => {
+      const sections = island.querySelectorAll("[data-comments-for]");
+      let moved = false;
+      for (const section of sections) {
+        const id = section.getAttribute("data-comments-for");
+        const slot = id ? slots.get(id) : undefined;
+        if (!(slot instanceof HTMLElement)) continue;
+        slot.replaceChildren(section);
+        slot.dataset.commentsState = section.getAttribute("data-comments-state") ?? "loaded";
+        slot.removeAttribute("aria-busy");
+        moved = true;
+      }
+      if (!moved) return;
+      island.dataset.commentsState = "loaded";
+      island.removeAttribute("aria-busy");
+      observer.disconnect();
+    };
+
+    const observer = new MutationObserver(place);
+    observer.observe(island, { childList: true, subtree: true });
+    place();
+  }
+</script>

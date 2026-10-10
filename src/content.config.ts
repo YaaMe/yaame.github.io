@@ -44,11 +44,11 @@ const base = {
 /**
  * Promoted comments — the ones chosen to keep.
  *
- * Read from git, not from the database, so both profiles show the same
- * comments: the static site has no database.
+ * Promoted records live in git. The static profile reads them alone; the full
+ * profile also reads current withdrawal ids from its database.
  *
- *   posts/<slug>.json   one file per blog post
- *   notes/<YYYY>.json   one file per year of notes
+ *   posts/<slug>.json   one file per long post
+ *   notes/<YYYY>.json   one file per note archive year
  *
  * Every entry carries `rootId`, because a yearly file cannot infer it from its
  * name. Both kinds of file share this one schema.
@@ -65,7 +65,7 @@ const comment = z.object({
    */
   activityId: z.url(),
   objectId: z.url(),
-  /** The post this hangs off. Redundant in posts/, load-bearing in notes/. */
+  /** The post or note this hangs off; load-bearing when comments share a year file. */
   rootId: z.url(),
   actorId: z.url(),
   /**

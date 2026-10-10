@@ -103,11 +103,16 @@ anything with them alone.
 | `darkMode` | the light/dark toggle button in the header navigation |
 | `activitypub` | federation. Its routes are server-rendered |
 | `auth` | GitHub login. Its routes are server-rendered; in `full`, the head-bar identity is a deferred server island reading the HttpOnly session, while `static` aliases it to an empty component |
-| `comments` | promoted comments under a post. On in both profiles: they are read from git, not from the database |
+| `comments` | promoted comments under posts and note-year archives. On in both profiles: static reads git alone; full also reads current withdrawal ids from the database |
 | `search` | **`false` means it has not been built.** It does not mean "built and switched off" |
 
-Every other route is prerendered. So **the build produces a Worker only when
-`activitypub` or `auth` is on.**
+Both profiles prerender the post and note-year pages. In `full`, their comment
+sections are deferred server islands: the page carries a structural loading
+slot, and the island reads the promoted git view plus current withdrawal ids
+from the platform database. The full build keeps a server entry for those
+islands and for ActivityPub and auth routes; the rest of each page remains a
+static file. In `static`, the build-time alias selects the inline comment
+implementation, so no database module enters its graph.
 
 ## `site.*`
 

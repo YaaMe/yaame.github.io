@@ -166,19 +166,18 @@ When a `Delete` arrives for a comment:
    the comment out. This meets §7.4 for what we serve over ActivityPub.
 3. If the comment was not promoted, nothing else shows it, so nothing else
    changes.
-4. If the comment was promoted, git still holds its text. Post pages are
-   prerendered from git in both profiles. So the post page keeps showing the
-   comment, in full.
-5. The Tombstones workflow runs every Monday at 01:37 UTC, or when started by
+4. If the comment was promoted, git still holds its text. In the `full` profile
+   the prerendered page has a deferred comment island. That island reads the
+   thread's withdrawn ids before sending the comment section, so the text
+   leaves the island response as soon as the `Delete` is recorded.
+5. The `static` profile is prerendered and has no database to ask. Its inline
+   view keeps the old text until a deploy after the tombstone file changes.
+6. The Tombstones workflow runs every Monday at 01:37 UTC, or when started by
    hand. It finds the rows where both `deleted_at` and `promoted_at` are set,
    rewrites `src/content/comments/`, and opens or updates a pull request.
-6. A person decides whether to merge. A merge pushes to `main`, and that push
-   rebuilds and redeploys both sites. Only then does the text leave the page.
-
-So a withdrawn comment that was promoted stays on the page until the next run
-of the workflow, a person's merge, and the deploy after it. Nothing at runtime
-shortens that. Until the merge, we are still showing words their author asked
-us to remove. How long depends on when someone next looks at GitHub.
+7. A person decides whether to merge. A merge pushes to `main`, and that push
+   rebuilds and redeploys both sites. The full profile is already clear; the
+   static profile becomes clear on this deploy.
 
 No separate queue of pending removals exists. The pending set is the query on
 the two columns.
@@ -193,8 +192,11 @@ When the workflow rewrites a file:
 - The rewrite repeats until nothing changes. Removing a reply can leave the
   tombstone above it with no replies, and that tombstone then goes too.
 
-When the site is built, `commentsFor()` also hides a tombstone that nothing
-replies to.
+When comments are read, `commentsFor()` hides a tombstone that nothing replies
+to. It repeats the filter to a fixed point: removing a withdrawn reply can
+leave its withdrawn parent with no answer. The full profile supplies the
+database's current withdrawal ids; the static profile supplies only what the
+archive already records.
 
 The rewrite does **not** change history. The commit is the record. The promise
 was never that the comment did not exist. It is that the comment is gone now,
@@ -310,9 +312,13 @@ found and opened, but it does not appear in timelines. That is correct, but
 ## Rendering comments on the site
 
 Post pages render promoted comments, in both profiles. `commentsFor(slug)` in
-`src/lib/comments.ts` reads the `comments` content collection. It reads only
-git, never the database. So the static site and the full site show the same
-comments.
+`src/lib/comments.ts` reads the `comments` content collection. A build-time
+alias selects the implementation: `static` renders that git view inline,
+while `full` leaves a deferred server island in the prerendered page. The full
+island reads the git view and asks the platform database for withdrawn ids,
+then applies the same fixed-point rule before it sends any comment text. Its
+response is `Cache-Control: private, no-store`, so a shared cache cannot outlive
+a withdrawal. The choice is [0014](decisions/0014-full-profile-renders-comments-from-live-withdrawals.md).
 
 `src/components/Comments.astro` renders them under the heading "回应". Each
 comment shows the author's name or `@name@host`, a date that links to the
@@ -321,14 +327,24 @@ original, and the text. The text is plain text (see
 escapes it. Blank lines separate paragraphs, and URLs become links with
 `rel="nofollow ugc"`. There is no sanitiser and no `set:html`.
 
-Limits as they stand:
+Notes render their promoted comments below the note on `/notes/{year}/` only.
+The `/notes/` index has no anchors and no comments. `scripts/promote.mjs` writes
+long-post threads to `src/content/comments/posts/<slug>.json` and note threads
+to `src/content/comments/notes/<YYYY>.json`, where the year is the note's
+archive file. The full archive uses one deferred island request for the whole
+year page, so many notes do not create one request per note. Its response only
+contains comment sections keyed by note id; a small inline script moves each
+section into the empty slot below its prerendered note, so the note DOM and
+permalink anchors stay in place. The static archive renders its comments inline
+at build time.
 
-- Only `/posts/{slug}/` renders comments. Note pages do not.
-- `scripts/promote.mjs` writes every thread to
-  `src/content/comments/posts/<id>.json`, including a thread under a note.
-  Nothing writes `src/content/comments/notes/`.
-- A withdrawn comment stays on the page until the tombstone pull request is
-  merged and deployed. See [Deletion](#deletion).
+In `full`, a post page and a note-year page each make one comment-island
+request. The prerendered HTML carries a pending structural marker and no
+comment text; the island replaces it with a loaded marker, including an empty
+loaded marker when there are no comments. The full island removes withdrawn
+text as soon as the database records it. The static profile keeps text until
+the next deploy after the tombstone pull request is merged. See
+[Deletion](#deletion) and [0014](decisions/0014-full-profile-renders-comments-from-live-withdrawals.md).
 
 ## What has run, and what is only written
 
@@ -403,6 +419,7 @@ here.
 - [x] The `featured` collection
 - [x] GitHub OAuth login and sessions
 - [ ] A write route behind `roleOf()`
-- [ ] Comments under notes: promoted to the posts path, rendered nowhere
-- [ ] A withdrawn, promoted comment leaving the page before the pull request
-      is merged
+- [x] Comments under notes: promoted to their year archive and rendered below
+      the note on `/notes/{year}/`
+- [x] A withdrawn, promoted comment leaving the full-profile page before the
+      tombstone pull request is merged

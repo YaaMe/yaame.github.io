@@ -1,0 +1,9 @@
+---
+import Comments from "../Comments.astro";
+import { commentsFor } from "../../lib/comments";
+
+interface Props { slug: string }
+const { slug } = Astro.props;
+const comments = await commentsFor(slug);
+---
+<Comments comments={comments} />

@@ -1,47 +1,67 @@
 ---
 import { handle, paragraphs, segments, type Comment } from "../lib/comments";
 
-interface Props { comments: Comment[] }
-const { comments } = Astro.props;
+interface Props {
+  comments: Comment[];
+  /** A full-profile island uses these markers while it is loading and after an empty response. */
+  state?: "pending" | "loaded";
+  /** The note id whose slot receives this section. */
+  forId?: string;
+}
+const { comments, state, forId } = Astro.props;
 
 const stamp = (iso: string) => iso.slice(0, 10);
 ---
-{comments.length > 0 && (
-  <section class="comments">
-    <h2>回应</h2>
-    <ol>
-      {comments.map((c) => (
-        <li>
-          <p class="who">
-            <a href={c.actorId} rel="nofollow ugc">
-              {c.name ?? handle(c.actorId)}
-            </a>
-            {c.name && <span class="at">{handle(c.actorId)}</span>}
-            <a class="when" href={c.objectId} rel="nofollow ugc">
-              <time datetime={c.published}>{stamp(c.published)}</time>
-            </a>
-          </p>
-          {c.content === undefined ? (
-            <p class="gone">
-              已由作者删除{c.deletedAt && <> · {stamp(c.deletedAt)}</>}
-            </p>
-          ) : (
-            paragraphs(c.content).map((para) => (
-              <p class="body">
-                {segments(para).map((s) =>
-                  s.url ? <a href={s.url} rel="nofollow ugc">{s.url}</a> : s.text,
-                )}
+{(comments.length > 0 || state !== undefined) && (
+  <section
+    class:list={[
+      "comments",
+      { empty: state !== undefined && (state === "pending" || comments.length === 0) },
+    ]}
+    data-comments-for={forId}
+    data-comments-state={state ?? "loaded"}
+    aria-busy={state === "pending" ? "true" : undefined}
+    hidden={state !== undefined && (state === "pending" || comments.length === 0) ? true : undefined}
+  >
+    {state !== "pending" && comments.length > 0 ? (
+      <>
+        <h2>回应</h2>
+        <ol>
+          {comments.map((c) => (
+            <li>
+              <p class="who">
+                <a href={c.actorId} rel="nofollow ugc">
+                  {c.name ?? handle(c.actorId)}
+                </a>
+                {c.name && <span class="at">{handle(c.actorId)}</span>}
+                <a class="when" href={c.objectId} rel="nofollow ugc">
+                  <time datetime={c.published}>{stamp(c.published)}</time>
+                </a>
               </p>
-            ))
-          )}
-        </li>
-      ))}
-    </ol>
+              {c.content === undefined ? (
+                <p class="gone">
+                  已由作者删除{c.deletedAt && <> · {stamp(c.deletedAt)}</>}
+                </p>
+              ) : (
+                paragraphs(c.content).map((para) => (
+                  <p class="body">
+                    {segments(para).map((s) =>
+                      s.url ? <a href={s.url} rel="nofollow ugc">{s.url}</a> : s.text,
+                    )}
+                  </p>
+                ))
+              )}
+            </li>
+          ))}
+        </ol>
+      </>
+    ) : null}
   </section>
 )}
 <style>
   .comments { margin-block-start: 4em; padding-block-start: 2em;
               border-top: 1px solid var(--border-subtle); }
+  .comments.empty { display: none; }
   h2 { margin: 0 0 1.5em; font-size: .9em; font-weight: 600;
        letter-spacing: .12em; color: var(--fg-secondary); }
   ol { list-style: none; padding: 0; margin: 0; }

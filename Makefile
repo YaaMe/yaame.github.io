@@ -1,6 +1,6 @@
 # Every operation on this site. `make` or `make help` lists them.
 .DEFAULT_GOAL := help
-.PHONY: help install dev deploy deploy-site deploy-consumer ap-check promote tombstone build both types wrangler preview check frontmatter fix new po follow unfollow pin unpin newpost newtag tags urls links clean
+.PHONY: help install dev deploy deploy-site deploy-consumer ap-check promote tombstone build both types wrangler preview check test frontmatter fix new po follow unfollow pin unpin newpost newtag tags urls links clean
 
 help: ## 显示这份清单
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) \
@@ -42,8 +42,11 @@ build: ## 构建到 dist/（静态产物在 dist/client/）
 preview: build ## 构建后本地预览产物
 	npx astro preview
 
-check: wrangler frontmatter types build links ## 全量校验：配置 → frontmatter → 类型 → 构建 → 链接（CI 跑这个）
+check: wrangler frontmatter types build test links ## 全量校验：配置 → frontmatter → 类型 → 构建 → 测试 → 链接（CI 跑这个）
 	@echo "  ✓ 全部通过"
+
+test: ## 离线行为测试
+	@node --experimental-strip-types --test tests/*.test.mjs
 
 # Run this before pushing, not make check.
 #

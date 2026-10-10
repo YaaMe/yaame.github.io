@@ -5,7 +5,7 @@
  * through Drizzle, so a deployment that brings its own database changes the
  * driver and nothing here.
  */
-import { and, asc, count, eq, inArray, isNull } from "drizzle-orm";
+import { and, asc, count, eq, inArray, isNotNull, isNull } from "drizzle-orm";
 import { platform } from "../../../platform";
 import type { Database } from "../../../platform/types";
 import { comments, migrate } from "./schema";
@@ -132,6 +132,42 @@ export async function remove(objectId: string, actorId: string): Promise<boolean
 export async function thread(rootId: string): Promise<Comment[]> {
   const db = await store();
   return db.select().from(comments).where(eq(comments.rootId, rootId)).orderBy(asc(comments.published));
+}
+
+/** Deletions for one thread, without returning the withdrawn text to a page. */
+export async function withdrawn(rootId: string): Promise<Map<string, string>> {
+  return (await withdrawnMany([rootId])).get(rootId) ?? new Map();
+}
+
+/** Deletions for several threads, grouped by root without returning text. */
+export async function withdrawnMany(
+  rootIds: string[],
+): Promise<Map<string, Map<string, string>>> {
+  if (rootIds.length === 0) return new Map();
+  const db = await store();
+  const result = new Map<string, Map<string, string>>();
+  for (let i = 0; i < rootIds.length; i += D1_MAX_BOUND_PARAMETERS) {
+    const rows = await db
+      .select({
+        rootId: comments.rootId,
+        objectId: comments.objectId,
+        deletedAt: comments.deletedAt,
+      })
+      .from(comments)
+      .where(
+        and(
+          inArray(comments.rootId, rootIds.slice(i, i + D1_MAX_BOUND_PARAMETERS)),
+          isNotNull(comments.deletedAt),
+        ),
+      );
+    for (const row of rows) {
+      if (row.deletedAt === null) continue;
+      const byObject = result.get(row.rootId) ?? new Map<string, string>();
+      byObject.set(row.objectId, row.deletedAt);
+      result.set(row.rootId, byObject);
+    }
+  }
+  return result;
 }
 
 /**

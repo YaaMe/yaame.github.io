@@ -1,0 +1,10 @@
+---
+import Comments from "../Comments.astro";
+import { liveCommentsFor } from "../../lib/comments-live";
+
+interface Props { slug: string }
+Astro.response.headers.set("Cache-Control", "private, no-store");
+const { slug } = Astro.props;
+const comments = await liveCommentsFor(slug);
+---
+<Comments comments={comments} state="loaded" forId={slug} />

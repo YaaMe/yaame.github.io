@@ -1,5 +1,7 @@
 import { getCollection, type CollectionEntry } from "astro:content";
 import { AP } from "../integrations/activitypub/config";
+import { visibleComments } from "./comment-view";
+export { paragraphs, segments } from "./comment-text";
 
 export type Comment = CollectionEntry<"comments">["data"]["comments"][number];
 
@@ -9,30 +11,25 @@ export type Comment = CollectionEntry<"comments">["data"]["comments"][number];
 // nothing reporting it.
 const ROOT = `https://${AP.actorHost}/users/${AP.user}/notes/`;
 
+export const rootIdFor = (slug: string) => ROOT + slug;
+
 /**
- * The promoted comments under one post or note, oldest first.
- *
- * Only what is in git. The database holds everything that arrived; this holds
- * what was chosen, and the two profiles must show the same thing — the static
- * site has no database to ask.
+ * The promoted comments under one post or note, oldest first. `withdrawn` is
+ * supplied by the full profile's live database view; the static profile leaves
+ * it empty and uses the withdrawal state recorded in git.
  */
-export async function commentsFor(slug: string): Promise<Comment[]> {
-  const rootId = ROOT + slug;
+export async function commentsFor(
+  slug: string,
+  withdrawn: ReadonlyMap<string, string> = new Map(),
+): Promise<Comment[]> {
+  const rootId = rootIdFor(slug);
   const files = await getCollection("comments");
   const under = files
     .flatMap((f) => f.data.comments)
     .filter((c) => c.rootId === rootId)
     .sort((a, b) => a.published.localeCompare(b.published));
 
-  // A withdrawn comment (no `content`) is shown only when another comment
-  // replies to it; otherwise that reply would answer nothing. One that nothing
-  // replies to is hidden, because even a line saying someone spoke here is a
-  // record of them.
-  //
-  // Such entries are also removed from git, later and separately. This filter
-  // does not wait for that.
-  const answered = new Set(under.map((c) => c.replyToId).filter(Boolean));
-  return under.filter((c) => c.content !== undefined || answered.has(c.objectId));
+  return visibleComments(under, withdrawn);
 }
 
 /**
@@ -51,28 +48,3 @@ export function handle(actorId: string): string {
     return actorId;
   }
 }
-
-const LINK = /https?:\/\/[^\s<>"']+[^\s<>"'.,;:!?)）。，；：！？]/g;
-
-/**
- * One paragraph, split into what is a link and what is not.
- *
- * The text is rendered as text — escaped by the template, never handed to
- * `set:html` — so this only has to decide where an anchor starts and ends. A
- * mis-parse here shows a wrong link, not an injection. See docs/decisions/0006.
- */
-export function segments(paragraph: string): { text?: string; url?: string }[] {
-  const out: { text?: string; url?: string }[] = [];
-  let last = 0;
-  for (const m of paragraph.matchAll(LINK)) {
-    if (m.index > last) out.push({ text: paragraph.slice(last, m.index) });
-    out.push({ url: m[0] });
-    last = m.index + m[0].length;
-  }
-  if (last < paragraph.length) out.push({ text: paragraph.slice(last) });
-  return out;
-}
-
-/** Blank lines separate paragraphs; single newlines are kept by the CSS. */
-export const paragraphs = (text: string) =>
-  text.split(/\n{2,}/).map((p) => p.trim()).filter(Boolean);

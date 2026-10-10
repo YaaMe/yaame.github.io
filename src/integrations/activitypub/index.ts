@@ -32,8 +32,9 @@ const PATHS = [
  * are declared instead of implied, and /.well-known/* becomes reachable at all —
  * Astro's directory scan skips names that begin with a dot.
  *
- * Left out, nothing here is built: no routes, no Fedify in the module graph,
- * and — since every other route is prerendered — no Worker either.
+ * Left out, nothing here is built: no routes and no Fedify in the module
+ * graph. Any server islands or other integrations remain independent of this
+ * feature.
  */
 export default function activitypub(): AstroIntegration {
   return {

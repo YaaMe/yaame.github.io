@@ -14,6 +14,8 @@ data layer — no line changes in a redesign
   src/lib/posts.ts        posts, tags, the novel
   src/lib/notes.ts        notes, and the permalink they publish
   src/lib/comments.ts     promoted comments
+  src/lib/comment-view.ts withdrawal and tombstone visibility
+  src/lib/comments-live.ts full-profile withdrawal view
   scripts/*.mjs           the commands the Makefile runs
   Makefile                the entry point for every operation
 
@@ -46,7 +48,10 @@ What `src/lib/` exports:
 | | `noteHref(note)` | the note's URL |
 | | `noteHtml(note)` | the note's markup |
 | `comments.ts` | `commentsFor(slug)` | the promoted comments under one post or note |
-| | `handle(actorId)` / `paragraphs()` / `segments()` | comment text, prepared for display |
+| | `handle(actorId)` | a stored actor id prepared for display |
+| `comment-view.ts` | `visibleComments()` | withdrawal and fixed-point tombstone visibility |
+| `comment-text.ts` | `paragraphs()` / `segments()` | comment text, prepared for display |
+| `comments-live.ts` | `liveCommentsFor(slug)` | the full profile's current withdrawal view |
 
 This list is everything the design layer can get. To add new data, add it
 here first.

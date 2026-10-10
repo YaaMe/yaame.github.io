@@ -18,6 +18,12 @@ const PROFILE = process.env.BUILD_PROFILE ?? "static";
 const SESSION_BAR = PROFILE === "full"
   ? "/src/components/session/full.astro"
   : "/src/components/session/static.astro";
+const COMMENTS_SECTION = PROFILE === "full"
+  ? "/src/components/comments/full.astro"
+  : "/src/components/comments/static.astro";
+const NOTE_COMMENTS = PROFILE === "full"
+  ? "/src/components/comments/notes-full.astro"
+  : "/src/components/comments/notes-static.astro";
 
 export default defineConfig({
   site: site.url,
@@ -30,9 +36,6 @@ export default defineConfig({
   trailingSlash: "ignore",
   build: { format: "directory" },
 
-  // Under the static profile every route is prerendered, so the adapter emits
-  // no server code. Under full, the routes the integrations inject are
-  // server-rendered.
   adapter: TARGET === "node" ? node({ mode: "standalone" }) : cloudflare(),
 
   // Absent from the array when the feature is off, so nothing it pulls in —
@@ -61,6 +64,8 @@ export default defineConfig({
       alias: {
         "virtual:platform": `/src/platform/${TARGET}.ts`,
         "virtual:session-bar": SESSION_BAR,
+        "virtual:comments-section": COMMENTS_SECTION,
+        "virtual:note-comments": NOTE_COMMENTS,
       },
     },
   },
