@@ -58,8 +58,7 @@ export const site = {
   // Shown as UTC, a 02:22+08:00 timestamp would fall back a day.
   timezone: "Asia/Shanghai",
 
-  // TODO: empty, so a page without its own description gets no meta description.
-  description: "",
+  description: "blog咕",
 
   // The OpenPGP primary key that signs this repository's commits. The full
   // 40-character fingerprint, not the 16-character key ID: a key ID is a
