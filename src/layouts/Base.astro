@@ -11,6 +11,7 @@ const canonical = new URL(
   Astro.url.pathname.endsWith("/") ? Astro.url.pathname : Astro.url.pathname + "/",
   site.url,
 );
+const fingerprint = site.fingerprint.match(/.{4}/g)?.join(" ") ?? site.fingerprint;
 import Progress from "../components/Progress.astro";
 ---
 <!doctype html>
@@ -69,6 +70,10 @@ import Progress from "../components/Progress.astro";
       <p>
         {social.map((s) => <a href={s.href}>{s.label}</a>)}
         <a href="/rss.xml">RSS</a>
+      </p>
+      <p class="muted fingerprint">
+        <span>PGP 指纹</span>
+        <code>{fingerprint}</code>
       </p>
       <p class="muted">
         © {site.author}
@@ -168,6 +173,11 @@ import Progress from "../components/Progress.astro";
       footer { border-top: 1px solid var(--border-subtle); margin-block-start: 4em; padding-block: 1.5em 3em; font-size: .9em; }
       footer p { display: flex; gap: 1.2em; margin-block: .4em; }
       .muted { color: var(--fg-secondary); }
+      .fingerprint { flex-wrap: wrap; gap: .3em .8em; }
+      .fingerprint code {
+        min-width: 0; max-width: 100%; color: inherit; font-family: var(--mono);
+        overflow-wrap: anywhere; user-select: text;
+      }
       /*
        * Sticky, and it shrinks on the way. The padding animates across the
        * first 80px of scroll rather than snapping at a threshold, so nothing

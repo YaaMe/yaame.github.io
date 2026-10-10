@@ -133,7 +133,6 @@ export const collections = {
   }),
   komorebi: defineCollection({
     loader: glob({ base: "./src/content/komorebi", pattern: "**/*.md" }),
-    // `type` is a Hexo field. It is accepted and never read; no entry sets it.
-    schema: z.object({ ...base, date: stamped.optional(), type: z.any().optional() }),
+    schema: z.object({ ...base, date: stamped.optional() }),
   }),
 };

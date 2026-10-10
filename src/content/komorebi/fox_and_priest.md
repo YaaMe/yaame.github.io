@@ -1,8 +1,6 @@
 ---
 title: "komorebi"
 date: 2023-07-23 22:41:04+08:00
-type:
-  - categories
 tags:
   - story
   - fox_and_priest

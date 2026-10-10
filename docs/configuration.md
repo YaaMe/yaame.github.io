@@ -127,8 +127,9 @@ have constraints:
   previous day.
 - **`fingerprint`** is the OpenPGP primary key fingerprint. It has 40
   characters, not 16. A 16-character key ID is a truncation of this hash, and
-  the only job of this value is to be compared against another channel. No
-  page reads it at present.
+  the only job of this value is to be compared against another channel. The
+  site footer shows it as four-character groups; the stored value stays
+  unformatted.
 
 ## `AP.*`
 
