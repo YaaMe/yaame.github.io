@@ -3,7 +3,9 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "predev": "make data",
     "dev": "astro dev",
+    "prebuild": "make data",
     "build": "astro build",
     "preview": "astro preview",
     "check": "astro check"

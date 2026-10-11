@@ -1,0 +1,43 @@
+{
+  "comments": {
+    "layers": [
+      {
+        "sql": "comments",
+        "columns": {
+          "activityId": "activity_id",
+          "objectId": "object_id",
+          "rootId": "root_id",
+          "replyToId": "reply_to_id",
+          "actorId": "actor_id",
+          "content": "content",
+          "published": "published",
+          "receivedAt": "received_at",
+          "deletedAt": "deleted_at",
+          "promotedAt": "promoted_at"
+        }
+      }
+    ],
+    "writeBack": [],
+    "origin": "others",
+    "recovery": "keep",
+    "purposes": ["federation", "content"],
+    "description": "Every reply the inbox stored, promoted or not; the ledger promotion and withdrawal work from."
+  },
+  "promoted-comments": {
+    "layers": [
+      {
+        "git": "src/content/comments/{posts,notes}/*.json",
+        "format": "json"
+      },
+      {
+        "ref": "comments",
+        "fields": ["deletedAt", "promotedAt"]
+      }
+    ],
+    "writeBack": ["promote", "tombstone"],
+    "origin": "others",
+    "recovery": "keep",
+    "purposes": ["content"],
+    "description": "Base: chosen comments in git, joined to SQL by activityId. Delta, applied on read: withdrawals (deletedAt). promotedAt is write-back bookkeeping, not content."
+  }
+}

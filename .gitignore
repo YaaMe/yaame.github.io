@@ -18,6 +18,10 @@ worker-configuration.d.ts
 worker/wrangler.generated.jsonc
 .data/
 
+# Generated from src/data.config.json; consumers must run `make data` first.
+/src/data.config.generated.mjs
+/src/data.config.generated.d.ts
+
 # Local planning and review notes.
 /milestone.md
 /novel-outline.md

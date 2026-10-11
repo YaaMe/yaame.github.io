@@ -12,9 +12,12 @@
 import { sql } from "drizzle-orm";
 import { index, sqliteTable, text } from "drizzle-orm/sqlite-core";
 import type { Database } from "../../../platform/types";
+import { comments as commentsLocation } from "../../../data.config.generated.mjs";
+
+const commentsColumns = commentsLocation.columns;
 
 export const comments = sqliteTable(
-  "comments",
+  commentsLocation.sql,
   {
     /**
      * The activity's id, not the object's.
@@ -23,10 +26,10 @@ export const comments = sqliteTable(
      * primary key: a redelivery is refused by the database rather than by
      * whoever remembered to check.
      */
-    activityId: text("activity_id").primaryKey(),
+    activityId: text(commentsColumns.activityId).primaryKey(),
 
     /** The Note itself — what a Delete names, and what a reply points at. */
-    objectId: text("object_id").notNull().unique(),
+    objectId: text(commentsColumns.objectId).notNull().unique(),
 
     /**
      * The top of the thread, usually one of our own posts.
@@ -34,25 +37,25 @@ export const comments = sqliteTable(
      * Stored rather than walked, so "everything under this post" is one indexed
      * range instead of a recursive climb on every render.
      */
-    rootId: text("root_id").notNull(),
+    rootId: text(commentsColumns.rootId).notNull(),
 
     /** The direct parent, null when the reply is to the root itself. */
-    replyToId: text("reply_to_id"),
+    replyToId: text(commentsColumns.replyToId),
 
-    actorId: text("actor_id").notNull(),
-    content: text("content").notNull(),
-    published: text("published").notNull(),
-    receivedAt: text("received_at").notNull(),
+    actorId: text(commentsColumns.actorId).notNull(),
+    content: text(commentsColumns.content).notNull(),
+    published: text(commentsColumns.published).notNull(),
+    receivedAt: text(commentsColumns.receivedAt).notNull(),
 
     /**
      * Set when a Delete arrives. The row stays: we still owe a record that
      * something was here, and a promoted comment needs one to raise a removal
      * against.
      */
-    deletedAt: text("deleted_at"),
+    deletedAt: text(commentsColumns.deletedAt),
 
     /** Set when carried into git — the point it stops being ours to erase. */
-    promotedAt: text("promoted_at"),
+    promotedAt: text(commentsColumns.promotedAt),
   },
   (t) => [
     index("comments_by_thread").on(t.rootId, t.published),

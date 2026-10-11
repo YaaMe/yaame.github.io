@@ -22,10 +22,14 @@
 import { execFileSync } from "node:child_process";
 import { readFileSync, writeFileSync, readdirSync, statSync, rmSync } from "node:fs";
 import { join } from "node:path";
+import { comments, promotedComments } from "../src/data.config.generated.mjs";
 
 const APPLY = process.env.APPLY === "1";
 const DB = "yaame-ap-interactions";
-const DIR = "src/content/comments";
+const DIR = promotedComments.gitRoot;
+const commentsColumns = comments.columns;
+const column = (name) => comments.quotedColumns[name];
+const table = comments.table;
 
 function query(sql) {
   const out = execFileSync(
@@ -55,8 +59,8 @@ function* files(dir) {
 // The intersection of the two columns is the whole of the work. A separate
 // queue table would be a copy of this query that goes stale.
 const pending = query(
-  `SELECT activity_id, deleted_at FROM comments
-   WHERE deleted_at IS NOT NULL AND promoted_at IS NOT NULL`,
+  `SELECT ${column("activityId")}, ${column("deletedAt")} FROM ${table}
+   WHERE ${column("deletedAt")} IS NOT NULL AND ${column("promotedAt")} IS NOT NULL`,
 );
 
 if (pending.length === 0) {
@@ -64,7 +68,7 @@ if (pending.length === 0) {
   process.exit(0);
 }
 
-const when = new Map(pending.map((r) => [r.activity_id, r.deleted_at]));
+const when = new Map(pending.map((r) => [r[commentsColumns.activityId], r[commentsColumns.deletedAt]]));
 let changed = 0;
 
 /**

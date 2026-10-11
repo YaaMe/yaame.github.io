@@ -1,6 +1,6 @@
 # Every operation on this site. `make` or `make help` lists them.
 .DEFAULT_GOAL := help
-.PHONY: help install dev deploy deploy-site deploy-consumer ap-check promote tombstone build both types wrangler preview check test frontmatter fix new po follow unfollow pin unpin newpost newtag tags urls links clean
+.PHONY: help install dev deploy deploy-site deploy-consumer ap-check promote tombstone build both types wrangler preview check test data frontmatter fix new po follow unfollow pin unpin newpost newtag tags urls links clean
 
 help: ## 显示这份清单
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) \
@@ -10,7 +10,7 @@ help: ## 显示这份清单
 install: ## 安装依赖（锁文件优先）
 	npm ci
 
-dev: ## 本地开发服务器
+dev: data ## 本地开发服务器
 	npx astro dev
 
 wrangler: ## 生成 wrangler.jsonc 与绑定类型
@@ -36,17 +36,21 @@ deploy-site: check ## 只部署站点 Worker
 	@node scripts/wrangler-routes.mjs
 	@npx wrangler deploy
 
-build: ## 构建到 dist/（静态产物在 dist/client/）
+build: data ## 构建到 dist/（静态产物在 dist/client/）
 	npx astro build
 
 preview: build ## 构建后本地预览产物
 	npx astro preview
 
-check: wrangler frontmatter types build test links ## 全量校验：配置 → frontmatter → 类型 → 构建 → 测试 → 链接（CI 跑这个）
+check: wrangler frontmatter data types build test links ## 全量校验：配置 → frontmatter → 数据位置 → 类型 → 构建 → 测试 → 链接（CI 跑这个）
 	@echo "  ✓ 全部通过"
 
-test: ## 离线行为测试
+test: data ## 离线行为测试
 	@node --experimental-strip-types --test tests/*.test.mjs
+
+data: ## 验证并生成数据位置注册表的消费者文件
+	@node --experimental-strip-types scripts/data-config.mjs
+	@node --experimental-strip-types scripts/data-check.mjs
 
 # Run this before pushing, not make check.
 #
@@ -92,7 +96,7 @@ follow: ## 关注一个人。make follow @someone@example.com
 unfollow: ## 取关。make unfollow @someone@example.com
 	@node scripts/follow.mjs --remove $(filter-out $@,$(MAKECMDGOALS)) $(if $(T),"$(T)",)
 
-po: ## 写一条短文。make po 正文 / T="正文" 直接写入；F=draft.md 要加 APPLY=1 才写入
+po: data ## 写一条短文。make po 正文 / T="正文" 直接写入；F=draft.md 要加 APPLY=1 才写入
 	@node scripts/note.mjs $(if $(T),"$(T)",$(PO)) $(if $(F),--file "$(F)",)
 
 newpost: ## 新建文章。P=2026-year / P=2026-09 / P=2026-09-15，T=标题
@@ -104,12 +108,12 @@ newtag: ## 新建标签。SLUG=reading LABEL=读书
 tags: ## 列出标签常量池与用量
 	@node scripts/tags.mjs
 
-promote: ## 把收下的评论有筛选地拉回 git（APPLY=1 才真的写）
+promote: data ## 把收下的评论有筛选地拉回 git（APPLY=1 才真的写）
 	@test -n "$$CF_D1_ID" || { echo "  需要 CF_D1_ID —— wrangler 从 wrangler.jsonc 解析数据库，而 make check 会把它写成占位值"; exit 1; }
 	@node scripts/wrangler-config.mjs >/dev/null
 	@node scripts/promote.mjs
 
-tombstone: ## 删掉已进 git 而后被撤回的评论，有回复的留墓碑（APPLY=1 才真的写）
+tombstone: data ## 删掉已进 git 而后被撤回的评论，有回复的留墓碑（APPLY=1 才真的写）
 	@test -n "$$CF_D1_ID" || { echo "  需要 CF_D1_ID"; exit 1; }
 	@node scripts/wrangler-config.mjs >/dev/null
 	@node scripts/tombstone.mjs

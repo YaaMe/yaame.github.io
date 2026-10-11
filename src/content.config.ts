@@ -7,6 +7,9 @@ import { z } from "zod";
 import { glob } from "astro/loaders";
 import { TAG_SLUGS } from "./tags";
 import { site } from "./site.config";
+import { promotedComments } from "./data.config.generated.mjs";
+
+const promotedCommentsGlob = promotedComments.glob;
 
 const ymd = new Intl.DateTimeFormat("en-CA", {
   timeZone: site.timezone, year: "numeric", month: "2-digit", day: "2-digit",
@@ -124,7 +127,7 @@ const notes = defineCollection({
 export const collections = {
   notes,
   comments: defineCollection({
-    loader: glob({ base: "./src/content/comments", pattern: "**/*.json" }),
+    loader: glob(promotedCommentsGlob),
     schema: z.object({ comments: z.array(comment) }),
   }),
   posts: defineCollection({

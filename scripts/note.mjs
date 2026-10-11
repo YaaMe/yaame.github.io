@@ -23,9 +23,11 @@
 import { execFileSync } from "node:child_process";
 import { readFileSync, existsSync, rmSync } from "node:fs";
 import { append, newId } from "./notes-store.mjs";
+import { promotedComments } from "../src/data.config.generated.mjs";
 
 const APPLY = process.env.APPLY === "1";
 const FORCE = process.env.FORCE === "1";
+const promotedCommentsRoot = promotedComments.gitRoot;
 
 const argv = process.argv.slice(2);
 const at = argv.indexOf("--file");
@@ -91,7 +93,7 @@ async function fromFile(path) {
     // Promoted comments hang off the post's ActivityPub id. Converting would
     // leave them describing a conversation under an object that no longer
     // answers, and nothing would report it.
-    const comments = `src/content/comments/posts/${slug}.json`;
+    const comments = `${promotedCommentsRoot}/posts/${slug}.json`;
     if (existsSync(comments)) {
       fail(
         `\n  ✗ ${comments} 存在：有评论挂在这篇的 AP id 上`,

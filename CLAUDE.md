@@ -84,11 +84,17 @@ Cloudflare file.
   should not know that rule.
 - **Tags** must exist in `src/tags.ts`. An unknown tag fails the build rather
   than producing a page nobody visits.
+- **Registered data has one location.** Once a kind is in
+  `src/data.config.json`, current code in one runtime takes its location from
+  the register and nowhere else. `make data` validates it and emits the ignored
+  plain-JS module that both `src/` and Node scripts import; the declaration file
+  gives `src/` types. Shipped migration SQL is schema history and keeps its
+  original names.
 
 ## Commands
 
 ```
-make check     wrangler config → frontmatter → types → build → link check   (CI runs this exact command)
+make check     wrangler config → frontmatter → data register → types → build → tests → link check   (CI runs this exact command)
 make new       interactive; dispatches to newpost / newtag
 make fix       fill missing description and tags, never overwriting written ones
 make tags      the registry and its usage counts

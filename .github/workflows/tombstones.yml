@@ -45,6 +45,7 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         run: |
+          make data
           node scripts/wrangler-config.mjs >/dev/null
           node scripts/tombstone.mjs
 
@@ -55,7 +56,8 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          if git diff --quiet -- src/content/comments; then
+          promoted_comments_root=$(node --input-type=module -e 'import { promotedComments } from "./src/data.config.generated.mjs"; console.log(promotedComments.gitRoot)')
+          if git diff --quiet -- "$promoted_comments_root"; then
             echo "  nothing to tombstone"
             exit 0
           fi
@@ -79,7 +81,7 @@ jobs:
           # The cost, stated: a tombstone edited by hand on this branch before
           # the merge is overwritten on the next run. Edit main instead.
           git switch -c comments/tombstones
-          git add src/content/comments
+          git add -- "$promoted_comments_root"
           git commit -m "chore(comments): tombstone what has been withdrawn"
           git push --force origin comments/tombstones
 

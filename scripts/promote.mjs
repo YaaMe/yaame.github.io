@@ -18,11 +18,15 @@ import { mkdirSync, readFileSync, writeFileSync, existsSync, readdirSync } from 
 import { dirname, join } from "node:path";
 import filter from "./promote-filter.mjs";
 import { toContent } from "./promote-text.mjs";
+import { comments, promotedComments } from "../src/data.config.generated.mjs";
 
 const APPLY = process.env.APPLY === "1";
 const DB = "yaame-ap-interactions";
-const DIR = "src/content/comments";
+const DIR = promotedComments.gitRoot;
 const NOTES = "src/content/notes";
+const commentsColumns = comments.columns;
+const column = (name) => comments.quotedColumns[name];
+const table = comments.table;
 
 /** One read from D1. `--json` still prints a banner, so only the array counts. */
 function query(sql) {
@@ -66,22 +70,24 @@ export function fileFor(rootId) {
 
 export function promotedComment(row) {
   return {
-    activityId: row.activity_id,
-    objectId: row.object_id,
-    rootId: row.root_id,
-    replyToId: row.reply_to_id,
-    actorId: row.actor_id,
-    content: toContent(row.content),
-    published: row.published,
+    activityId: row[commentsColumns.activityId],
+    objectId: row[commentsColumns.objectId],
+    rootId: row[commentsColumns.rootId],
+    replyToId: row[commentsColumns.replyToId],
+    actorId: row[commentsColumns.actorId],
+    content: toContent(row[commentsColumns.content]),
+    published: row[commentsColumns.published],
   };
 }
 
 async function main() {
   const rows = query(
-    `SELECT activity_id, object_id, root_id, reply_to_id, actor_id, content, published
-     FROM comments
-     WHERE promoted_at IS NULL AND deleted_at IS NULL
-     ORDER BY published ASC`,
+    `SELECT ${column("activityId")}, ${column("objectId")}, ${column("rootId")},
+            ${column("replyToId")}, ${column("actorId")}, ${column("content")},
+            ${column("published")}
+     FROM ${table}
+     WHERE ${column("promotedAt")} IS NULL AND ${column("deletedAt")} IS NULL
+     ORDER BY ${column("published")} ASC`,
   );
 
   if (rows.length === 0) {
@@ -93,9 +99,10 @@ async function main() {
   // entire reply chain" cannot be expressed from a single row.
   const threads = new Map();
   for (const r of rows) {
-    const thread = threads.get(r.root_id) ?? [];
+    const rootId = r[commentsColumns.rootId];
+    const thread = threads.get(rootId) ?? [];
     thread.push(promotedComment(r));
-    threads.set(r.root_id, thread);
+    threads.set(rootId, thread);
   }
 
   console.log(`  待提升 ${rows.length} 条，分属 ${threads.size} 条线程`);
@@ -173,7 +180,7 @@ async function main() {
   // mark these as promoted while git does not hold them — a loss nothing retries.
   const list = promoted.map((id) => `'${id.replace(/'/g, "''")}'`).join(",");
   query(
-    `UPDATE comments SET promoted_at = '${new Date().toISOString()}' WHERE activity_id IN (${list})`,
+    `UPDATE ${table} SET ${column("promotedAt")} = '${new Date().toISOString()}' WHERE ${column("activityId")} IN (${list})`,
   );
   console.log(`\n  已提升 ${promoted.length} 条，数据库已回写。`);
   console.log("  现在 git status 看一眼，满意再提交 —— 进了 git 就撤不回来了。");
