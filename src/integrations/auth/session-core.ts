@@ -1,4 +1,5 @@
 import { AUTH, roleOf, type Role } from "./config.ts";
+import { sessions } from "../../data.config.generated.mjs";
 
 /**
  * Only what is used.
@@ -39,7 +40,7 @@ function cookie(header: string | null, name: string): string | null {
 const attrs = (maxAge: number, path = "/") =>
   `Path=${path}; HttpOnly; Secure; SameSite=Lax; Max-Age=${maxAge}`;
 
-export const sessionKey = (id: string) => `auth:session:${id}`;
+export const sessionKey = (id: string) => sessions.key(id);
 
 export const setSessionCookie = (id: string) =>
   `${COOKIE}=${id}; ${attrs(AUTH.sessionDays * 86400)}`;

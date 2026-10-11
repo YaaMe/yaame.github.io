@@ -20,12 +20,25 @@ try {
 }
 
 const {
+  actorDigest,
+  delivered,
+  departures,
+  deliveryFailures,
+  followLedger,
+  followers,
+  following,
+  noteDigests,
+  sessions,
   comments,
   komorebi,
+  migrations,
   notes,
   posts,
   postsPinned,
   promotedComments,
+  reactions,
+  fedifyState,
+  queueOrdering,
   followIntentLocation,
 } = module;
 const followIntentImport = `import followIntent from ${JSON.stringify(`./${followIntentLocation.file.replace(/^src\//, "")}`)} with { type: "json" };`;
@@ -34,6 +47,19 @@ requires("src/data.config.generated.mjs", "export { followIntent };");
 const promotedGit = promotedComments.git;
 const promotedRoot = promotedComments.gitRoot;
 const commentsSql = { sql: comments.sql, columns: comments.columns };
+const sqlLocations = [
+  ["comments", comments],
+  ["reactions", reactions],
+  ["migrations", migrations],
+];
+if (fedifyState.memory !== "fedify" || Object.hasOwn(fedifyState, "records")) {
+  console.error("  data register consumer: fedify-state must be the non-durable fedify memory store");
+  process.exitCode = 1;
+}
+if (queueOrdering.records !== true || queueOrdering.list !== "never" || Object.hasOwn(queueOrdering, "key")) {
+  console.error("  data register consumer: queue-ordering must leave keys to the records library");
+  process.exitCode = 1;
+}
 if (typeof postsPinned?.gitRoot !== "string") {
   console.error("  data register consumer: posts.pinned did not resolve to the posts git location");
   process.exitCode = 1;
@@ -78,13 +104,18 @@ for (const globName of ["promotedComments", "notes", "posts", "komorebi"]) {
 
 const schema = requires("src/integrations/activitypub/store/schema.ts", 'from "../../../data.config.generated.mjs"');
 requires("src/integrations/activitypub/store/schema.ts", "commentsLocation.columns");
-requiresPattern(
-  "src/integrations/activitypub/store/schema.ts",
-  /sqliteTable\s*\(\s*commentsLocation\.sql/,
-  "sqliteTable(commentsLocation.sql)",
-);
+requires("src/integrations/activitypub/store/schema.ts", "reactionsLocation.columns");
+requires("src/integrations/activitypub/store/schema.ts", "migrationsLocation.table");
+requiresPattern("src/integrations/activitypub/store/schema.ts", /sqliteTable\s*\(\s*commentsLocation\.sql/, "sqliteTable(commentsLocation.sql)");
+requiresPattern("src/integrations/activitypub/store/schema.ts", /sqliteTable\s*\(\s*reactionsLocation\.sql/, "sqliteTable(reactionsLocation.sql)");
 for (const field of Object.keys(commentsSql.columns)) {
   requires("src/integrations/activitypub/store/schema.ts", `commentsColumns.${field}`);
+}
+for (const field of Object.keys(reactions.columns)) {
+  requires("src/integrations/activitypub/store/schema.ts", `reactionsColumns.${field}`);
+}
+for (const field of Object.keys(migrations.columns)) {
+  requires("src/integrations/activitypub/store/schema.ts", `migrationsColumns.quotedColumns.${field}`);
 }
 
 const promote = requires("scripts/promote.mjs", 'from "../src/data.config.generated.mjs"');
@@ -124,10 +155,23 @@ requires("scripts/tags.mjs", "posts.gitRoot");
 requires("scripts/tags.mjs", "komorebi.gitRoot");
 const federation = requires("src/integrations/activitypub/federation.ts", 'from "../../data.config.generated.mjs"');
 requires("src/integrations/activitypub/federation.ts", "followIntent");
+for (const name of ["actorDigest", "departures", "followLedger", "followers", "following"]) {
+  requires("src/integrations/activitypub/federation.ts", name);
+}
 if (federation.includes("readFollowIntent") || federation.includes("await followIntent")) {
   console.error("  data register consumer src/integrations/activitypub/federation.ts: follow intent must be a static value");
   process.exitCode = 1;
 }
+
+const outbox = requires("src/integrations/activitypub/outbox.ts", 'from "../../data.config.generated.mjs"');
+requires("src/integrations/activitypub/outbox.ts", "delivered");
+requires("src/integrations/activitypub/outbox.ts", "noteDigests");
+const session = requires("src/integrations/auth/session-core.ts", 'from "../../data.config.generated.mjs"');
+requires("src/integrations/auth/session-core.ts", "sessions.key");
+const worker = requires("worker/consumer.ts", 'from "../src/data.config.generated.mjs"');
+requires("worker/consumer.ts", "deliveryFailures.key");
+requires("Makefile", "build-consumer: data");
+requires("Makefile", "deploy-consumer: data");
 
 const workflow = requires(".github/workflows/tombstones.yml", "node scripts/tombstone.mjs");
 requires(".github/workflows/tombstones.yml", "make data");
@@ -156,6 +200,9 @@ const pathConsumers = [
   ["scripts/follow.mjs", follow],
   ["scripts/tags.mjs", tags],
   ["src/integrations/activitypub/federation.ts", federation],
+  ["src/integrations/activitypub/outbox.ts", outbox],
+  ["src/integrations/auth/session-core.ts", session],
+  ["worker/consumer.ts", worker],
   [".github/workflows/tombstones.yml", workflow],
 ];
 for (const [path, source] of pathConsumers) {
@@ -189,6 +236,26 @@ function withoutComments(source) {
 const sourceWithoutComments = pathConsumers
   .filter(([path]) => !path.startsWith(".github/"))
   .map(([path, source]) => [path, withoutComments(source)]);
+const recordLocations = [
+  ["actorDigest", actorDigest],
+  ["delivered", delivered],
+  ["departures", departures],
+  ["deliveryFailures", deliveryFailures],
+  ["followLedger", followLedger],
+  ["followers", followers],
+  ["following", following],
+  ["noteDigests", noteDigests],
+  ["sessions", sessions],
+];
+for (const [path, source] of sourceWithoutComments) {
+  for (const [name, location] of recordLocations) {
+    const prefix = location.records.replace(/\{[A-Za-z][A-Za-z0-9_]*\}/g, "");
+    if (source.includes(location.records) || (prefix && source.includes(prefix))) {
+      console.error(`  data register consumer ${path}: repeats ${name} records key`);
+      process.exitCode = 1;
+    }
+  }
+}
 const oldPathCopies = [
   ["posts", /(?:src\/)?content\/posts(?:\/|["'`])/, posts],
   ["notes", /(?:src\/)?content\/notes(?:\/|["'`])/, notes],
@@ -226,16 +293,30 @@ for (const [path, pattern] of directLocationCopies) {
 
 // Migration strings are shipped schema history. The live Drizzle declaration
 // below them must still take its table and columns from the register.
-const liveSchema = schema.slice(0, schema.indexOf("export const reactions"));
-if (new RegExp(`sqliteTable\\s*\\(\\s*["']${commentsSql.sql}["']`).test(liveSchema)) {
-  console.error(`  data register consumer src/integrations/activitypub/store/schema.ts: repeats comments table ${commentsSql.sql}`);
-  process.exitCode = 1;
-}
-for (const column of Object.values(commentsSql.columns)) {
-  const escaped = column.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  if (new RegExp(`(?:text|integer|real|blob)\\s*\\(\\s*["']${escaped}["']`).test(liveSchema)) {
-    console.error(`  data register consumer src/integrations/activitypub/store/schema.ts: repeats comments column ${column}`);
+const migrationStart = schema.indexOf("const MIGRATIONS");
+const migrationEnd = schema.indexOf("/**\n * Bring a database", migrationStart);
+const liveSchema = `${schema.slice(0, migrationStart)}${schema.slice(migrationEnd)}`;
+const liveSchemaCode = withoutComments(liveSchema);
+for (const [kind, location] of sqlLocations) {
+  if (new RegExp(`sqliteTable\\s*\\(\\s*["']${location.sql}["']`).test(liveSchema)) {
+    console.error(`  data register consumer src/integrations/activitypub/store/schema.ts: repeats ${kind} table ${location.sql}`);
     process.exitCode = 1;
+  }
+  const tableLiteral = new RegExp(
+    "(?:sqliteTable\\s*\\(|\\b(?:FROM|INTO|UPDATE|JOIN|TABLE)\\s+)[\"']" +
+      location.sql +
+      "[\"']",
+  );
+  if (tableLiteral.test(liveSchemaCode)) {
+    console.error(`  data register consumer src/integrations/activitypub/store/schema.ts: repeats ${kind} table ${location.sql}`);
+    process.exitCode = 1;
+  }
+  for (const column of Object.values(location.columns)) {
+    const escaped = column.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    if (new RegExp(`(?:text|integer|real|blob)\\s*\\(\\s*["']${escaped}["']`).test(liveSchemaCode)) {
+      console.error(`  data register consumer src/integrations/activitypub/store/schema.ts: repeats ${kind} column ${column}`);
+      process.exitCode = 1;
+    }
   }
 }
 

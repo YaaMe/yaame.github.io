@@ -55,6 +55,12 @@ function resolvedValues(config, kind, seen = []) {
   if (!entry) throw new Error(`data register ref points to missing entry ${kind}`);
   const git = entry.layers.find((candidate) => Object.hasOwn(candidate, "git"));
   if (git) return gitValues(config, kind);
+  const sql = entry.layers.find((candidate) => Object.hasOwn(candidate, "sql"));
+  if (sql) return sqlValues(config, kind);
+  const records = entry.layers.find((candidate) => Object.hasOwn(candidate, "records"));
+  if (records) return recordsValues(config, kind);
+  const memory = entry.layers.find((candidate) => Object.hasOwn(candidate, "memory"));
+  if (memory) return memoryValues(config, kind);
   const ref = entry.layers.find((candidate) => Object.hasOwn(candidate, "ref"));
   if (ref) {
     return {
@@ -63,7 +69,20 @@ function resolvedValues(config, kind, seen = []) {
       fields: [...ref.fields],
     };
   }
-  throw new Error(`data register entry ${kind} has no resolvable git layer`);
+  throw new Error(`data register entry ${kind} has no resolvable layer`);
+}
+
+function recordsValues(config, kind) {
+  const layer = layerFor(config, kind, "records");
+  return {
+    records: layer.records,
+    ...(typeof layer.records === "string" ? { key: layer.records } : {}),
+    ...(config[kind].list ? { list: config[kind].list } : {}),
+  };
+}
+
+function memoryValues(config, kind) {
+  return { memory: layerFor(config, kind, "memory").memory };
 }
 
 function quotedIdentifier(value) {
@@ -89,9 +108,24 @@ function sqlValues(config, kind) {
 
 function exportName(kind) {
   return kind
-    .split(/[.-]/)
+    .replace(/\{[^}]+\}/g, "")
+    .split(/[^A-Za-z0-9]+/)
+    .filter(Boolean)
     .map((part, index) => index === 0 ? part : part[0].toUpperCase() + part.slice(1))
     .join("");
+}
+
+function recordPattern(value) {
+  return typeof value?.records === "string" && /\{[A-Za-z][A-Za-z0-9_]*\}/.test(value.records)
+    ? value.records
+    : null;
+}
+
+function recordAccessor(pattern) {
+  const names = [...pattern.matchAll(/\{([A-Za-z][A-Za-z0-9_]*)\}/g)].map((match) => match[1]);
+  let expression = JSON.stringify(pattern);
+  for (const name of names) expression += `.replaceAll(${JSON.stringify(`{${name}}`)}, ${name})`;
+  return `(${names.map((name) => `${name}`).join(", ")}) => ${expression}`;
 }
 
 function typeFor(value, indent = "  ") {
@@ -119,10 +153,20 @@ function relativeImport(path) {
   return imported;
 }
 
-function generateTypes(values, staticImports) {
+function generateTypes(values, staticImports, recordPatterns) {
   const lines = ["// generated from src/data.config.json, do not edit", ""];
   for (const [name, value] of values) {
-    lines.push(`export declare const ${name}: ${typeFor(value)};`, "");
+    const pattern = recordPatterns.get(name);
+    if (!pattern) {
+      lines.push(`export declare const ${name}: ${typeFor(value)};`, "");
+      continue;
+    }
+    const names = [...pattern.matchAll(/\{([A-Za-z][A-Za-z0-9_]*)\}/g)].map((match) => match[1]);
+    const keyType = `(${names.map((name) => `${name}: string`).join(", ")}) => string`;
+    lines.push(
+      `export declare const ${name}: { readonly records: string; readonly key: ${keyType}; readonly list: string };`,
+      "",
+    );
   }
   for (const [name] of staticImports) {
     lines.push(`export declare const ${name}: unknown;`, "");
@@ -130,7 +174,7 @@ function generateTypes(values, staticImports) {
   return `${lines.join("\n")}\n`;
 }
 
-function generateModule(values, staticImports) {
+function generateModule(values, staticImports, recordPatterns) {
   const lines = ["// generated from src/data.config.json, do not edit", ""];
   for (const [name, path] of staticImports) {
     lines.push(
@@ -139,7 +183,17 @@ function generateModule(values, staticImports) {
     );
   }
   for (const [name, value] of values) {
-    lines.push(`export const ${name} = ${JSON.stringify(value, null, 2)};`, "");
+    const pattern = recordPatterns.get(name);
+    if (!pattern) {
+      lines.push(`export const ${name} = ${JSON.stringify(value, null, 2)};`, "");
+      continue;
+    }
+    const { key, ...plain } = value;
+    const properties = Object.entries(plain).map(([property, nested]) =>
+      `  ${JSON.stringify(property)}: ${JSON.stringify(nested, null, 2)}`,
+    );
+    properties.push(`  key: ${recordAccessor(pattern)}`);
+    lines.push(`export const ${name} = {\n${properties.join(",\n")}\n};`, "");
   }
   for (const [name] of staticImports) {
     lines.push(`export { ${name} };`, "");
@@ -152,11 +206,12 @@ try {
   const config = dataConfigSchema.parse(raw);
   const values = [];
   const staticImports = [];
+  const recordPatterns = new Map();
 
   for (const kind of Object.keys(config)) {
     const name = exportName(kind);
     let value;
-    if (kind === "comments") value = sqlValues(config, kind);
+    if (config[kind].layers.some((candidate) => Object.hasOwn(candidate, "sql"))) value = sqlValues(config, kind);
     else if (kind === "promoted-comments") value = gitValues(config, kind);
     else value = resolvedValues(config, kind);
 
@@ -166,11 +221,13 @@ try {
       staticImports.push([name, layer.git]);
     } else {
       values.push([name, value]);
+      const pattern = recordPattern(value);
+      if (pattern) recordPatterns.set(name, pattern);
     }
   }
 
-  writeFileSync(modulePath, generateModule(values, staticImports));
-  writeFileSync(typesPath, generateTypes(values, staticImports));
+  writeFileSync(modulePath, generateModule(values, staticImports, recordPatterns));
+  writeFileSync(typesPath, generateTypes(values, staticImports, recordPatterns));
 } catch (error) {
   registerError(error);
   process.exitCode = 1;

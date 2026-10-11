@@ -15,10 +15,14 @@ const sqlLayerSchema = z.object({
   sql: z.string(),
   columns: z.record(z.string(), z.string()),
 }).strict();
-const recordsLayer = z.object({ records: z.string(), format: z.string() }).strict();
+const recordsLayer = z.object({
+  records: z.union([z.string().min(1), z.literal(true)]),
+  format: z.string().min(1),
+}).strict();
+const memoryLayer = z.object({ memory: z.string().min(1) }).strict();
 const refLayer = z.object({ ref: z.string(), fields: z.array(z.string()) }).strict();
 
-const layer = z.union([gitLayer, sqlLayerSchema, recordsLayer, refLayer]);
+const layer = z.union([gitLayer, sqlLayerSchema, recordsLayer, memoryLayer, refLayer]);
 
 export const dataEntrySchema = z.object({
   layers: z.array(layer).min(1),
@@ -31,6 +35,40 @@ export const dataEntrySchema = z.object({
 }).strict();
 
 export const dataConfigSchema = z.record(z.string(), dataEntrySchema).superRefine((config, context) => {
+  for (const [kind, entry] of Object.entries(config)) {
+    for (const [index, candidate] of entry.layers.entries()) {
+      if (!('records' in candidate)) continue;
+      if (candidate.records === true) {
+        if (entry.list !== "never") {
+          context.addIssue({
+            code: "custom",
+            path: [kind, "list"],
+            message: "a record store without an application key must declare list: never",
+          });
+        }
+        continue;
+      }
+      const patterned = /\{[A-Za-z][A-Za-z0-9_]*\}/.test(candidate.records);
+      if (patterned && entry.list === undefined) {
+        context.addIssue({
+          code: "custom",
+          path: [kind, "list"],
+          message: "a record key pattern must declare list",
+        });
+      }
+      if (
+        candidate.records.includes("{") !== patterned ||
+        (candidate.records.match(/\{/g)?.length ?? 0) !== (candidate.records.match(/\}/g)?.length ?? 0)
+      ) {
+        context.addIssue({
+          code: "custom",
+          path: [kind, "layers", index, "records"],
+          message: "record key pattern must use named placeholders",
+        });
+      }
+    }
+  }
+
   const comments = config.comments;
   if (!comments) return;
 

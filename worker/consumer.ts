@@ -15,6 +15,7 @@
 import type { WorkersMessageQueue } from "@fedify/cfworkers";
 import { dropFollowerByInbox, federation } from "../src/integrations/activitypub/federation";
 import { platform } from "virtual:platform";
+import { deliveryFailures } from "../src/data.config.generated.mjs";
 
 /**
  * The retry curve, and where it stops.
@@ -43,7 +44,7 @@ const backoff = (attempts: number) => BACKOFF[Math.min(attempts, BACKOFF.length)
  * how many times each one failed. Keying by inbox means a host that fails
  * repeatedly occupies one entry, and the record stays the size of the problem.
  */
-const FAILURES = "ap:delivery-failures";
+const FAILURES = deliveryFailures.key;
 
 export default {
   async queue(batch: MessageBatch) {

@@ -12,9 +12,15 @@
 import { sql } from "drizzle-orm";
 import { index, sqliteTable, text } from "drizzle-orm/sqlite-core";
 import type { Database } from "../../../platform/types";
-import { comments as commentsLocation } from "../../../data.config.generated.mjs";
+import {
+  comments as commentsLocation,
+  migrations as migrationsLocation,
+  reactions as reactionsLocation,
+} from "../../../data.config.generated.mjs";
 
 const commentsColumns = commentsLocation.columns;
+const reactionsColumns = reactionsLocation.columns;
+const migrationsColumns = migrationsLocation;
 
 export const comments = sqliteTable(
   commentsLocation.sql,
@@ -71,27 +77,27 @@ export const comments = sqliteTable(
  * a word that fits in a column.
  */
 export const reactions = sqliteTable(
-  "reactions",
+  reactionsLocation.sql,
   {
     /** The activity id — de-duplication, §5.2, enforced by the database. */
-    activityId: text("activity_id").primaryKey(),
+    activityId: text(reactionsColumns.activityId).primaryKey(),
 
     /** Which of our objects this is about. */
-    objectId: text("object_id").notNull(),
+    objectId: text(reactionsColumns.objectId).notNull(),
 
-    actorId: text("actor_id").notNull(),
+    actorId: text(reactionsColumns.actorId).notNull(),
 
     /** `Announce` or `Like`. */
-    kind: text("kind").notNull(),
+    kind: text(reactionsColumns.kind).notNull(),
 
-    receivedAt: text("received_at").notNull(),
+    receivedAt: text(reactionsColumns.receivedAt).notNull(),
 
     /**
      * Set when an Undo arrives. The row stays rather than being deleted, so a
      * repeat of the original activity is still refused by the primary key —
      * deleting it would let the same boost be counted again.
      */
-    undoneAt: text("undone_at"),
+    undoneAt: text(reactionsColumns.undoneAt),
   },
   (t) => [index("reactions_by_object").on(t.objectId, t.kind)],
 );
@@ -143,11 +149,15 @@ const MIGRATIONS: string[] = [
  */
 export async function migrate(db: Database): Promise<number> {
   await db.run(
-    sql`CREATE TABLE IF NOT EXISTS migrations (version INTEGER PRIMARY KEY, applied_at TEXT NOT NULL)`,
+    sql.raw(
+      `CREATE TABLE IF NOT EXISTS ${migrationsLocation.table} (${migrationsColumns.quotedColumns.version} INTEGER PRIMARY KEY, ${migrationsColumns.quotedColumns.appliedAt} TEXT NOT NULL)`,
+    ),
   );
 
   const rows = await db.all<{ version: number | null }>(
-    sql`SELECT MAX(version) AS version FROM migrations`,
+    sql.raw(
+      `SELECT MAX(${migrationsColumns.quotedColumns.version}) AS version FROM ${migrationsLocation.table}`,
+    ),
   );
   const applied = rows[0]?.version ?? -1;
 
@@ -160,7 +170,7 @@ export async function migrate(db: Database): Promise<number> {
     // costs a re-run and nothing else.
     await db.run(sql.raw(MIGRATIONS[version]));
     await db.run(
-      sql`INSERT INTO migrations (version, applied_at) VALUES (${version}, ${new Date().toISOString()})`,
+      sql`INSERT INTO ${sql.raw(migrationsLocation.table)} (${sql.raw(migrationsColumns.quotedColumns.version)}, ${sql.raw(migrationsColumns.quotedColumns.appliedAt)}) VALUES (${version}, ${new Date().toISOString()})`,
     );
     count++;
   }

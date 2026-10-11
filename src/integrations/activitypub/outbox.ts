@@ -15,6 +15,7 @@ import { replies, replyCounts } from "./store/comments";
 import { counts as reactionCounts } from "./store/reactions";
 import { FIRST, page } from "./paging";
 import { AP } from "./config";
+import { delivered, noteDigests } from "../../data.config.generated.mjs";
 import { allPosts, href, type Post } from "../../lib/posts";
 // Aliased: `Note` here is Fedify's protocol object, and the content entry that
 // becomes one needs a different name.
@@ -128,7 +129,7 @@ const note = (ctx: Context<void>, item: Item, tally = { replies: 0, likes: 0, sh
  * delivery attempt per follower, every time, and a follower whose server is
  * down would collect an hour of retries for a post it already has.
  */
-const DELIVERED = "ap:delivered";
+const DELIVERED = delivered.key;
 
 /**
  * Send what has not been sent.
@@ -171,7 +172,7 @@ async function publishPending(ctx: Context<void>, activities: Create[]): Promise
 }
 
 /** What each delivered post looked like when it was last announced. */
-const DIGESTS = "ap:note-digests";
+const DIGESTS = noteDigests.key;
 
 /**
  * Tell the followers when a post they already have has changed.

@@ -85,6 +85,7 @@ test("the tombstone workflow scopes both Git operations to the relocated registe
 
 test("data-check rejects workflow path copies and unscoped Git commands", (t) => {
   const cwd = fixture(t, [
+    "Makefile",
     workflowPath,
     "scripts/data-check.mjs",
     "src/data.config.generated.mjs",
@@ -101,6 +102,9 @@ test("data-check rejects workflow path copies and unscoped Git commands", (t) =>
     "scripts/follow.mjs",
     "scripts/tags.mjs",
     "src/integrations/activitypub/federation.ts",
+    "src/integrations/activitypub/outbox.ts",
+    "src/integrations/auth/session-core.ts",
+    "worker/consumer.ts",
   ]);
   const check = () => spawnSync(process.execPath, ["--experimental-strip-types", "scripts/data-check.mjs"], { cwd, encoding: "utf8" });
   const valid = check();
@@ -119,4 +123,13 @@ test("data-check rejects workflow path copies and unscoped Git commands", (t) =>
     assert.equal(result.status, 1, changed);
     assert.match(result.stderr, /data register consumer \.github\/workflows\/tombstones\.yml:/);
   }
+
+  const workerPath = join(cwd, "worker/consumer.ts");
+  const worker = readFileSync(workerPath, "utf8");
+  const changedWorker = worker.replace("deliveryFailures.key", "deliveryFailures.records");
+  assert.notEqual(changedWorker, worker, "the worker mutation must change the source");
+  writeFileSync(workerPath, changedWorker);
+  const invalidWorker = check();
+  assert.equal(invalidWorker.status, 1);
+  assert.match(invalidWorker.stderr, /data register consumer worker\/consumer\.ts:/);
 });

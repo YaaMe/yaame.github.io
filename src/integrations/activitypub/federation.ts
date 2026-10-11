@@ -4,9 +4,21 @@ import { Person, Follow, Undo, Accept, Announce, Create, Delete, Like, Note, Rej
 import { configure, getConsoleSink } from "@logtape/logtape";
 import { platform } from "../../platform";
 import { AP } from "./config";
-import { followIntent } from "../../data.config.generated.mjs";
+import {
+  actorDigest,
+  departures,
+  followLedger,
+  followers,
+  following,
+  followIntent,
+} from "../../data.config.generated.mjs";
 
 const intent = followIntent as { follow: string[] };
+const ACTOR_DIGEST = actorDigest.key;
+const DEPARTURES = departures.key;
+const FOLLOWERS = followers.key;
+const FOLLOWING = following.key;
+const FOLLOW_INTENT = followLedger.key;
 import { record, remove } from "./store/comments";
 import * as reactions from "./store/reactions";
 import { FIRST, page } from "./paging";
@@ -64,11 +76,11 @@ async function announceIfChanged(ctx: RequestContext<void>, person: Person): Pro
     .map((b) => b.toString(16).padStart(2, "0"))
     .join("");
 
-  if ((await platform.get<string>("ap:actor-digest")) === digest) return;
+  if ((await platform.get<string>(ACTOR_DIGEST)) === digest) return;
 
   // Written before sending: a failed delivery is not retried, which is the
   // trade against announcing on every fetch until one succeeds.
-  await platform.put("ap:actor-digest", digest);
+  await platform.put(ACTOR_DIGEST, digest);
   await ctx.sendActivity(
     { identifier: AP.user },
     "followers",
@@ -110,7 +122,6 @@ const ours = (id: string) => id.startsWith(OURS);
  */
 type Departure = { id: string; reason: "unreachable" | "deleted" | "unfollowed"; at: string; detail?: string };
 
-const DEPARTURES = "ap:departures";
 const KEEP = 50;
 
 async function recordDeparture(id: string, reason: Departure["reason"], detail?: string): Promise<void> {
@@ -134,7 +145,7 @@ export async function dropFollowerByInbox(inbox: string, reason?: string): Promi
   const list = await readFollowers();
   const gone = list.find((f) => f.inbox === inbox);
   if (!gone) return null;
-  await platform.put("ap:followers", list.filter((f) => f.inbox !== inbox));
+  await platform.put(FOLLOWERS, list.filter((f) => f.inbox !== inbox));
   await recordDeparture(gone.id, "unreachable", reason);
   return gone.id;
 }
@@ -176,8 +187,8 @@ const recipientOf = (actor: Actor) => ({
 /**
  * Make the followed set match the intent written in git.
  *
- * The comparison is against `ap:follow-intent`, the record of what we have
- * sent, not against `ap:following`:
+ * The comparison is against the follow-intent record of what we have sent, not
+ * against the following record:
  *
  *   intended, sent       → nothing
  *   intended, not sent   → send Follow
@@ -198,7 +209,7 @@ export async function reconcileFollowing(ctx: RequestContext<void>): Promise<voi
   // Annotated, not inferred: `Record | null` with `?? {}` is a union of two
   // types, and `Object.entries` resolves no overload against a union.
   const resolved: Record<string, string> =
-    (await platform.get<Record<string, string>>("ap:follow-intent")) ?? {};
+    (await platform.get<Record<string, string>>(FOLLOW_INTENT)) ?? {};
   let changed = false;
 
   for (const handle of wanted) {
@@ -248,10 +259,10 @@ export async function reconcileFollowing(ctx: RequestContext<void>): Promise<voi
     // Dropped without waiting for a reply: an Undo has no Accept, so sending it
     // is the whole of the change on our side.
     const list = await readFollowing();
-    await platform.put("ap:following", list.filter((href) => href !== actorId));
+    await platform.put(FOLLOWING, list.filter((href) => href !== actorId));
   }
 
-  if (changed) await platform.put("ap:follow-intent", resolved);
+  if (changed) await platform.put(FOLLOW_INTENT, resolved);
 }
 
 federation
@@ -343,16 +354,16 @@ const readFollowers = async (): Promise<Follower[]> => {
   // Annotated, not inferred: `(T[] | null) ?? []` is a union of two array types,
   // and `.map` resolves no overload against a union.
   const stored: (Follower | string)[] =
-    (await platform.get<(Follower | string)[]>("ap:followers")) ?? [];
+    (await platform.get<(Follower | string)[]>(FOLLOWERS)) ?? [];
   return stored.map((f) => (typeof f === "string" ? { id: f, inbox: `${f}/inbox` } : f));
 };
 
 const readFollowing = async (): Promise<string[]> =>
-  (await platform.get<string[]>("ap:following")) ?? [];
+  (await platform.get<string[]>(FOLLOWING)) ?? [];
 
 const followerStore = {
   read: readFollowers,
-  write: (followers: Follower[]) => platform.put("ap:followers", followers),
+  write: (followers: Follower[]) => platform.put(FOLLOWERS, followers),
   departure: (id: string) => recordDeparture(id, "unfollowed"),
 };
 
@@ -467,8 +478,8 @@ federation
       // follow someone who no longer exists.
       const [followers, following] = await Promise.all([readFollowers(), readFollowing()]);
       if (followers.some((f) => f.id === gone)) await recordDeparture(gone, "deleted");
-      await platform.put("ap:followers", followers.filter((f) => f.id !== gone));
-      await platform.put("ap:following", following.filter((href) => href !== gone));
+      await platform.put(FOLLOWERS, followers.filter((f) => f.id !== gone));
+      await platform.put(FOLLOWING, following.filter((href) => href !== gone));
       return;
     }
 
@@ -477,7 +488,7 @@ federation
     // if it was carried into git the removal there is raised against it.
     await handleCommentDelete(del.objectId.href, del.actorId.href, remove);
   })
-  // Without this half `ap:following` stays empty for good: Follows go out, no
+  // Without this half the following record stays empty for good: Follows go out, no
   // agreement is ever recorded, and the public collection says we follow nobody.
   .on(Accept, async (ctx, accept) => {
     const object = await accept.getObject();
@@ -494,12 +505,12 @@ federation
     // sent and the intent dropped; without this guard `following` gains someone
     // we do not follow, and reconciliation will not remove them — its record of
     // what was sent is already clean.
-    const sent = (await platform.get<Record<string, string>>("ap:follow-intent")) ?? {};
+    const sent = (await platform.get<Record<string, string>>(FOLLOW_INTENT)) ?? {};
     if (!Object.values(sent).includes(accept.actorId.href)) return;
 
     const list = await readFollowing();
     if (list.includes(accept.actorId.href)) return;
-    await platform.put("ap:following", [accept.actorId.href, ...list]);
+    await platform.put(FOLLOWING, [accept.actorId.href, ...list]);
   })
   // A refusal, or an agreement withdrawn afterwards: the same outcome.
   .on(Reject, async (ctx, reject) => {
@@ -508,7 +519,7 @@ federation
     if (object.actorId?.href !== ctx.getActorUri(AP.user).href) return;
 
     const list = await readFollowing();
-    await platform.put("ap:following", list.filter((href) => href !== reject.actorId!.href));
+    await platform.put(FOLLOWING, list.filter((href) => href !== reject.actorId!.href));
   })
   .on(Undo, async (_ctx, undo) => {
     const object = await undo.getObject();

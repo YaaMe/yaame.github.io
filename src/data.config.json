@@ -64,6 +64,186 @@
     "purposes": ["federation"],
     "description": "Handles the author intends to follow; the Worker reconciles them after deploy."
   },
+  "followers": {
+    "layers": [
+      {
+        "records": "ap:followers",
+        "format": "json"
+      }
+    ],
+    "writeBack": [],
+    "origin": "others",
+    "recovery": "keep",
+    "purposes": ["federation"],
+    "description": "Remote actors that follow this account, including the inboxes that receive deliveries."
+  },
+  "following": {
+    "layers": [
+      {
+        "records": "ap:following",
+        "format": "json"
+      }
+    ],
+    "writeBack": [],
+    "origin": "others",
+    "recovery": "keep",
+    "purposes": ["federation"],
+    "description": "Remote actors whose acceptance of a follow is currently recorded."
+  },
+  "follow-ledger": {
+    "layers": [
+      {
+        "records": "ap:follow-intent",
+        "format": "json"
+      }
+    ],
+    "writeBack": [],
+    "origin": "owner",
+    "recovery": "keep",
+    "purposes": ["federation"],
+    "description": "Resolved actor ids for follow intent, carried with the owner's federation ledger and reconciled from git intent."
+  },
+  "delivered": {
+    "layers": [
+      {
+        "records": "ap:delivered",
+        "format": "json"
+      }
+    ],
+    "writeBack": [],
+    "origin": "owner",
+    "recovery": "keep",
+    "purposes": ["federation"],
+    "description": "Object ids already sent to followers, preventing repeated delivery after a fetch."
+  },
+  "note-digests": {
+    "layers": [
+      {
+        "records": "ap:note-digests",
+        "format": "json"
+      }
+    ],
+    "writeBack": [],
+    "origin": "owner",
+    "recovery": "keep",
+    "purposes": ["federation"],
+    "description": "Fingerprints of the notes last announced to followers."
+  },
+  "delivery-failures": {
+    "layers": [
+      {
+        "records": "ap:delivery-failures",
+        "format": "json"
+      }
+    ],
+    "writeBack": [],
+    "origin": "owner",
+    "recovery": "reset",
+    "purposes": ["federation", "bookkeeping"],
+    "description": "Inbox delivery attempts written off after the retry ceiling."
+  },
+  "departures": {
+    "layers": [
+      {
+        "records": "ap:departures",
+        "format": "json"
+      }
+    ],
+    "writeBack": [],
+    "origin": "others",
+    "recovery": "reset",
+    "purposes": ["federation", "bookkeeping"],
+    "description": "Recent reasons remote actors left the follower or following lists."
+  },
+  "actor-digest": {
+    "layers": [
+      {
+        "records": "ap:actor-digest",
+        "format": "text"
+      }
+    ],
+    "writeBack": [],
+    "origin": "owner",
+    "recovery": "rebuild",
+    "purposes": ["federation"],
+    "description": "Fingerprint of the actor document last announced to followers."
+  },
+  "sessions": {
+    "layers": [
+      {
+        "records": "auth:session:{id}",
+        "format": "json"
+      }
+    ],
+    "writeBack": [],
+    "list": "never",
+    "origin": "owner",
+    "recovery": "ephemeral",
+    "purposes": ["auth"],
+    "description": "Opaque browser sessions; they expire and are not part of a portable recovery."
+  },
+  "fedify-state": {
+    "layers": [
+      {
+        "memory": "fedify"
+      }
+    ],
+    "writeBack": [],
+    "origin": "system",
+    "recovery": "ephemeral",
+    "purposes": ["federation"],
+    "description": "Fedify-managed state behind its KvStore interface; the library owns its internal keys."
+  },
+  "queue-ordering": {
+    "layers": [
+      {
+        "records": true,
+        "format": "cloudflare-queue-ordering"
+      }
+    ],
+    "list": "never",
+    "writeBack": [],
+    "origin": "system",
+    "recovery": "reset",
+    "purposes": ["federation"],
+    "description": "Ordering locks used by the host queue binding; the queue library owns their keys."
+  },
+  "reactions": {
+    "layers": [
+      {
+        "sql": "reactions",
+        "columns": {
+          "activityId": "activity_id",
+          "objectId": "object_id",
+          "actorId": "actor_id",
+          "kind": "kind",
+          "receivedAt": "received_at",
+          "undoneAt": "undone_at"
+        }
+      }
+    ],
+    "writeBack": [],
+    "origin": "others",
+    "recovery": "keep",
+    "purposes": ["federation", "content"],
+    "description": "Incoming likes and boosts, retained so de-duplication and undo remain durable."
+  },
+  "migrations": {
+    "layers": [
+      {
+        "sql": "migrations",
+        "columns": {
+          "version": "version",
+          "appliedAt": "applied_at"
+        }
+      }
+    ],
+    "writeBack": [],
+    "origin": "system",
+    "recovery": "keep",
+    "purposes": ["deployment"],
+    "description": "Schema version bookkeeping for the append-only migration list."
+  },
   "comments": {
     "layers": [
       {

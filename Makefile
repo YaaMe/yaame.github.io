@@ -1,6 +1,6 @@
 # Every operation on this site. `make` or `make help` lists them.
 .DEFAULT_GOAL := help
-.PHONY: help install dev deploy deploy-site deploy-consumer ap-check promote tombstone build both types wrangler preview check test data frontmatter fix new po follow unfollow pin unpin newpost newtag tags urls links clean
+.PHONY: help install dev deploy deploy-site deploy-consumer build-consumer ap-check promote tombstone build both types wrangler preview check test data frontmatter fix new po follow unfollow pin unpin newpost newtag tags urls links clean
 
 help: ## 显示这份清单
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) \
@@ -19,10 +19,16 @@ wrangler: ## 生成 wrangler.jsonc 与绑定类型
 		node scripts/wrangler-config.mjs >/dev/null
 	@npx wrangler types >/dev/null && echo "  wrangler 配置与类型已生成"
 
-deploy-consumer: ## 部署队列消费者（独立 Worker，需要 CF_KV_ID）
+deploy-consumer: data ## 部署队列消费者（独立 Worker，需要 CF_KV_ID）
 	@test -n "$$CF_KV_ID" || { echo "  需要 CF_KV_ID"; exit 1; }
 	@node scripts/wrangler-config.mjs worker/wrangler.jsonc worker/wrangler.generated.jsonc
 	@cd worker && npx wrangler deploy -c wrangler.generated.jsonc
+
+build-consumer: data ## 构建队列消费者（使用 worker/ 自己的 wrangler 配置）
+	@CF_KV_ID=$${CF_KV_ID:-0000000000000000000000000000000f} \
+		CF_D1_ID=$${CF_D1_ID:-00000000-0000-0000-0000-00000000000f} \
+		node scripts/wrangler-config.mjs worker/wrangler.jsonc worker/wrangler.generated.jsonc >/dev/null
+	@cd worker && npx wrangler deploy -c wrangler.generated.jsonc --dry-run >/dev/null
 
 # Both Workers are built from src/integrations/activitypub/, so they deploy
 # together. Shipping only the site leaves the inbox listeners running the old
