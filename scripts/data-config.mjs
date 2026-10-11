@@ -34,7 +34,15 @@ function gitValues(config, kind) {
   const path = layerFor(config, kind, "git").git;
   const index = firstGlob(path);
   const slash = path.lastIndexOf("/", index < 0 ? path.length : index);
-  if (slash < 0 || slash === path.length - 1) {
+  if (slash < 0) {
+    return {
+      git: path,
+      gitRoot: ".",
+      glob: { base: "./", pattern: path },
+      file: path,
+    };
+  }
+  if (slash === path.length - 1) {
     throw new Error(`data register entry ${kind} git path is not a file or glob: ${path}`);
   }
   const root = path.slice(0, slash);
@@ -61,6 +69,8 @@ function resolvedValues(config, kind, seen = []) {
   if (records) return recordsValues(config, kind);
   const memory = entry.layers.find((candidate) => Object.hasOwn(candidate, "memory"));
   if (memory) return memoryValues(config, kind);
+  const external = entry.layers.find((candidate) => Object.hasOwn(candidate, "external"));
+  if (external) return externalValues(config, kind);
   const ref = entry.layers.find((candidate) => Object.hasOwn(candidate, "ref"));
   if (ref) {
     return {
@@ -83,6 +93,11 @@ function recordsValues(config, kind) {
 
 function memoryValues(config, kind) {
   return { memory: layerFor(config, kind, "memory").memory };
+}
+
+function externalValues(config, kind) {
+  layerFor(config, kind, "external");
+  return { external: true };
 }
 
 function quotedIdentifier(value) {

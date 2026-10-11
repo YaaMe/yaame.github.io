@@ -163,8 +163,75 @@ test("the register pins the ownership and recovery policy for every kind", () =>
       migrations: ["system", "keep"],
       comments: ["others", "keep"],
       "promoted-comments": ["others", "keep"],
+      "site-config": ["owner", "keep"],
+      tags: ["owner", "keep"],
+      "ap-config": ["owner", "keep"],
+      "auth-config": ["owner", "keep"],
+      AP_KEY_JWK: ["owner", "owner-held"],
+      GITHUB_CLIENT_SECRET: ["owner", "owner-held"],
+      CLOUDFLARE_API_TOKEN: ["owner", "owner-held"],
+      CLOUDFLARE_ACCOUNT_ID: ["owner", "none"],
+      CF_KV_ID: ["owner", "none"],
+      CF_D1_ID: ["owner", "none"],
+      "wrangler-template": ["owner", "none"],
+      "wrangler-config": ["owner", "none"],
+      "consumer-wrangler": ["owner", "none"],
+      "webfinger-repo": ["owner", "owner-held"],
+      "redirect-rule": ["owner", "owner-held"],
     },
   );
+});
+
+test("the scope register selects owner-held and deployment items by name", () => {
+  const register = copyRegister();
+  const expectedPurposes = {
+    "site-config": ["identity", "content"],
+    tags: ["identity", "content"],
+    "ap-config": ["identity", "content"],
+    "auth-config": ["auth"],
+    AP_KEY_JWK: ["identity", "auth"],
+    GITHUB_CLIENT_SECRET: ["identity", "auth"],
+    CLOUDFLARE_API_TOKEN: ["deployment"],
+    CLOUDFLARE_ACCOUNT_ID: ["deployment"],
+    CF_KV_ID: ["deployment"],
+    CF_D1_ID: ["deployment"],
+    "wrangler-template": ["deployment"],
+    "wrangler-config": ["deployment"],
+    "consumer-wrangler": ["deployment"],
+    "webfinger-repo": ["identity", "deployment"],
+    "redirect-rule": ["identity", "deployment"],
+  };
+  for (const [kind, purposes] of Object.entries(expectedPurposes)) {
+    assert.deepEqual(register[kind].purposes, purposes, kind);
+  }
+
+  const ownerHeld = Object.keys(register).filter((kind) => register[kind].recovery === "owner-held");
+  assert.deepEqual(ownerHeld, [
+    "AP_KEY_JWK",
+    "GITHUB_CLIENT_SECRET",
+    "CLOUDFLARE_API_TOKEN",
+    "webfinger-repo",
+    "redirect-rule",
+  ]);
+  for (const kind of ownerHeld) {
+    assert.deepEqual(register[kind].layers, [{ external: true }], kind);
+    assert.equal(Object.hasOwn(register[kind], "value"), false, kind);
+    assert.equal(Object.hasOwn(register[kind], "secret"), false, kind);
+  }
+
+  const deployment = Object.keys(register).filter((kind) => register[kind].purposes.includes("deployment"));
+  assert.deepEqual(deployment, [
+    "migrations",
+    "CLOUDFLARE_API_TOKEN",
+    "CLOUDFLARE_ACCOUNT_ID",
+    "CF_KV_ID",
+    "CF_D1_ID",
+    "wrangler-template",
+    "wrangler-config",
+    "consumer-wrangler",
+    "webfinger-repo",
+    "redirect-rule",
+  ]);
 });
 
 test("the register rejects values outside each declared enum", () => {
@@ -192,4 +259,8 @@ test("the register rejects values outside each declared enum", () => {
   const missingColumn = copyRegister();
   delete missingColumn.comments.layers[0].columns.activityId;
   assert.equal(dataConfigSchema.safeParse(missingColumn).success, false, "comments.columns.activityId");
+
+  const invalidExternal = copyRegister();
+  invalidExternal.AP_KEY_JWK.layers = [{ external: true, value: "must not be recorded" }];
+  assert.equal(dataConfigSchema.safeParse(invalidExternal).success, false, "owner-held value");
 });

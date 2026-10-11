@@ -20,9 +20,13 @@ const recordsLayer = z.object({
   format: z.string().min(1),
 }).strict();
 const memoryLayer = z.object({ memory: z.string().min(1) }).strict();
+// Items that live outside the portable register stores are named by their
+// entry key. The marker keeps them in the same entry shape without offering a
+// field where a secret or account value could be written.
+const externalLayer = z.object({ external: z.literal(true) }).strict();
 const refLayer = z.object({ ref: z.string(), fields: z.array(z.string()) }).strict();
 
-const layer = z.union([gitLayer, sqlLayerSchema, recordsLayer, memoryLayer, refLayer]);
+const layer = z.union([gitLayer, sqlLayerSchema, recordsLayer, memoryLayer, externalLayer, refLayer]);
 
 export const dataEntrySchema = z.object({
   layers: z.array(layer).min(1),
@@ -36,6 +40,21 @@ export const dataEntrySchema = z.object({
 
 export const dataConfigSchema = z.record(z.string(), dataEntrySchema).superRefine((config, context) => {
   for (const [kind, entry] of Object.entries(config)) {
+    const external = entry.layers.some((candidate) => "external" in candidate);
+    if (entry.recovery === "owner-held" && !external) {
+      context.addIssue({
+        code: "custom",
+        path: [kind, "layers"],
+        message: "owner-held entries must be named without a value-bearing layer",
+      });
+    }
+    if (external && entry.layers.some((candidate) => !("external" in candidate))) {
+      context.addIssue({
+        code: "custom",
+        path: [kind, "layers"],
+        message: "an external entry cannot be combined with a value-bearing layer",
+      });
+    }
     for (const [index, candidate] of entry.layers.entries()) {
       if (!('records' in candidate)) continue;
       if (candidate.records === true) {

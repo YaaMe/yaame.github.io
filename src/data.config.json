@@ -284,5 +284,155 @@
     "recovery": "keep",
     "purposes": ["content"],
     "description": "Base: chosen comments in git, joined to SQL by activityId. Delta, applied on read: withdrawals (deletedAt). promotedAt is write-back bookkeeping, not content."
+  },
+  "site-config": {
+    "layers": [
+      {
+        "git": "src/site.config.ts",
+        "format": "typescript"
+      }
+    ],
+    "writeBack": [],
+    "origin": "owner",
+    "recovery": "keep",
+    "purposes": ["identity", "content"],
+    "description": "Site identity, navigation and profile-derived links, written by the owner in git."
+  },
+  "tags": {
+    "layers": [
+      {
+        "git": "src/tags.ts",
+        "format": "typescript"
+      }
+    ],
+    "writeBack": [],
+    "origin": "owner",
+    "recovery": "keep",
+    "purposes": ["identity", "content"],
+    "description": "The tag registry used to validate and label content, written by the owner in git."
+  },
+  "ap-config": {
+    "layers": [
+      {
+        "git": "src/integrations/activitypub/config.ts",
+        "format": "typescript"
+      }
+    ],
+    "writeBack": [],
+    "origin": "owner",
+    "recovery": "keep",
+    "purposes": ["identity", "content"],
+    "description": "ActivityPub identity and publication policy, written by the owner in git."
+  },
+  "auth-config": {
+    "layers": [
+      {
+        "git": "src/integrations/auth/config.ts",
+        "format": "typescript"
+      }
+    ],
+    "writeBack": [],
+    "origin": "owner",
+    "recovery": "keep",
+    "purposes": ["auth"],
+    "description": "OAuth client and access policy, written by the owner in git."
+  },
+  "AP_KEY_JWK": {
+    "layers": [{ "external": true }],
+    "writeBack": [],
+    "origin": "owner",
+    "recovery": "owner-held",
+    "purposes": ["identity", "auth"],
+    "description": "The actor signing secret; listed by name so a move requires the owner's copy."
+  },
+  "GITHUB_CLIENT_SECRET": {
+    "layers": [{ "external": true }],
+    "writeBack": [],
+    "origin": "owner",
+    "recovery": "owner-held",
+    "purposes": ["identity", "auth"],
+    "description": "The OAuth client secret; listed by name so a move requires the owner's copy."
+  },
+  "CLOUDFLARE_API_TOKEN": {
+    "layers": [{ "external": true }],
+    "writeBack": [],
+    "origin": "owner",
+    "recovery": "owner-held",
+    "purposes": ["deployment"],
+    "description": "The CI deployment secret; listed by name so a move requires the owner's copy."
+  },
+  "CLOUDFLARE_ACCOUNT_ID": {
+    "layers": [{ "external": true }],
+    "writeBack": [],
+    "origin": "owner",
+    "recovery": "none",
+    "purposes": ["deployment"],
+    "description": "The GitHub repository variable selecting the Cloudflare account."
+  },
+  "CF_KV_ID": {
+    "layers": [{ "external": true }],
+    "writeBack": [],
+    "origin": "owner",
+    "recovery": "none",
+    "purposes": ["deployment"],
+    "description": "The GitHub repository variable selecting the Workers KV namespace."
+  },
+  "CF_D1_ID": {
+    "layers": [{ "external": true }],
+    "writeBack": [],
+    "origin": "owner",
+    "recovery": "none",
+    "purposes": ["deployment"],
+    "description": "The GitHub repository variable selecting the D1 database."
+  },
+  "wrangler-template": {
+    "layers": [
+      {
+        "git": "wrangler.jsonc.template",
+        "format": "jsonc"
+      }
+    ],
+    "writeBack": [],
+    "origin": "owner",
+    "recovery": "none",
+    "purposes": ["deployment"],
+    "description": "The tracked site Worker deployment template, rewritten for a host move."
+  },
+  "wrangler-config": {
+    "layers": [{ "external": true }],
+    "writeBack": [],
+    "origin": "owner",
+    "recovery": "none",
+    "purposes": ["deployment"],
+    "description": "The generated site Worker deployment file; recreated from the template."
+  },
+  "consumer-wrangler": {
+    "layers": [
+      {
+        "git": "worker/wrangler.jsonc",
+        "format": "jsonc"
+      }
+    ],
+    "writeBack": [],
+    "origin": "owner",
+    "recovery": "none",
+    "purposes": ["deployment"],
+    "description": "The tracked queue consumer deployment configuration, rewritten for a host move."
+  },
+  "webfinger-repo": {
+    "layers": [{ "external": true }],
+    "writeBack": [],
+    "origin": "owner",
+    "recovery": "owner-held",
+    "purposes": ["identity", "deployment"],
+    "description": "The external repository serving WebFinger for the handle domain."
+  },
+  "redirect-rule": {
+    "layers": [{ "external": true }],
+    "writeBack": [],
+    "origin": "owner",
+    "recovery": "owner-held",
+    "purposes": ["identity", "deployment"],
+    "description": "The external apex redirect that sends non-federated paths to the blog."
   }
 }
