@@ -16,6 +16,7 @@ data layer — no line changes in a redesign
   src/lib/comments.ts     promoted comments
   src/lib/comment-view.ts withdrawal and tombstone visibility
   src/lib/comments-live.ts full-profile withdrawal view
+  src/lib/recovery.ts portable recovery contract and selection
   scripts/*.mjs           the commands the Makefile runs
   Makefile                the entry point for every operation
 
