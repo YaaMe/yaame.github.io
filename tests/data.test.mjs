@@ -63,6 +63,7 @@ test("the register declares the comments stores and their layers", () => {
     pattern: "{posts,notes}/*.json",
   });
   assert.equal(promotedComments.gitRoot, "src/content/comments");
+  assert.deepEqual(promotedComments.writeBack, ["promote", "tombstone"]);
   assert.equal(copyRegister()["promoted-comments"].writeBack[0], "promote");
   assert.equal(copyRegister()["promoted-comments"].writeBack[1], "tombstone");
 });

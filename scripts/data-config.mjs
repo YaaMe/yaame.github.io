@@ -227,7 +227,9 @@ try {
     const name = exportName(kind);
     let value;
     if (config[kind].layers.some((candidate) => Object.hasOwn(candidate, "sql"))) value = sqlValues(config, kind);
-    else if (kind === "promoted-comments") value = gitValues(config, kind);
+    else if (kind === "promoted-comments") {
+      value = { ...gitValues(config, kind), writeBack: [...config[kind].writeBack] };
+    }
     else value = resolvedValues(config, kind);
 
     const layer = config[kind].layers.find((candidate) => Object.hasOwn(candidate, "git"));

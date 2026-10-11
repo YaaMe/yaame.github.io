@@ -1,23 +1,13 @@
 #!/usr/bin/env node
 /**
- * Remove comments that reached git and were later withdrawn.
+ * Reconcile withdrawn comments into the git base.
  *
- *   node scripts/tombstone.mjs          show what would change
- *   APPLY=1 node scripts/tombstone.mjs  write it
+ *   node scripts/tombstone.mjs          show states and pending changes
+ *   APPLY=1 node scripts/tombstone.mjs  write pending changes
  *
- * The runtime stopped serving them over ActivityPub the moment the `Delete`
- * arrived (§7.4). The blog pages are built from git and keep the text until
- * these files change and the site deploys. The runtime cannot reach git, so
- * this reads the withdrawn rows out and rewrites the files. A workflow then
- * opens a pull request for a person to decide on.
- *
- * The entry goes, rather than being blanked. Withdrawal means the words go,
- * and a row saying someone spoke here is still a record of them. The one
- * exception is a comment something else replies to: that keeps a tombstone,
- * because the reply below it would otherwise be answering nothing.
- *
- * **History is not rewritten.** The commit is the record — the promise was
- * never that it did not exist, but that it is gone now.
+ * The runtime delta is authoritative until the git base contains the
+ * withdrawal. An open pull request is only a proposal, so it is an input to
+ * this reconciliation rather than an acknowledgement stored anywhere.
  */
 import { execFileSync } from "node:child_process";
 import { readFileSync, writeFileSync, readdirSync, statSync, rmSync } from "node:fs";
@@ -30,6 +20,17 @@ const DIR = promotedComments.gitRoot;
 const commentsColumns = comments.columns;
 const column = (name) => comments.quotedColumns[name];
 const table = comments.table;
+const tombstoneWriteBack = promotedComments.writeBack?.find((name) => name === "tombstone");
+if (!tombstoneWriteBack) {
+  throw new Error("promoted-comments has no tombstone write-back in the data register");
+}
+
+export const TOMBSTONE_WRITE_BACK = tombstoneWriteBack;
+export const WITHDRAWAL_STATES = Object.freeze({
+  PENDING: "pending",
+  PROPOSED: "proposed",
+  WRITTEN_BACK: "written back",
+});
 
 function query(sql) {
   const out = execFileSync(
@@ -42,10 +43,10 @@ function query(sql) {
   return JSON.parse(out.slice(start))[0].results;
 }
 
-function* files(dir) {
+export function* files(dir) {
   let entries;
   try {
-    entries = readdirSync(dir);
+    entries = readdirSync(dir).sort();
   } catch {
     return;
   }
@@ -56,52 +57,40 @@ function* files(dir) {
   }
 }
 
-// The intersection of the two columns is the whole of the work. A separate
-// queue table would be a copy of this query that goes stale.
-const pending = query(
-  `SELECT ${column("activityId")}, ${column("deletedAt")} FROM ${table}
-   WHERE ${column("deletedAt")} IS NOT NULL AND ${column("promotedAt")} IS NOT NULL`,
-);
-
-if (pending.length === 0) {
-  console.log("  没有要立碑的");
-  process.exit(0);
+export function readDocuments(dir = DIR) {
+  return [...files(dir)].map((path) => ({
+    path,
+    document: JSON.parse(readFileSync(path, "utf8")),
+  }));
 }
-
-const when = new Map(pending.map((r) => [r[commentsColumns.activityId], r[commentsColumns.deletedAt]]));
-let changed = 0;
 
 /**
  * Applied to a fixed point: removing a reply can leave the tombstone above it
  * with nothing left to hold up, so a leaf's departure can make its parent a
  * leaf in turn.
- *
- * An existing `deletedAt` marks one already dealt with. Judged from the file
- * itself — a column recording whether git was updated would disagree with
- * git's actual contents sooner or later.
  */
-function rewrite(comments) {
-  let list = comments;
+export function rewrite(entries, when) {
+  let list = entries;
   for (;;) {
-    const answered = new Set(list.map((c) => c.replyToId).filter(Boolean));
+    const answered = new Set(list.map((entry) => entry.replyToId).filter(Boolean));
     const next = [];
     let moved = false;
-    for (const c of list) {
-      const at = when.get(c.activityId);
-      if (at === undefined && c.deletedAt === undefined) {
-        next.push(c);
+    for (const entry of list) {
+      const at = when.get(entry.activityId);
+      if (at === undefined && entry.deletedAt === undefined) {
+        next.push(entry);
         continue;
       }
-      if (!answered.has(c.objectId)) {
+      if (!answered.has(entry.objectId)) {
         moved = true;
         continue;
       }
-      if (c.deletedAt === undefined) {
-        const { content, ...rest } = c;
+      if (entry.deletedAt === undefined) {
+        const { content, ...rest } = entry;
         next.push({ ...rest, deletedAt: at });
         moved = true;
       } else {
-        next.push(c);
+        next.push(entry);
       }
     }
     if (!moved) return list;
@@ -109,26 +98,171 @@ function rewrite(comments) {
   }
 }
 
-for (const file of files(DIR)) {
-  const doc = JSON.parse(readFileSync(file, "utf8"));
-  const after = rewrite(doc.comments);
-  if (JSON.stringify(after) === JSON.stringify(doc.comments)) continue;
-
-  const gone = doc.comments.length - after.length;
-  const stones = after.filter((c) => c.deletedAt !== undefined).length;
-  changed += gone + stones;
-  console.log(`  ${file}：移除 ${gone} 条，留下 ${stones} 块墓碑（有回复指向）`);
-
-  if (!APPLY) continue;
-  // An empty file describes a conversation that is not there. `git add` on the
-  // directory stages the removal the same as an edit.
-  if (after.length === 0) rmSync(file);
-  else writeFileSync(file, `${JSON.stringify({ ...doc, comments: after }, null, 2)}\n`);
+function entryFor(document, activityId) {
+  const index = document?.comments?.findIndex((entry) => entry.activityId === activityId) ?? -1;
+  return index < 0 ? undefined : document.comments[index];
 }
 
-if (changed === 0) {
-  console.log("  都已经处理过了");
-  process.exit(0);
+function sameWithdrawalShape(actual, expected) {
+  if (actual === undefined || expected === undefined) return actual === expected;
+  if (expected.content === undefined) {
+    return actual.content === undefined && actual.deletedAt === expected.deletedAt;
+  }
+  return JSON.stringify(actual) === JSON.stringify(expected);
 }
 
-console.log(`\n  ${changed} 条${APPLY ? "已处理" : "会被处理（加 APPLY=1 才动手）"}`);
+/**
+ * Compute every withdrawal from the SQL delta, the current git base and the
+ * supplied open-PR reader. The reader is deliberately a function: production
+ * supplies a git ref, while tests can describe a proposal without GitHub.
+ */
+export function computeStates({ withdrawn, documents, pullRequestState = () => false }) {
+  const when = new Map(withdrawn.map(({ activityId, deletedAt }) => [activityId, deletedAt]));
+  const plans = documents.map(({ path, document }) => {
+    const commentsAfter = rewrite(document.comments, when);
+    return {
+      path,
+      before: document,
+      after: { ...document, comments: commentsAfter },
+      changed: JSON.stringify(commentsAfter) !== JSON.stringify(document.comments),
+    };
+  });
+
+  const states = withdrawn.map(({ activityId, deletedAt }) => {
+    const main = plans
+      .map((plan) => ({ plan, entry: entryFor(plan.before, activityId) }))
+      .find(({ entry }) => entry !== undefined);
+
+    if (!main || main.entry.content === undefined) {
+      return { activityId, deletedAt, state: WITHDRAWAL_STATES.WRITTEN_BACK };
+    }
+
+    const expected = entryFor(main.plan.after, activityId);
+    const proposed = pullRequestState({
+      activityId,
+      deletedAt,
+      path: main.plan.path,
+      main: main.entry,
+      expected,
+      before: main.plan.before,
+      after: main.plan.after,
+    });
+    return {
+      activityId,
+      deletedAt,
+      state: proposed ? WITHDRAWAL_STATES.PROPOSED : WITHDRAWAL_STATES.PENDING,
+    };
+  });
+
+  const pending = states.filter(({ state }) => state === WITHDRAWAL_STATES.PENDING);
+  const unwritten = new Set(
+    states
+      .filter(({ state }) => state !== WITHDRAWAL_STATES.WRITTEN_BACK)
+      .map(({ activityId }) => activityId),
+  );
+  // Rebuild the branch from main with every withdrawal that main does not
+  // contain yet. `shouldWrite` remains about pending work only; proposed
+  // withdrawals are included here so a new pending withdrawal cannot erase
+  // an older proposal when the branch is regenerated.
+  const writes = plans.filter(({ before, after, changed }) => changed && (
+    before.comments.some(({ activityId }) => unwritten.has(activityId))
+    || after.comments.some(({ activityId }) => unwritten.has(activityId))
+  ));
+  return {
+    states,
+    pending,
+    writes,
+    // Keep the descriptive name for callers that only inspect the plan.
+    changes: writes,
+    shouldWrite: pending.length > 0,
+  };
+}
+
+function readRefDocument(ref, path) {
+  try {
+    return JSON.parse(execFileSync("git", ["show", `${ref}:${path}`], { encoding: "utf8" }));
+  } catch (error) {
+    if (error?.status === 128) return undefined;
+    throw error;
+  }
+}
+
+/** Build the injected PR-state reader from a fetched branch or PR ref. */
+export function gitPullRequestState(ref) {
+  const documents = new Map();
+  return ({ path, activityId, expected }) => {
+    if (!documents.has(path)) documents.set(path, readRefDocument(ref, path));
+    const proposed = entryFor(documents.get(path), activityId);
+    return sameWithdrawalShape(proposed, expected);
+  };
+}
+
+function printStates(states) {
+  for (const { activityId, state } of states) console.log(`  ${activityId}: ${state}`);
+}
+
+function changeSummary(plan) {
+  const gone = plan.before.comments.length - plan.after.comments.length;
+  const stones = plan.after.comments.filter((entry) => entry.deletedAt !== undefined).length;
+  return `移除 ${gone} 条，留下 ${stones} 块墓碑（有回复指向）`;
+}
+
+export function main({
+  apply = APPLY,
+  dir = DIR,
+  queryRows,
+  pullRequestState,
+} = {}) {
+  const rows = queryRows ?? query(`SELECT ${column("activityId")}, ${column("deletedAt")} FROM ${table}
+   WHERE ${column("deletedAt")} IS NOT NULL AND ${column("promotedAt")} IS NOT NULL`);
+  const withdrawn = rows.map((row) => ({
+    activityId: row[commentsColumns.activityId],
+    deletedAt: row[commentsColumns.deletedAt],
+  }));
+  if (withdrawn.length === 0) {
+    console.log("  没有要立碑的");
+    return { states: [], pending: [], writes: [], changes: [], shouldWrite: false };
+  }
+
+  const result = computeStates({
+    withdrawn,
+    documents: readDocuments(dir),
+    pullRequestState: pullRequestState ?? (process.env.TOMBSTONE_PR_REF
+      ? gitPullRequestState(process.env.TOMBSTONE_PR_REF)
+      : undefined),
+  });
+  printStates(result.states);
+
+  if (!result.shouldWrite) {
+    console.log("  没有待提出的撤回");
+    return result;
+  }
+
+  let changed = 0;
+  for (const plan of result.writes) {
+    changed += plan.before.comments.length - plan.after.comments.length;
+    changed += plan.after.comments.filter((entry) => entry.deletedAt !== undefined).length;
+    console.log(`  ${plan.path}：${changeSummary(plan)}`);
+    if (!apply) continue;
+    // An empty file describes a conversation that is not there. `git add` on
+    // the directory stages the removal the same as an edit.
+    if (plan.after.comments.length === 0) rmSync(plan.path);
+    else writeFileSync(plan.path, `${JSON.stringify(plan.after, null, 2)}\n`);
+  }
+
+  if (changed === 0) {
+    console.log("  都已经处理过了");
+    return result;
+  }
+  console.log(`\n  ${changed} 条${apply ? "已处理" : "会被处理（加 APPLY=1 才动手）"}`);
+  return result;
+}
+
+if (process.argv[1] && new URL(`file://${process.argv[1]}`).href === import.meta.url) {
+  try {
+    main();
+  } catch (error) {
+    console.error(error?.stack ?? error);
+    process.exitCode = 1;
+  }
+}

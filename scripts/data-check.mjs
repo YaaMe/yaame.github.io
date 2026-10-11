@@ -130,6 +130,7 @@ requires("scripts/promote.mjs", "UPDATE ${table}");
 
 const tombstone = requires("scripts/tombstone.mjs", 'from "../src/data.config.generated.mjs"');
 requires("scripts/tombstone.mjs", "promotedComments.gitRoot");
+requires("scripts/tombstone.mjs", "promotedComments.writeBack");
 requires("scripts/tombstone.mjs", "comments.quotedColumns");
 for (const field of ["activityId", "deletedAt", "promotedAt"]) {
   requires("scripts/tombstone.mjs", `column("${field}")`);

@@ -40,6 +40,7 @@ jobs:
       - name: Rewrite what has been withdrawn
         env:
           APPLY: "1"
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CF_KV_ID: ${{ vars.CF_KV_ID }}
           CF_D1_ID: ${{ vars.CF_D1_ID }}
           CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
@@ -47,6 +48,11 @@ jobs:
         run: |
           make data
           node scripts/wrangler-config.mjs >/dev/null
+          open_ref=$(gh pr list --head comments/tombstones --state open --json headRefName --jq '.[0].headRefName // empty')
+          if [ -n "$open_ref" ]; then
+            git fetch origin "refs/heads/$open_ref:refs/remotes/origin/$open_ref"
+            export TOMBSTONE_PR_REF="refs/remotes/origin/$open_ref"
+          fi
           node scripts/tombstone.mjs
 
       # Nothing to do means nothing happens. A weekly empty pull request is
