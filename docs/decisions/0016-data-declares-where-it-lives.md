@@ -44,9 +44,8 @@ merge and the deploy that follows it. If the base moved meanwhile, a person
 resolves the conflict in the pull request. Promotion is a selective write-back.
 
 **Each entry carries what tools select by**: its layers (store kind and place,
-never the host product), the write-back operations that apply, where the data
-belongs to (`owner`, `others`, `system`), what a move does with it, and what it
-serves. A move carries `keep` data **as a portable export**, importable into any
+never the host product), the write-back operations that apply, whose data it is
+(`owner`, `others`, `system`), what a move does with it, and what it serves. A move carries `keep` data **as a portable export**, importable into any
 supported store; secrets and external accounts are `owner-held`, carried by the
 owner outside any export.
 
