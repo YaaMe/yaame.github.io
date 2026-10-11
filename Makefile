@@ -1,6 +1,8 @@
 # Every operation on this site. `make` or `make help` lists them.
 .DEFAULT_GOAL := help
-.PHONY: help install dev deploy deploy-site deploy-consumer build-consumer ap-check promote tombstone build both types wrangler preview check test data frontmatter fix new po follow unfollow pin unpin newpost newtag tags urls links clean
+.PHONY: help install dev deploy deploy-site deploy-consumer build-consumer ap-check promote unpromote tombstone build both types wrangler preview check test data frontmatter fix new po follow unfollow pin unpin newpost newtag tags urls links clean
+DEPLOY_TARGET ?= cloudflare
+MODE_FLAG = $(if $(filter 1,$(APPLY)),--apply,--dry-run)
 
 help: ## 显示这份清单
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) \
@@ -115,14 +117,13 @@ tags: data ## 列出标签常量池与用量
 	@node scripts/tags.mjs
 
 promote: data ## 把收下的评论有筛选地拉回 git（APPLY=1 才真的写）
-	@test -n "$$CF_D1_ID" || { echo "  需要 CF_D1_ID —— wrangler 从 wrangler.jsonc 解析数据库，而 make check 会把它写成占位值"; exit 1; }
-	@node scripts/wrangler-config.mjs >/dev/null
-	@node scripts/promote.mjs
+	@APPLY_HINT="make promote APPLY=1" scripts/platform/$(DEPLOY_TARGET)/promote.sh $(MODE_FLAG)
+
+unpromote: data ## 从 git 和数据库移除一条已提升评论（APPLY=1 才真的写）
+	@ID="$(ID)" scripts/platform/$(DEPLOY_TARGET)/unpromote.sh $(MODE_FLAG)
 
 tombstone: data ## 删掉已进 git 而后被撤回的评论，有回复的留墓碑（APPLY=1 才真的写）
-	@test -n "$$CF_D1_ID" || { echo "  需要 CF_D1_ID"; exit 1; }
-	@node scripts/wrangler-config.mjs >/dev/null
-	@node scripts/tombstone.mjs
+	@APPLY_HINT="make tombstone APPLY=1" scripts/platform/$(DEPLOY_TARGET)/tombstone.sh $(MODE_FLAG)
 
 ap-check: ## 对线上 ActivityPub 端点做一致性检查（URL=… 可指定）
 	@node scripts/ap-check.mjs $(URL)

@@ -88,7 +88,7 @@ script fails.
   wrong id. With a wrong `CF_KV_ID`, the deploy succeeds and the Worker reads
   another namespace instead of its own records, such as the follower list and
   sessions.
-- `make promote` and `make tombstone` need a real `CF_D1_ID`.
+- `make promote`, `make unpromote` and `make tombstone` need a real `CF_D1_ID`.
 
 Neither is a secret, so CI holds them as repository variables, not secrets.
 They only show that the resource exists in the account. Nobody can access

@@ -87,8 +87,9 @@ Safeguards:
 Exceptions to the second rule:
 
 - The migrations in `schema.ts` are hand-written SQL.
-- `scripts/promote.mjs` and `scripts/tombstone.mjs` send SQL text to D1
-  through `wrangler d1 execute`. They work against D1 only.
+- `scripts/platform/cloudflare/` contains the D1-only Bash entry points for
+  promotion, tombstones and unpromotion. They call `wrangler d1 execute` and
+  pass rows to host-free JavaScript logic.
 
 ## Search stays out of the database
 
@@ -117,9 +118,12 @@ permanent, indexed and readable by anyone. The author did not know their words
 would land there.
 
 The inbox stores every reply to one of our posts or notes. `make promote` then
-carries a chosen subset into `src/content/comments/`. It is a dry run unless
-`APPLY=1` is set. With `APPLY=1` it writes the files, then sets `promoted_at`
-on each row in D1. It never promotes a row that is already deleted.
+previews the subset selected by the owner's filter for `src/content/comments/`.
+The platform entry-point contract, including preview and apply behavior, is in
+[`scripts/platform/README.md`](../scripts/platform/README.md). Promotion never
+writes a promotion marker to D1. Selection runs over every non-withdrawn row,
+so changing the following intent can select an earlier reply. A comment already
+in `main` is written back; the operation never proposes removing one.
 
 The filter receives a whole thread, because judging a comment needs its
 context. "Keep the whole reply chain" cannot be expressed one comment at a
@@ -129,10 +133,10 @@ time. `scripts/promote-filter.mjs` default-exports the rule:
 export default (thread) => keptComments;
 ```
 
-That file provides `byAuthor`, `wholeThread` and `nothing`. The default is
-`nothing`, so no comment is promoted until someone writes a rule. Choosing
-what to keep is a social judgement, not a data-structure question, so the
-unit of selection is not fixed.
+That file provides `byFollowing`, `byAuthor`, `wholeThread` and `nothing`. The
+default is `byFollowing`, which reads the handles in
+`src/integrations/activitypub/following.json`. Choosing what to keep is a social
+judgement, not a data-structure question, so the unit of selection is not fixed.
 
 Promotion stores the comment as structured paragraphs of typed runs, not as
 the sender's HTML. Links keep their `href` and label; mentions keep their
@@ -142,6 +146,11 @@ conversion, not a sanitiser: the archive contains no HTML and the template
 escapes and renders each run. See
 [0015](decisions/0015-promoted-comments-keep-structured-runs.md). Promotion
 also fetches the author's display name and stores it as `name`.
+
+Before a selected entry is written, the shared Zod schema checks its shape;
+link runs must use `http` or `https`, content is capped at 10,000 characters,
+and control characters are rejected. A failed check is reported and skipped so
+other selected replies can still be proposed.
 
 ### What the specification requires
 
@@ -178,14 +187,14 @@ When a `Delete` arrives for a comment:
 5. The `static` profile is prerendered and has no database to ask. Its inline
    view keeps the old text until a deploy after the tombstone file changes.
 6. The Tombstones workflow runs every Monday at 01:37 UTC, or when started by
-   hand. It finds the rows where both `deleted_at` and `promoted_at` are set,
+   hand. It finds rows with `deleted_at`, reconciles them against the git base,
    rewrites `src/content/comments/`, and opens or updates a pull request.
 7. A person decides whether to merge. A merge pushes to `main`, and that push
    rebuilds and redeploys both sites. The full profile is already clear; the
    static profile becomes clear on this deploy.
 
 No separate queue of pending removals exists. The pending set is the query on
-the two columns.
+`deleted_at`; whether a row was promoted is read from the git base.
 
 When the workflow rewrites a file:
 
@@ -219,23 +228,25 @@ cannot tell which entry to change. The `activityId` field is required in
 
 ### The pull-request job
 
-`.github/workflows/tombstones.yml`:
+`.github/workflows/tombstones.yml` and `.github/workflows/promotions.yml`:
 
 - Runs weekly, and on `workflow_dispatch`.
 - Does nothing when nothing is pending. It never opens an empty pull request.
-- Is idempotent. Each run rebuilds the fixed branch `comments/tombstones`
-  from `main` and force-pushes it, so one batch updates one open pull request.
-  A hand edit on that branch is overwritten on the next run. Edit `main`
-  instead. The force-push exception is explained in `CLAUDE.md`.
+- Is idempotent. Each run rebuilds its fixed branch (`comments/tombstones` for
+  withdrawals and `comments/promotions` for additions) from `main` and
+  force-pushes it, so one batch updates one open pull request. A hand edit on
+  either branch is overwritten on the next run. Edit `main` instead. The
+  force-push exception is explained beside the push command in each workflow.
 - Holds `GITHUB_TOKEN` with `contents: write` and `pull-requests: write`. No
   personal access token is needed, because opening a pull request is within
   that token's permissions.
 - Holds `CLOUDFLARE_API_TOKEN` to read D1. That token has `D1 Read` and no D1
   write permission.
 
-Only CI can do this. The runtime holds no GitHub token, deliberately. The
-mirror also holds: CI cannot write D1, so `make promote` runs locally, under
-your own login.
+Only CI can do the git write-back. The runtime holds no GitHub token,
+deliberately. The local commands, including `make unpromote`, which also
+deletes the row from D1, follow the contract in
+[`scripts/platform/README.md`](../scripts/platform/README.md).
 
 ## The write entry point
 
@@ -332,7 +343,8 @@ renders links, mentions and hashtags with `rel="nofollow ugc"`. There is no
 stored HTML, no sanitiser boundary, and no `set:html`.
 
 Notes render their promoted comments below the note on `/notes/{year}/` only.
-The `/notes/` index has no anchors and no comments. `scripts/promote.mjs` writes
+The `/notes/` index has no anchors and no comments. The promotion entry point
+`scripts/platform/cloudflare/promote.sh` writes
 long-post threads to `src/content/comments/posts/<slug>.json` and note threads
 to `src/content/comments/notes/<YYYY>.json`, where the year is the note's
 archive file. The full archive uses one deferred island request for the whole

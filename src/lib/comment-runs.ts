@@ -1,8 +1,7 @@
-export type CommentRun =
-  | { type: "text"; text: string }
-  | { type: "link"; href: string; label: string }
-  | { type: "mention"; href: string; handle: string }
-  | { type: "hashtag"; href: string; name: string };
+import type { z } from "zod";
+import type { commentRun } from "./comment-schema";
+
+export type CommentRun = z.infer<typeof commentRun>;
 
 export function runLabel(run: CommentRun): string {
   return run.type === "text"

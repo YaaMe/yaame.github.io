@@ -1,0 +1,94 @@
+name: Promote comments
+
+# Reconcile the owner's promotion filter with the git archive. This is a
+# separate job and branch from tombstones so an add-only proposal cannot hide a
+# withdrawal change in the same pull request.
+
+on:
+  schedule:
+    - cron: "37 1 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: promotions
+  cancel-in-progress: false
+
+jobs:
+  raise:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: make install
+
+      - name: Propose comments selected by the filter
+        id: reconcile
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CF_KV_ID: ${{ vars.CF_KV_ID }}
+          CF_D1_ID: ${{ vars.CF_D1_ID }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          DEPLOY_TARGET: cloudflare
+        run: |
+          make data
+          open_ref=$(gh pr list --head comments/promotions --state open --json headRefName --jq '.[0].headRefName // empty')
+          if [ -n "$open_ref" ]; then
+            git fetch origin "refs/heads/$open_ref:refs/remotes/origin/$open_ref"
+            export PROMOTION_PR_REF="refs/remotes/origin/$open_ref"
+          fi
+          result=$(scripts/platform/$DEPLOY_TARGET/promote.sh --apply)
+          printf '%s\n' "$result"
+          if printf '%s\n' "$result" | node --input-type=module -e '
+            import { readFileSync } from "node:fs";
+            process.exit(JSON.parse(readFileSync(0, "utf8")).shouldWrite ? 0 : 1);
+          '; then
+            echo "should-write=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "should-write=false" >> "$GITHUB_OUTPUT"
+            echo "  no promotion changes"
+            exit 0
+          fi
+
+      - name: Open or update the pull request
+        if: steps.reconcile.outputs.should-write == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          promoted_comments_root=$(node --input-type=module -e 'import { promotedComments } from "./src/data.config.generated.mjs"; console.log(promotedComments.gitRoot)')
+          if [ -d "$promoted_comments_root" ]; then
+            git add -A -- "$promoted_comments_root"
+          fi
+          open=$(gh pr list --head comments/promotions --state open --json number --jq 'length')
+          if git diff --cached --quiet -- "$promoted_comments_root" && [ "$open" = "0" ]; then
+            echo "  no comments to promote"
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c comments/promotions
+          if ! git diff --cached --quiet -- "$promoted_comments_root"; then
+            git commit -m "chore(comments): propose filtered replies"
+          fi
+          # This workflow branch is regenerated from main on every run, so
+          # replacing it is expected. --force-with-lease fails in CI because
+          # checkout fetched only main and has no remote-tracking lease ref.
+          git push --force origin comments/promotions
+
+          open=$(gh pr list --head comments/promotions --state open --json number --jq 'length')
+          if [ "$open" = "0" ]; then
+            gh pr create \
+              --base main --head comments/promotions \
+              --title "Comments selected by the promotion filter" \
+              --body-file .github/promotion-pr.md
+          else
+            echo "  an open pull request already exists; branch updated"
+          fi

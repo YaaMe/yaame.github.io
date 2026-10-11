@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { fileFor, promotedComment } from "../scripts/promote.mjs";
+import { promotedComment } from "../scripts/promote.mjs";
+import { fileFor } from "../scripts/comments-store.mjs";
 import { renderedText } from "../src/lib/comment-runs.ts";
 import { visibleComments } from "../src/lib/comment-view.ts";
 
