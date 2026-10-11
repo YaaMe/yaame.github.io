@@ -18,12 +18,12 @@ import { mkdirSync, readFileSync, writeFileSync, existsSync, readdirSync } from 
 import { dirname, join } from "node:path";
 import filter from "./promote-filter.mjs";
 import { toContent } from "./promote-text.mjs";
-import { comments, promotedComments } from "../src/data.config.generated.mjs";
+import { comments, notes, promotedComments } from "../src/data.config.generated.mjs";
 
 const APPLY = process.env.APPLY === "1";
 const DB = "yaame-ap-interactions";
 const DIR = promotedComments.gitRoot;
-const NOTES = "src/content/notes";
+const NOTES = notes.gitRoot;
 const commentsColumns = comments.columns;
 const column = (name) => comments.quotedColumns[name];
 const table = comments.table;

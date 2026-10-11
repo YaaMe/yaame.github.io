@@ -16,8 +16,9 @@
  */
 import { readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { posts } from "../src/data.config.generated.mjs";
 
-const DIR = "src/content/posts";
+const DIR = posts.gitRoot;
 const FIELD = { desc: "description", tags: "tags" };
 
 const MAX = 30;              // description length cap, in characters

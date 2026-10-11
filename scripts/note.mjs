@@ -22,12 +22,15 @@
  */
 import { execFileSync } from "node:child_process";
 import { readFileSync, existsSync, rmSync } from "node:fs";
+import { join } from "node:path";
 import { append, newId } from "./notes-store.mjs";
-import { promotedComments } from "../src/data.config.generated.mjs";
+import { notes, posts, promotedComments } from "../src/data.config.generated.mjs";
 
 const APPLY = process.env.APPLY === "1";
 const FORCE = process.env.FORCE === "1";
 const promotedCommentsRoot = promotedComments.gitRoot;
+const postsRoot = posts.gitRoot;
+const notesRoot = notes.gitRoot;
 
 const argv = process.argv.slice(2);
 const at = argv.indexOf("--file");
@@ -56,7 +59,7 @@ if (!source && !text) {
 async function fromFile(path) {
   // A path if one exists, a slug otherwise. The draft this is for usually lives
   // wherever it was convenient to write it, not in the content directory.
-  const asPost = `src/content/posts/${path}.md`;
+  const asPost = join(postsRoot, `${path}.md`);
   const file = existsSync(path) ? path : asPost;
   if (!existsSync(file)) fail(`  没有这个文件：${path}`, `  也不是 ${asPost}`);
 
@@ -93,7 +96,7 @@ async function fromFile(path) {
     // Promoted comments hang off the post's ActivityPub id. Converting would
     // leave them describing a conversation under an object that no longer
     // answers, and nothing would report it.
-    const comments = `${promotedCommentsRoot}/posts/${slug}.json`;
+    const comments = join(promotedCommentsRoot, "posts", `${slug}.json`);
     if (existsSync(comments)) {
       fail(
         `\n  ✗ ${comments} 存在：有评论挂在这篇的 AP id 上`,
@@ -149,7 +152,7 @@ const id = newId();
 
 if (source) {
   console.log(`  ${from.file}`);
-  console.log(`    → src/content/notes/${year}.json   id ${id}   ${published}`);
+  console.log(`    → ${join(notesRoot, `${year}.json`)}   id ${id}   ${published}`);
   if (!from.dated) console.log("    （没有 date，用此刻）");
   if (from.title) console.log(`\n  丢掉标题：${from.title.replace(/^["']|["']$/g, "")}`);
   if (from.tags.length > 0) console.log(`  丢掉标签：${from.tags.join("、")}`);

@@ -65,13 +65,13 @@ both: ## 两个 profile 都过一遍（推之前跑）
 types: ## 类型检查（astro build 不做这件事）
 	@npx astro check
 
-frontmatter: ## 检查 frontmatter 是否补全（不写文件）
+frontmatter: data ## 检查 frontmatter 是否补全（不写文件）
 	@node scripts/frontmatter.mjs --check
 
-fix: ## 补全缺失的 description 和 tags（不覆盖已有的）
+fix: data ## 补全缺失的 description 和 tags（不覆盖已有的）
 	@node scripts/frontmatter.mjs
 
-new: ## 交互式新建（问你要建文章还是标签）
+new: data ## 交互式新建（问你要建文章还是标签）
 	@node scripts/new.mjs
 
 # `make po 今天天气不错` passes the words after the target as arguments. This
@@ -84,28 +84,28 @@ ifneq (,$(filter po follow unfollow pin unpin,$(firstword $(MAKECMDGOALS))))
   $(eval $(PO):;@:)
 endif
 
-pin: ## 置顶一篇文章。make pin <slug>
+pin: data ## 置顶一篇文章。make pin <slug>
 	@node scripts/pin.mjs $(filter-out $@,$(MAKECMDGOALS))
 
-unpin: ## 取消置顶。make unpin <slug>
+unpin: data ## 取消置顶。make unpin <slug>
 	@node scripts/pin.mjs --remove $(filter-out $@,$(MAKECMDGOALS))
 
-follow: ## 关注一个人。make follow @someone@example.com
+follow: data ## 关注一个人。make follow @someone@example.com
 	@node scripts/follow.mjs $(filter-out $@,$(MAKECMDGOALS)) $(if $(T),"$(T)",)
 
-unfollow: ## 取关。make unfollow @someone@example.com
+unfollow: data ## 取关。make unfollow @someone@example.com
 	@node scripts/follow.mjs --remove $(filter-out $@,$(MAKECMDGOALS)) $(if $(T),"$(T)",)
 
 po: data ## 写一条短文。make po 正文 / T="正文" 直接写入；F=draft.md 要加 APPLY=1 才写入
 	@node scripts/note.mjs $(if $(T),"$(T)",$(PO)) $(if $(F),--file "$(F)",)
 
-newpost: ## 新建文章。P=2026-year / P=2026-09 / P=2026-09-15，T=标题
+newpost: data ## 新建文章。P=2026-year / P=2026-09 / P=2026-09-15，T=标题
 	@node scripts/newpost.mjs $(P) $(if $(T),--title "$(T)",)
 
 newtag: ## 新建标签。SLUG=reading LABEL=读书
 	@node scripts/newtag.mjs $(SLUG) $(LABEL)
 
-tags: ## 列出标签常量池与用量
+tags: data ## 列出标签常量池与用量
 	@node scripts/tags.mjs
 
 promote: data ## 把收下的评论有筛选地拉回 git（APPLY=1 才真的写）

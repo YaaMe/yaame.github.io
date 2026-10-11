@@ -14,8 +14,9 @@
  * docs/decisions/0004-follow-reconciliation-pivots-on-what-was-sent.md.
  */
 import { readFileSync, writeFileSync } from "node:fs";
+import { followIntentLocation } from "../src/data.config.generated.mjs";
 
-const FILE = "src/integrations/activitypub/following.json";
+const FILE = followIntentLocation.file;
 // `--remove` rather than a leading `-` on the handle: make reads a leading
 // dash as one of its own options, and the command never arrives here.
 const args = process.argv.slice(2);

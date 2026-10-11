@@ -7,8 +7,9 @@
  */
 import { mkdirSync, readFileSync, writeFileSync, existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
+import { notes } from "../src/data.config.generated.mjs";
 
-export const DIR = "src/content/notes";
+export const DIR = notes.gitRoot;
 
 /**
  * The id is not the time.

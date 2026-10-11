@@ -18,13 +18,14 @@ import { existsSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { createInterface } from "node:readline/promises";
 import { readFileSync } from "node:fs";
+import { posts } from "../src/data.config.generated.mjs";
 
 // Tags come from the registry in src/tags.ts, which is the only truth. The key
 // names are read out of the source rather than pulling in a TypeScript compiler.
 const POOL = [...readFileSync("src/tags.ts", "utf8")
   .matchAll(/^\s{2}(\w+):\s*"([^"]+)"/gm)].map((m) => ({ slug: m[1], label: m[2] }));
 
-const DIR = "src/content/posts";
+const DIR = posts.gitRoot;
 const TZ = "+08:00";
 
 const args = process.argv.slice(2);

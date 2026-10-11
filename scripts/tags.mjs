@@ -2,12 +2,13 @@
 /** The tag registry, with how many posts use each one. */
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
+import { komorebi, posts } from "../src/data.config.generated.mjs";
 
 const pool = [...readFileSync("src/tags.ts", "utf8")
   .matchAll(/^\s{2}(\w+):\s*"([^"]+)"/gm)].map((m) => ({ slug: m[1], label: m[2] }));
 
 const used = new Map();
-for (const dir of ["src/content/posts", "src/content/komorebi"]) {
+for (const dir of [posts.gitRoot, komorebi.gitRoot]) {
   for (const f of readdirSync(dir).filter((x) => x.endsWith(".md"))) {
     const fm = readFileSync(join(dir, f), "utf8").split("---")[1] ?? "";
     // Items under `tags:` only: list items beneath any other field would

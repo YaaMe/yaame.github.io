@@ -1,9 +1,12 @@
 import { readFileSync, writeFileSync } from "node:fs";
+import { dirname, relative, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { dataConfigSchema } from "../src/data.config.ts";
 
 const registerPath = new URL("../src/data.config.json", import.meta.url);
 const modulePath = new URL("../src/data.config.generated.mjs", import.meta.url);
 const typesPath = new URL("../src/data.config.generated.d.ts", import.meta.url);
+const projectRoot = dirname(dirname(fileURLToPath(registerPath)));
 
 function registerError(error) {
   if (Array.isArray(error?.issues)) {
@@ -32,14 +35,35 @@ function gitValues(config, kind) {
   const index = firstGlob(path);
   const slash = path.lastIndexOf("/", index < 0 ? path.length : index);
   if (slash < 0 || slash === path.length - 1) {
-    throw new Error(`data register entry ${kind} git path is not a glob: ${path}`);
+    throw new Error(`data register entry ${kind} git path is not a file or glob: ${path}`);
   }
   const root = path.slice(0, slash);
-  return {
+  const values = {
     git: path,
     gitRoot: root,
     glob: { base: `./${root}`, pattern: path.slice(slash + 1) },
   };
+  if (index < 0) values.file = path;
+  return values;
+}
+
+function resolvedValues(config, kind, seen = []) {
+  if (seen.includes(kind)) {
+    throw new Error(`data register ref cycle: ${[...seen, kind].join(" → ")}`);
+  }
+  const entry = config[kind];
+  if (!entry) throw new Error(`data register ref points to missing entry ${kind}`);
+  const git = entry.layers.find((candidate) => Object.hasOwn(candidate, "git"));
+  if (git) return gitValues(config, kind);
+  const ref = entry.layers.find((candidate) => Object.hasOwn(candidate, "ref"));
+  if (ref) {
+    return {
+      ...resolvedValues(config, ref.ref, [...seen, kind]),
+      ref: ref.ref,
+      fields: [...ref.fields],
+    };
+  }
+  throw new Error(`data register entry ${kind} has no resolvable git layer`);
 }
 
 function quotedIdentifier(value) {
@@ -63,50 +87,90 @@ function sqlValues(config, kind) {
   };
 }
 
-function propertyTypes(value, indent = "  ") {
-  return Object.entries(value)
-    .map(([key, nested]) => {
-      if (nested && typeof nested === "object" && !Array.isArray(nested)) {
-        return `${indent}readonly ${key}: {\n${propertyTypes(nested, `${indent}  `)}\n${indent}};`;
-      }
-      return `${indent}readonly ${key}: string;`;
-    })
-    .join("\n");
+function exportName(kind) {
+  return kind
+    .split(/[.-]/)
+    .map((part, index) => index === 0 ? part : part[0].toUpperCase() + part.slice(1))
+    .join("");
 }
 
-function generateTypes(comments, promotedComments) {
-  return [
-    "// generated from src/data.config.json, do not edit",
-    "",
-    "export declare const comments: {",
-    propertyTypes(comments),
-    "};",
-    "",
-    "export declare const promotedComments: {",
-    propertyTypes(promotedComments),
-    "};",
-    "",
-  ].join("\n");
+function typeFor(value, indent = "  ") {
+  if (typeof value === "string") return "string";
+  if (typeof value === "number") return "number";
+  if (typeof value === "boolean") return "boolean";
+  if (Array.isArray(value)) {
+    if (value.length === 0) return "readonly never[]";
+    return `readonly ${typeFor(value[0], indent)}[]`;
+  }
+  if (value && typeof value === "object") {
+    return `{
+${Object.entries(value)
+  .map(([key, nested]) => `${indent}  readonly ${key}: ${typeFor(nested, `${indent}  `)};`)
+  .join("\n")}
+${indent}}`;
+  }
+  return "unknown";
 }
 
-function generateModule(comments, promotedComments) {
-  return [
-    "// generated from src/data.config.json, do not edit",
-    "",
-    `export const comments = ${JSON.stringify(comments, null, 2)};`,
-    "",
-    `export const promotedComments = ${JSON.stringify(promotedComments, null, 2)};`,
-    "",
-  ].join("\n");
+function relativeImport(path) {
+  const from = dirname(fileURLToPath(modulePath));
+  let imported = relative(from, resolve(projectRoot, path)).replaceAll("\\", "/");
+  if (!imported.startsWith(".")) imported = `./${imported}`;
+  return imported;
+}
+
+function generateTypes(values, staticImports) {
+  const lines = ["// generated from src/data.config.json, do not edit", ""];
+  for (const [name, value] of values) {
+    lines.push(`export declare const ${name}: ${typeFor(value)};`, "");
+  }
+  for (const [name] of staticImports) {
+    lines.push(`export declare const ${name}: unknown;`, "");
+  }
+  return `${lines.join("\n")}\n`;
+}
+
+function generateModule(values, staticImports) {
+  const lines = ["// generated from src/data.config.json, do not edit", ""];
+  for (const [name, path] of staticImports) {
+    lines.push(
+      `import ${name} from ${JSON.stringify(relativeImport(path))} with { type: "json" };`,
+      "",
+    );
+  }
+  for (const [name, value] of values) {
+    lines.push(`export const ${name} = ${JSON.stringify(value, null, 2)};`, "");
+  }
+  for (const [name] of staticImports) {
+    lines.push(`export { ${name} };`, "");
+  }
+  return `${lines.join("\n")}\n`;
 }
 
 try {
   const raw = JSON.parse(readFileSync(registerPath, "utf8"));
   const config = dataConfigSchema.parse(raw);
-  const comments = sqlValues(config, "comments");
-  const promotedComments = gitValues(config, "promoted-comments");
-  writeFileSync(modulePath, generateModule(comments, promotedComments));
-  writeFileSync(typesPath, generateTypes(comments, promotedComments));
+  const values = [];
+  const staticImports = [];
+
+  for (const kind of Object.keys(config)) {
+    const name = exportName(kind);
+    let value;
+    if (kind === "comments") value = sqlValues(config, kind);
+    else if (kind === "promoted-comments") value = gitValues(config, kind);
+    else value = resolvedValues(config, kind);
+
+    const layer = config[kind].layers.find((candidate) => Object.hasOwn(candidate, "git"));
+    if (kind === "follow-intent" && layer && firstGlob(layer.git) < 0) {
+      values.push([`${name}Location`, value]);
+      staticImports.push([name, layer.git]);
+    } else {
+      values.push([name, value]);
+    }
+  }
+
+  writeFileSync(modulePath, generateModule(values, staticImports));
+  writeFileSync(typesPath, generateTypes(values, staticImports));
 } catch (error) {
   registerError(error);
   process.exitCode = 1;

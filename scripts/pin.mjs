@@ -10,6 +10,8 @@
  * and quoting there are deliberate.
  */
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
+import { join } from "node:path";
+import { postsPinned } from "../src/data.config.generated.mjs";
 
 const args = process.argv.slice(2);
 const remove = args[0] === "--remove";
@@ -20,7 +22,7 @@ if (!slug) {
   process.exit(1);
 }
 
-const file = `src/content/posts/${slug}.md`;
+const file = join(postsPinned.gitRoot, `${slug}.md`);
 if (!existsSync(file)) {
   console.error(`  没有这篇：${file}`);
   process.exit(1);

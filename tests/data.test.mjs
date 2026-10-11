@@ -1,7 +1,15 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { comments, promotedComments } from "../src/data.config.generated.mjs";
+import {
+  comments,
+  followIntentLocation,
+  komorebi,
+  notes,
+  posts,
+  postsPinned,
+  promotedComments,
+} from "../src/data.config.generated.mjs";
 import { dataConfigSchema } from "../src/data.config.ts";
 
 function copyRegister() {
@@ -44,6 +52,29 @@ test("the register declares the comments stores and their layers", () => {
   assert.equal(promotedComments.gitRoot, "src/content/comments");
   assert.equal(copyRegister()["promoted-comments"].writeBack[0], "promote");
   assert.equal(copyRegister()["promoted-comments"].writeBack[1], "tombstone");
+});
+
+test("the register resolves every git content location", () => {
+  const register = copyRegister();
+  for (const [kind, layer] of [
+    ["posts", "src/content/posts/**/*.md"],
+    ["notes", "src/content/notes/**/*.json"],
+    ["komorebi", "src/content/komorebi/**/*.md"],
+    ["follow-intent", "src/integrations/activitypub/following.json"],
+  ]) {
+    assert.equal(register[kind].layers[0].git, layer);
+    assert.equal(register[kind].writeBack.length, 0);
+    assert.equal(register[kind].origin, "owner");
+    assert.equal(register[kind].recovery, "keep");
+    assert.ok(register[kind].purposes.length > 0);
+    assert.ok(register[kind].description);
+  }
+  assert.deepEqual(register["posts.pinned"].layers, [{ ref: "posts", fields: ["pinned"] }]);
+  assert.deepEqual(posts.glob, { base: "./src/content/posts", pattern: "**/*.md" });
+  assert.deepEqual(postsPinned.fields, ["pinned"]);
+  assert.deepEqual(notes.glob, { base: "./src/content/notes", pattern: "**/*.json" });
+  assert.deepEqual(komorebi.glob, { base: "./src/content/komorebi", pattern: "**/*.md" });
+  assert.equal(followIntentLocation.file, "src/integrations/activitypub/following.json");
 });
 
 test("the register rejects values outside each declared enum", () => {

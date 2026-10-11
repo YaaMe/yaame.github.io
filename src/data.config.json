@@ -1,4 +1,69 @@
 {
+  "posts": {
+    "layers": [
+      {
+        "git": "src/content/posts/**/*.md",
+        "format": "markdown"
+      }
+    ],
+    "writeBack": [],
+    "origin": "owner",
+    "recovery": "keep",
+    "purposes": ["content"],
+    "description": "Written by the author in git."
+  },
+  "posts.pinned": {
+    "layers": [
+      {
+        "ref": "posts",
+        "fields": ["pinned"]
+      }
+    ],
+    "writeBack": [],
+    "origin": "owner",
+    "recovery": "keep",
+    "purposes": ["content", "federation"],
+    "description": "Frontmatter field; federation serves it as featured."
+  },
+  "notes": {
+    "layers": [
+      {
+        "git": "src/content/notes/**/*.json",
+        "format": "json"
+      }
+    ],
+    "writeBack": [],
+    "origin": "owner",
+    "recovery": "keep",
+    "purposes": ["content", "federation"],
+    "description": "Short posts in one JSON archive per year, written by the author in git."
+  },
+  "komorebi": {
+    "layers": [
+      {
+        "git": "src/content/komorebi/**/*.md",
+        "format": "markdown"
+      }
+    ],
+    "writeBack": [],
+    "origin": "owner",
+    "recovery": "keep",
+    "purposes": ["content", "federation"],
+    "description": "The serialised novel, written by the author in git."
+  },
+  "follow-intent": {
+    "layers": [
+      {
+        "git": "src/integrations/activitypub/following.json",
+        "format": "json"
+      }
+    ],
+    "writeBack": [],
+    "origin": "owner",
+    "recovery": "keep",
+    "purposes": ["federation"],
+    "description": "Handles the author intends to follow; the Worker reconciles them after deploy."
+  },
   "comments": {
     "layers": [
       {

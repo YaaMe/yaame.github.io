@@ -19,10 +19,25 @@ try {
   process.exit(1);
 }
 
-const { comments, promotedComments } = module;
+const {
+  comments,
+  komorebi,
+  notes,
+  posts,
+  postsPinned,
+  promotedComments,
+  followIntentLocation,
+} = module;
+const followIntentImport = `import followIntent from ${JSON.stringify(`./${followIntentLocation.file.replace(/^src\//, "")}`)} with { type: "json" };`;
+requires("src/data.config.generated.mjs", followIntentImport);
+requires("src/data.config.generated.mjs", "export { followIntent };");
 const promotedGit = promotedComments.git;
 const promotedRoot = promotedComments.gitRoot;
 const commentsSql = { sql: comments.sql, columns: comments.columns };
+if (typeof postsPinned?.gitRoot !== "string") {
+  console.error("  data register consumer: posts.pinned did not resolve to the posts git location");
+  process.exitCode = 1;
+}
 
 function read(path) {
   try {
@@ -53,7 +68,13 @@ function requiresPattern(path, pattern, label) {
 
 const content = requires("src/content.config.ts", 'from "./data.config.generated.mjs"');
 requires("src/content.config.ts", "const promotedCommentsGlob = promotedComments.glob");
-requires("src/content.config.ts", "loader: glob(promotedCommentsGlob)");
+requires("src/content.config.ts", "const notesGlob = notesLocation.glob");
+requires("src/content.config.ts", "const postsGlob = postsLocation.glob");
+requires("src/content.config.ts", "const komorebiGlob = komorebiLocation.glob");
+for (const globName of ["promotedComments", "notes", "posts", "komorebi"]) {
+  const variable = globName === "promotedComments" ? "promotedCommentsGlob" : `${globName}Glob`;
+  requires("src/content.config.ts", `loader: glob(${variable})`);
+}
 
 const schema = requires("src/integrations/activitypub/store/schema.ts", 'from "../../../data.config.generated.mjs"');
 requires("src/integrations/activitypub/store/schema.ts", "commentsLocation.columns");
@@ -68,6 +89,7 @@ for (const field of Object.keys(commentsSql.columns)) {
 
 const promote = requires("scripts/promote.mjs", 'from "../src/data.config.generated.mjs"');
 requires("scripts/promote.mjs", "promotedComments.gitRoot");
+requires("scripts/promote.mjs", "notes.gitRoot");
 requires("scripts/promote.mjs", "comments.quotedColumns");
 for (const field of ["activityId", "objectId", "rootId", "replyToId", "actorId", "content", "published", "promotedAt", "deletedAt"]) {
   requires("scripts/promote.mjs", `column("${field}")`);
@@ -83,8 +105,30 @@ for (const field of ["activityId", "deletedAt", "promotedAt"]) {
 }
 requires("scripts/tombstone.mjs", "FROM ${table}");
 
-requires("scripts/note.mjs", 'from "../src/data.config.generated.mjs"');
+const note = requires("scripts/note.mjs", 'from "../src/data.config.generated.mjs"');
 requires("scripts/note.mjs", "promotedComments.gitRoot");
+requires("scripts/note.mjs", "posts.gitRoot");
+requires("scripts/note.mjs", "notes.gitRoot");
+const notesStore = requires("scripts/notes-store.mjs", 'from "../src/data.config.generated.mjs"');
+requires("scripts/notes-store.mjs", "notes.gitRoot");
+const newpost = requires("scripts/newpost.mjs", 'from "../src/data.config.generated.mjs"');
+requires("scripts/newpost.mjs", "posts.gitRoot");
+const frontmatter = requires("scripts/frontmatter.mjs", 'from "../src/data.config.generated.mjs"');
+requires("scripts/frontmatter.mjs", "posts.gitRoot");
+const pin = requires("scripts/pin.mjs", 'from "../src/data.config.generated.mjs"');
+requires("scripts/pin.mjs", "postsPinned.gitRoot");
+const follow = requires("scripts/follow.mjs", 'from "../src/data.config.generated.mjs"');
+requires("scripts/follow.mjs", "followIntentLocation.file");
+const tags = requires("scripts/tags.mjs", 'from "../src/data.config.generated.mjs"');
+requires("scripts/tags.mjs", "posts.gitRoot");
+requires("scripts/tags.mjs", "komorebi.gitRoot");
+const federation = requires("src/integrations/activitypub/federation.ts", 'from "../../data.config.generated.mjs"');
+requires("src/integrations/activitypub/federation.ts", "followIntent");
+if (federation.includes("readFollowIntent") || federation.includes("await followIntent")) {
+  console.error("  data register consumer src/integrations/activitypub/federation.ts: follow intent must be a static value");
+  process.exitCode = 1;
+}
+
 const workflow = requires(".github/workflows/tombstones.yml", "node scripts/tombstone.mjs");
 requires(".github/workflows/tombstones.yml", "make data");
 requires(
@@ -104,7 +148,14 @@ const pathConsumers = [
   ["src/content.config.ts", content],
   ["scripts/promote.mjs", promote],
   ["scripts/tombstone.mjs", tombstone],
-  ["scripts/note.mjs", read("scripts/note.mjs")],
+  ["scripts/note.mjs", note],
+  ["scripts/notes-store.mjs", notesStore],
+  ["scripts/newpost.mjs", newpost],
+  ["scripts/frontmatter.mjs", frontmatter],
+  ["scripts/pin.mjs", pin],
+  ["scripts/follow.mjs", follow],
+  ["scripts/tags.mjs", tags],
+  ["src/integrations/activitypub/federation.ts", federation],
   [".github/workflows/tombstones.yml", workflow],
 ];
 for (const [path, source] of pathConsumers) {
@@ -124,6 +175,52 @@ for (const [path, source] of [["scripts/promote.mjs", promote], ["scripts/tombst
       console.error(`  data register consumer ${path}: repeats comments column ${column}`);
       process.exitCode = 1;
     }
+  }
+}
+
+// A source consumer must use a generated value. Strip comments before looking
+// for old path literals, so explanatory prose cannot become a false copy.
+function withoutComments(source) {
+  return source
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .replace(/(^|\s)\/\/.*$/gm, "$1");
+}
+
+const sourceWithoutComments = pathConsumers
+  .filter(([path]) => !path.startsWith(".github/"))
+  .map(([path, source]) => [path, withoutComments(source)]);
+const oldPathCopies = [
+  ["posts", /(?:src\/)?content\/posts(?:\/|["'`])/, posts],
+  ["notes", /(?:src\/)?content\/notes(?:\/|["'`])/, notes],
+  ["komorebi", /(?:src\/)?content\/komorebi(?:\/|["'`])/, komorebi],
+  ["follow-intent", /(?:src\/)?integrations\/activitypub\/following\.json|\.\/following\.json/, followIntentLocation],
+];
+for (const [path, source] of sourceWithoutComments) {
+  for (const [kind, pattern, location] of oldPathCopies) {
+    if (pattern.test(source)) {
+      console.error(`  data register consumer ${path}: repeats ${kind} git path ${location.git}`);
+      process.exitCode = 1;
+    }
+  }
+}
+
+const directLocationCopies = [
+  ["src/content.config.ts", /glob\(\s*\{/],
+  ["scripts/newpost.mjs", /\bconst DIR\s*=\s*["'`]/],
+  ["scripts/frontmatter.mjs", /\bconst DIR\s*=\s*["'`]/],
+  ["scripts/notes-store.mjs", /\b(?:const|export const) DIR\s*=\s*["'`]/],
+  ["scripts/pin.mjs", /\bconst file\s*=\s*join\(\s*["'`]/],
+  ["scripts/follow.mjs", /\bconst FILE\s*=\s*["'`]/],
+  ["scripts/tags.mjs", /\bconst dir of \[\s*["'`]/],
+  ["scripts/note.mjs", /\bconst (?:asPost|comments)\s*=\s*(?:join\(\s*["'`]|["'`])/],
+  ["scripts/promote.mjs", /\bconst NOTES\s*=\s*["'`]/],
+  ["src/integrations/activitypub/federation.ts", /(?:from|import\()\s*["'`][^"'`]*following\.json/],
+];
+for (const [path, pattern] of directLocationCopies) {
+  const source = sourceWithoutComments.find(([candidate]) => candidate === path)?.[1];
+  if (source && pattern.test(source)) {
+    console.error(`  data register consumer ${path}: has a hardcoded registered location`);
+    process.exitCode = 1;
   }
 }
 

@@ -42,7 +42,12 @@ test("the data generator validates the register and emits resolved values", (t) 
 });
 
 test("the tombstone workflow scopes both Git operations to the relocated register root", (t) => {
-  const cwd = fixture(t, ["scripts/data-config.mjs", "src/data.config.ts", "src/data.config.json"]);
+  const cwd = fixture(t, [
+    "scripts/data-config.mjs",
+    "src/data.config.ts",
+    "src/data.config.json",
+    "src/integrations/activitypub/following.json",
+  ]);
   const registerPath = join(cwd, "src/data.config.json");
   const register = JSON.parse(readFileSync(registerPath, "utf8"));
   register["promoted-comments"].layers[0].git = "archive/promoted comments/{posts,notes}/*.json";
@@ -83,11 +88,19 @@ test("data-check rejects workflow path copies and unscoped Git commands", (t) =>
     workflowPath,
     "scripts/data-check.mjs",
     "src/data.config.generated.mjs",
+    "src/integrations/activitypub/following.json",
     "src/content.config.ts",
     "src/integrations/activitypub/store/schema.ts",
     "scripts/promote.mjs",
     "scripts/tombstone.mjs",
     "scripts/note.mjs",
+    "scripts/notes-store.mjs",
+    "scripts/newpost.mjs",
+    "scripts/frontmatter.mjs",
+    "scripts/pin.mjs",
+    "scripts/follow.mjs",
+    "scripts/tags.mjs",
+    "src/integrations/activitypub/federation.ts",
   ]);
   const check = () => spawnSync(process.execPath, ["--experimental-strip-types", "scripts/data-check.mjs"], { cwd, encoding: "utf8" });
   const valid = check();

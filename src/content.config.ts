@@ -7,9 +7,17 @@ import { z } from "zod";
 import { glob } from "astro/loaders";
 import { TAG_SLUGS } from "./tags";
 import { site } from "./site.config";
-import { promotedComments } from "./data.config.generated.mjs";
+import {
+  komorebi as komorebiLocation,
+  notes as notesLocation,
+  posts as postsLocation,
+  promotedComments,
+} from "./data.config.generated.mjs";
 
 const promotedCommentsGlob = promotedComments.glob;
+const notesGlob = notesLocation.glob;
+const postsGlob = postsLocation.glob;
+const komorebiGlob = komorebiLocation.glob;
 
 const ymd = new Intl.DateTimeFormat("en-CA", {
   timeZone: site.timezone, year: "numeric", month: "2-digit", day: "2-digit",
@@ -112,7 +120,7 @@ const comment = z.object({
  * `/users/…/notes/`, so a date-shaped id could collide with a post.
  */
 const notes = defineCollection({
-  loader: glob({ base: "./src/content/notes", pattern: "**/*.json" }),
+  loader: glob(notesGlob),
   schema: z.object({
     notes: z.array(
       z.object({
@@ -131,11 +139,11 @@ export const collections = {
     schema: z.object({ comments: z.array(comment) }),
   }),
   posts: defineCollection({
-    loader: glob({ base: "./src/content/posts", pattern: "**/*.md" }),
+    loader: glob(postsGlob),
     schema: z.object({ ...base, date: stamped }),
   }),
   komorebi: defineCollection({
-    loader: glob({ base: "./src/content/komorebi", pattern: "**/*.md" }),
+    loader: glob(komorebiGlob),
     schema: z.object({ ...base, date: stamped.optional() }),
   }),
 };

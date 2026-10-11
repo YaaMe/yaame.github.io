@@ -4,10 +4,9 @@ import { Person, Follow, Undo, Accept, Announce, Create, Delete, Like, Note, Rej
 import { configure, getConsoleSink } from "@logtape/logtape";
 import { platform } from "../../platform";
 import { AP } from "./config";
-import intentJson from "./following.json";
+import { followIntent } from "../../data.config.generated.mjs";
 
-/** Annotated because the two bundlers infer this JSON import's shape differently. */
-const intent = intentJson as { follow: string[] };
+const intent = followIntent as { follow: string[] };
 import { record, remove } from "./store/comments";
 import * as reactions from "./store/reactions";
 import { FIRST, page } from "./paging";
