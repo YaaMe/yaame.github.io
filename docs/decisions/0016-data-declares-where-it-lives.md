@@ -45,7 +45,7 @@ resolves the conflict in the pull request. Promotion is a selective write-back.
 
 **Each entry carries what tools select by**: its layers (store kind and place,
 never the host product), the write-back operations that apply, where the data
-came from (`own`, `foreign`, `system`), what a move does with it, and what it
+came from (`first-party`, `third-party`, `system`), what a move does with it, and what it
 serves. A move carries `keep` data **as a portable export**, importable into any
 supported store; secrets and external accounts are `owner-held`, carried by the
 owner outside any export.
