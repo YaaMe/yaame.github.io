@@ -1,7 +1,9 @@
 import { AUTH } from "../config.ts";
 import {
   clearStateCookie,
+  clearVerifierCookie,
   readStateCookie,
+  readVerifierCookie,
   safeReturn,
   setSessionCookie,
 } from "../session-core.ts";
@@ -21,10 +23,11 @@ export type OAuthFetcher = (
 /**
  * Finish the login.
  *
- * The state check comes first and is unconditional. A callback carrying a
- * code but no matching cookie is not a login that lost its cookie — it is a
- * request someone else composed, and treating it as the former is how a
- * session gets planted in a visitor's browser.
+ * The state check comes first and is unconditional. It proves that this
+ * callback carries the state value issued for the login flow, but state is
+ * held in a client cookie: clearing it cannot stop a copied, still-live cookie
+ * from being presented again. PKCE binds the code exchange to the verifier in
+ * the companion cookie.
  */
 export async function callbackResponse({
   request,
@@ -68,14 +71,17 @@ export async function callbackResponse({
     to.searchParams.set("error", error);
     return to.href;
   };
-  const fail = (why: string) =>
-    new Response(null, {
-      status: 302,
-      headers: { location: failTo(why), "set-cookie": clearStateCookie() },
-    });
+  const fail = (why: string) => {
+    const headers = new Headers({ location: failTo(why) });
+    headers.append("set-cookie", clearStateCookie());
+    headers.append("set-cookie", clearVerifierCookie());
+    return new Response(null, { status: 302, headers });
+  };
 
   if (!state || !expected || state !== expected) return fail("state");
   if (!code) return fail("code");
+  const verifier = readVerifierCookie(request);
+  if (!verifier) return fail("verifier");
 
   // The client id is a literal in this repository; the secret is placed by
   // hand on the Worker and is the half that can actually be missing.
@@ -91,6 +97,7 @@ export async function callbackResponse({
         client_id: AUTH.clientId,
         client_secret: secret,
         code,
+        code_verifier: verifier,
         redirect_uri: new URL("/auth/github/callback", request.url).href,
       }),
     });
@@ -121,10 +128,9 @@ export async function callbackResponse({
   if (typeof user.id !== "number" || !user.login) return fail("user");
 
   const id = await store.create({ id: user.id, login: user.login });
-  // The session is set and the browser-side state cookie is cleared. Clearing
-  // that cookie is the only state spend here; a copied cookie remains replayable.
   const headers = new Headers({ location: back(from) });
   headers.append("set-cookie", setSessionCookie(id));
   headers.append("set-cookie", clearStateCookie());
+  headers.append("set-cookie", clearVerifierCookie());
   return new Response(null, { status: 302, headers });
 }
