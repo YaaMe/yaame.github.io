@@ -86,14 +86,14 @@ test("a pending withdrawal keeps proposed withdrawals in the regenerated write s
   writeFileSync(path, `${JSON.stringify({
     comments: [comment("proposed-regeneration"), comment("pending-regeneration")],
   })}\n`);
-  const queryRows = [
+  const rows = [
     { activity_id: proposedId, deleted_at: "2026-10-10T00:01:00Z" },
     { activity_id: pendingId, deleted_at: "2026-10-10T00:02:00Z" },
   ];
 
   const result = main({
     dir,
-    queryRows,
+    rows,
     apply: true,
     pullRequestState: ({ activityId }) => activityId === proposedId,
   });
@@ -120,17 +120,17 @@ test("main writes a pending change, then converges to written back", (t) => {
   const activityId = id("activity/main");
   const path = join(dir, "root.json");
   writeFileSync(path, `${JSON.stringify({ comments: [comment("main")] })}\n`);
-  const queryRows = [{ activity_id: activityId, deleted_at: "2026-10-10T00:01:00Z" }];
+  const rows = [{ activity_id: activityId, deleted_at: "2026-10-10T00:01:00Z" }];
 
-  const proposed = main({ dir, queryRows, apply: true, pullRequestState: () => true });
+  const proposed = main({ dir, rows, apply: true, pullRequestState: () => true });
   assert.equal(proposed.states[0].state, "proposed");
   assert.equal(JSON.parse(readFileSync(path, "utf8")).comments[0].content[0][0].text, "main");
 
-  const pending = main({ dir, queryRows, apply: true, pullRequestState: () => false });
+  const pending = main({ dir, rows, apply: true, pullRequestState: () => false });
   assert.equal(pending.states[0].state, "pending");
   assert.equal(existsSync(path), false);
 
-  const written = main({ dir, queryRows, apply: true, pullRequestState: () => false });
+  const written = main({ dir, rows, apply: true, pullRequestState: () => false });
   assert.equal(written.states[0].state, "written back");
   assert.equal(existsSync(path), false);
 });

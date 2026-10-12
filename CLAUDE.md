@@ -30,8 +30,10 @@ See `docs/architecture.md` for the first, `docs/configuration.md` for every
 switch and how they interact. When adding data a page needs, add it to
 `lib/posts.ts` first.
 
-**Two — nothing outside `src/platform/` may reach a host-specific service.**
-Not only `cloudflare:workers`, `@fedify/cfworkers`, `node:*`, `Deno.*` — also
+**Two — runtime host-specific code lives behind a platform entry point, one per tree.** In
+`src/`, nothing outside `src/platform/` may reach a host-specific runtime data
+service. Not only
+`cloudflare:workers`, `@fedify/cfworkers`, `node:*`, `Deno.*` — also
 any call that would change with the host: object storage, a queue, a database,
 a third-party API. The test is whether moving hosts would rewrite the line, not
 whether it imported anything unusual.
@@ -67,13 +69,23 @@ different schedule.
   name is an account migration.
 - **Host-specific capabilities.** Queues, edge rendering — another platform needs
   its own answer, not a different import.
-- **The deploy configuration itself.** `wrangler.jsonc` has no abstract form.
+- **The deploy configuration itself.** `wrangler.jsonc`, its generators and
+  route/type commands have no abstract form; deployment setup is outside this
+  runtime rule.
 
 `src/platform/` holds `cloudflare.ts` and `node.ts`, two implementations of the
 `Platform` interface in `types.ts`, and `src/` reaches them only through
 `src/platform/index.ts`. The queue consumer in `worker/` imports
 `virtual:platform` directly, and its own wrangler config aliases that to the
 Cloudflare file.
+
+Scripts follow the same boundary for runtime data operations. Host-specific
+script work lives in bash entry points under `scripts/platform/<target>/`; the
+Makefile and CI choose the target from `DEPLOY_TARGET`. The JavaScript logic
+those entry points call is host-free and receives its data through files or
+stdin. Deployment configuration and its generators, including
+`scripts/wrangler-config.mjs` and `scripts/wrangler-routes.mjs`, are outside
+this rule.
 
 ## Rules that live in the data layer, not in pages
 
@@ -209,6 +221,11 @@ git push origin main
 **Never land a branch through GitHub's "Rebase and merge".** PR #16 went in
 with nine signed commits and left nine unsigned ones on `main`.
 
+`main` is never force-pushed. A feature branch may be squashed and force-pushed
+before it is merged, and branches that CI regenerates from `main` on every run
+are force-pushed by their workflow. The generated branches are disposable
+proposals; the signed history on `main` is not.
+
 | How it lands | The branch's commits | Their signatures |
 | --- | --- | --- |
 | Locally, `--no-ff --gpg-sign` | kept | kept, and the merge commit is signed too |
@@ -219,20 +236,6 @@ with nine signed commits and left nine unsigned ones on `main`.
 Only the first two leave commits on `main` signed by their author. A commit
 signed by GitHub attests that GitHub performed the merge, not that you wrote
 the code. `git log --format='%h %G? %s'` is how to read this back.
-
-## One place uses a bare `--force`
-
-`.github/workflows/tombstones.yml` force-pushes `comments/tombstones`. The
-standing rule is never to, and the exception is narrow: that branch is a
-generated artefact, rebuilt from `main` on every run out of data held in D1.
-Nobody works on it, and losing it costs one re-run.
-
-`--force-with-lease` was tried there and was worse than useless: CI checks out
-only `main`, so there is no remote-tracking ref for the lease to compare
-against, and it fails closed with "stale info" — a refusal that has nothing to
-do with anyone having touched the branch.
-
-Anything you want to keep on that branch, put on `main` instead.
 
 ## Outside the repository
 

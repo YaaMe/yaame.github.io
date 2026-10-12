@@ -7,6 +7,7 @@ import { z } from "zod";
 import { glob } from "astro/loaders";
 import { TAG_SLUGS } from "./tags";
 import { site } from "./site.config";
+import { commentSchema } from "./lib/comment-schema";
 import {
   komorebi as komorebiLocation,
   notes as notesLocation,
@@ -52,65 +53,6 @@ const base = {
   tags,
 };
 
-const commentHref = z.url({ protocol: /^https?$/ });
-const commentRun = z.discriminatedUnion("type", [
-  z.object({ type: z.literal("text"), text: z.string() }),
-  z.object({ type: z.literal("link"), href: commentHref, label: z.string() }),
-  z.object({ type: z.literal("mention"), href: commentHref, handle: z.string() }),
-  z.object({ type: z.literal("hashtag"), href: commentHref, name: z.string() }),
-]);
-
-/**
- * Promoted comments — the ones chosen to keep.
- *
- * Promoted records live in git. The static profile reads them alone; the full
- * profile also reads current withdrawal ids from its database.
- *
- *   posts/<slug>.json   one file per long post
- *   notes/<YYYY>.json   one file per note archive year
- *
- * Every entry carries `rootId`, because a yearly file cannot infer it from its
- * name. Both kinds of file share this one schema.
- *
- * When a comment is withdrawn, its entry is removed. The exception is an entry
- * that another entry replies to: it stays as a tombstone, without `content`
- * and with `deletedAt`.
- */
-const comment = z.object({
-  /**
-   * The activity id. Required, not decorative: when a Delete arrives for a
-   * comment already carried into git, this is what the removal is raised
-   * against.
-   */
-  activityId: z.url(),
-  objectId: z.url(),
-  /** The post or note this hangs off; load-bearing when comments share a year file. */
-  rootId: z.url(),
-  actorId: z.url(),
-  /**
-   * What the author called themselves when this was promoted.
-   *
-   * A copy: the author can change their name, and this will not follow.
-   * Absent when the actor could not be reached at promotion; the page then
-   * shows the `@name@host` handle instead.
-   */
-  name: z.string().optional(),
-  /**
-   * Paragraphs of typed runs, never HTML. The template must escape every
-   * string and render each run itself; promotion is not a sanitiser.
-   *
-   * Absent on a tombstone: a withdrawn comment that something replies to.
-   */
-  content: z.array(z.array(commentRun)).optional(),
-  published: z.string(),
-  replyToId: z.url().nullable().default(null),
-  /** Set when a Delete arrived after this was promoted. */
-  deletedAt: z.string().optional(),
-}).refine((entry) => entry.deletedAt === undefined || entry.content === undefined, {
-  message: "A withdrawn comment must have no content",
-  path: ["content"],
-});
-
 /**
  * Notes: one JSON file per year, no titles. The body is read as markdown.
  *
@@ -136,7 +78,7 @@ export const collections = {
   notes,
   comments: defineCollection({
     loader: glob(promotedCommentsGlob),
-    schema: z.object({ comments: z.array(comment) }),
+    schema: z.object({ comments: z.array(commentSchema) }),
   }),
   posts: defineCollection({
     loader: glob(postsGlob),

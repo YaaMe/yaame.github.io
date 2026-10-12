@@ -8,6 +8,40 @@
  * A filter receives a whole thread, not one comment: "keep the entire reply
  * chain" cannot be expressed from a single row. It returns what to keep.
  */
+import { followIntent } from "../src/data.config.generated.mjs";
+
+function handleFor(actorId) {
+  try {
+    const actor = new URL(actorId);
+    const name = actor.pathname.split("/").filter(Boolean).at(-1);
+    return name ? `${name.replace(/^@/, "")}@${actor.host}` : null;
+  } catch {
+    return null;
+  }
+}
+
+function normaliseFollowed(value) {
+  const entries = Array.isArray(value) ? value : value?.follow;
+  if (!Array.isArray(entries)) return new Set();
+  return new Set(entries.flatMap((entry) => {
+    if (typeof entry !== "string") return [];
+    const value = entry.trim().replace(/^@/, "");
+    if (!value) return [];
+    const aliases = [value];
+    const handle = handleFor(value);
+    if (handle) aliases.push(handle);
+    return aliases;
+  }));
+}
+
+/** Keep replies written by actors in the owner's following intent. */
+export const byFollowing = (following = followIntent) => {
+  const followed = normaliseFollowed(following);
+  return (thread) => thread.filter((comment) => {
+    const actorId = comment.actorId;
+    return followed.has(actorId) || (handleFor(actorId) !== null && followed.has(handleFor(actorId)));
+  });
+};
 
 /** Keep everything these actors wrote. */
 export const byAuthor = (actors) => (thread) =>
@@ -20,14 +54,5 @@ export const wholeThread = (match) => (thread) =>
 /** Keep nothing. */
 export const nothing = () => [];
 
-/**
- * The rule in force.
- *
- * `nothing` by default, not because it is useful but because a default must not
- * make this decision for you. Replace it:
- *
- *   export default byAuthor(["https://mstdn.jp/users/someone"]);
- *   export default wholeThread((c) => c.actorId.startsWith("https://mstdn.jp/"));
- *   export default (thread) => (thread.length <= 3 ? thread : []);
- */
-export default nothing;
+/** The rule in force. Edit this file when the owner's policy changes. */
+export default byFollowing();

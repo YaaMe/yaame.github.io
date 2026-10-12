@@ -52,9 +52,9 @@ locals {
     "Workers KV Storage Write" = "follower list, actor digest, delivery record"
     # both the producer and the consumer side
     "Queues Write" = "the delivery queue binding and its consumer config"
-    # read only: the tombstones job only SELECTs, and promoted_at is written
-    # locally by make promote
-    "D1 Read" = "the tombstones job, finding comments withdrawn after promotion"
+    # read only: both write-back jobs only SELECT; owner credentials handle
+    # the explicit local unpromote operation
+    "D1 Read" = "the tombstones and promotions jobs, reconciling comment state"
   }
 
   zone_permissions = {
@@ -96,8 +96,8 @@ resource "cloudflare_api_token" "ci" {
 /**
  * What is deliberately absent, and why:
  *
- * - **D1 Write** — only the local `make promote` writes `promoted_at`, under
- *   your own login rather than this token. CI reads.
+ * - **D1 Write** — only the local `make unpromote ID=<activity-id> APPLY=1` deletes a comment
+ *   row, under your own login rather than this token. CI reads.
  * - **User Details Read** — wrangler warns without it; the effect is that it
  *   cannot print your email address.
  * - **Memberships Read** — unnecessary once `CLOUDFLARE_ACCOUNT_ID` is set, and

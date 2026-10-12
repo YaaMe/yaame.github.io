@@ -1,4 +1,5 @@
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync, statSync } from "node:fs";
+import { join } from "node:path";
 
 function registerError(error) {
   if (Array.isArray(error?.issues)) {
@@ -118,27 +119,31 @@ for (const field of Object.keys(migrations.columns)) {
   requires("src/integrations/activitypub/store/schema.ts", `migrationsColumns.quotedColumns.${field}`);
 }
 
-const promote = requires("scripts/promote.mjs", 'from "../src/data.config.generated.mjs"');
-requires("scripts/promote.mjs", "promotedComments.gitRoot");
-requires("scripts/promote.mjs", "notes.gitRoot");
-requires("scripts/promote.mjs", "comments.quotedColumns");
-for (const field of ["activityId", "objectId", "rootId", "replyToId", "actorId", "content", "published", "promotedAt", "deletedAt"]) {
-  requires("scripts/promote.mjs", `column("${field}")`);
-}
+const promote = requires("scripts/promote.mjs", 'from "./comments-rows.mjs"');
+requires("scripts/promote.mjs", "promotedComments.writeBack");
 requires("scripts/promote.mjs", "FROM ${table}");
-requires("scripts/promote.mjs", "UPDATE ${table}");
+requires("scripts/promote.mjs", "WHERE ${column(\"deletedAt\")} IS NULL");
+const promoteFilter = requires("scripts/promote-filter.mjs", 'from "../src/data.config.generated.mjs"');
+requires("scripts/promote-filter.mjs", "followIntent");
 
-const tombstone = requires("scripts/tombstone.mjs", 'from "../src/data.config.generated.mjs"');
-requires("scripts/tombstone.mjs", "promotedComments.gitRoot");
+const unpromote = requires("scripts/unpromote.mjs", 'from "./comments-rows.mjs"');
+requires("scripts/unpromote.mjs", "DELETE FROM ${table}");
+
+const tombstone = requires("scripts/tombstone.mjs", 'from "./comments-rows.mjs"');
 requires("scripts/tombstone.mjs", "promotedComments.writeBack");
-requires("scripts/tombstone.mjs", "comments.quotedColumns");
-for (const field of ["activityId", "deletedAt", "promotedAt"]) {
-  requires("scripts/tombstone.mjs", `column("${field}")`);
-}
 requires("scripts/tombstone.mjs", "FROM ${table}");
+const commentsRows = requires("scripts/comments-rows.mjs", 'from "../src/data.config.generated.mjs"');
+requires("scripts/comments-rows.mjs", "comments.quotedColumns");
+requires("scripts/comments-rows.mjs", "commentsColumns");
+requires("scripts/comments-rows.mjs", "comments.table");
+requires("scripts/comments-rows.mjs", "rowValue");
+const commentsStore = requires("scripts/comments-store.mjs", 'from "../src/data.config.generated.mjs"');
+requires("scripts/comments-store.mjs", "promotedComments.gitRoot");
+requires("scripts/comments-store.mjs", "notes.gitRoot");
+requires("scripts/comments-store.mjs", "postArchivePath");
 
 const note = requires("scripts/note.mjs", 'from "../src/data.config.generated.mjs"');
-requires("scripts/note.mjs", "promotedComments.gitRoot");
+requires("scripts/note.mjs", "postArchivePath");
 requires("scripts/note.mjs", "posts.gitRoot");
 requires("scripts/note.mjs", "notes.gitRoot");
 const notesStore = requires("scripts/notes-store.mjs", 'from "../src/data.config.generated.mjs"');
@@ -174,25 +179,48 @@ requires("worker/consumer.ts", "deliveryFailures.key");
 requires("Makefile", "build-consumer: data");
 requires("Makefile", "deploy-consumer: data");
 
-const workflow = requires(".github/workflows/tombstones.yml", "node scripts/tombstone.mjs");
+const workflow = requires(".github/workflows/tombstones.yml", "scripts/platform/$DEPLOY_TARGET/tombstone.sh");
 requires(".github/workflows/tombstones.yml", "make data");
+requires(".github/workflows/tombstones.yml", "shouldWrite");
+requires(".github/workflows/tombstones.yml", "if: steps.reconcile.outputs.should-write == 'true'");
 requires(
   ".github/workflows/tombstones.yml",
   'promoted_comments_root=$(node --input-type=module -e \'import { promotedComments } from "./src/data.config.generated.mjs"; console.log(promotedComments.gitRoot)\')',
 );
 requires(
   ".github/workflows/tombstones.yml",
-  'git diff --quiet -- "$promoted_comments_root"',
+  'git diff --cached --quiet -- "$promoted_comments_root"',
 );
 requires(
   ".github/workflows/tombstones.yml",
-  'git add -- "$promoted_comments_root"',
+  'git add -A -- "$promoted_comments_root"',
+);
+
+const promotionsWorkflow = requires(".github/workflows/promotions.yml", "scripts/platform/$DEPLOY_TARGET/promote.sh");
+requires(".github/workflows/promotions.yml", "make data");
+requires(".github/workflows/promotions.yml", "shouldWrite");
+requires(".github/workflows/promotions.yml", "if: steps.reconcile.outputs.should-write == 'true'");
+requires(
+  ".github/workflows/promotions.yml",
+  'promoted_comments_root=$(node --input-type=module -e \'import { promotedComments } from "./src/data.config.generated.mjs"; console.log(promotedComments.gitRoot)\')',
+);
+requires(
+  ".github/workflows/promotions.yml",
+  'git diff --cached --quiet -- "$promoted_comments_root"',
+);
+requires(
+  ".github/workflows/promotions.yml",
+  'git add -A -- "$promoted_comments_root"',
 );
 
 const pathConsumers = [
   ["src/content.config.ts", content],
   ["scripts/promote.mjs", promote],
+  ["scripts/promote-filter.mjs", promoteFilter],
+  ["scripts/comments-rows.mjs", commentsRows],
+  ["scripts/unpromote.mjs", unpromote],
   ["scripts/tombstone.mjs", tombstone],
+  ["scripts/comments-store.mjs", commentsStore],
   ["scripts/note.mjs", note],
   ["scripts/notes-store.mjs", notesStore],
   ["scripts/newpost.mjs", newpost],
@@ -205,6 +233,7 @@ const pathConsumers = [
   ["src/integrations/auth/session-core.ts", session],
   ["worker/consumer.ts", worker],
   [".github/workflows/tombstones.yml", workflow],
+  [".github/workflows/promotions.yml", promotionsWorkflow],
 ];
 for (const [path, source] of pathConsumers) {
   if (source.includes(promotedGit) || source.includes(promotedRoot)) {
@@ -213,7 +242,43 @@ for (const [path, source] of pathConsumers) {
   }
 }
 
-for (const [path, source] of [["scripts/promote.mjs", promote], ["scripts/tombstone.mjs", tombstone]]) {
+function scriptFiles(dir) {
+  const result = [];
+  for (const name of readdirSync(dir)) {
+    const path = join(dir, name);
+    if (statSync(path).isDirectory()) result.push(...scriptFiles(path));
+    else if (/\.(?:mjs|sh)$/.test(name)) result.push(path);
+  }
+  return result;
+}
+
+// Wrangler calls for runtime data operations are a host boundary. Deployment
+// configuration and its generators (wrangler.jsonc, wrangler-config and
+// wrangler-routes) are outside this scan; the suffix guard leaves those names
+// alone while rejecting calls such as `wrangler d1` anywhere else.
+const wranglerReference = /\bwrangler\b(?![.-])/i;
+for (const path of scriptFiles("scripts")) {
+  if (path.startsWith("scripts/platform/cloudflare/")) continue;
+  if (path === "scripts/data-check.mjs") continue;
+  const source = withoutComments(read(path));
+  if (wranglerReference.test(source)) {
+    console.error(`  host-specific Wrangler reference outside platform entry point: ${path}`);
+    process.exitCode = 1;
+  }
+}
+for (const path of ["scripts/promote.mjs", "scripts/tombstone.mjs", "scripts/unpromote.mjs", "scripts/comments-store.mjs"]) {
+  if (withoutComments(read(path)).includes("process.env")) {
+    console.error(`  host-free comments logic reads environment credentials: ${path}`);
+    process.exitCode = 1;
+  }
+}
+
+for (const [path, source] of [
+  ["scripts/promote.mjs", promote],
+  ["scripts/unpromote.mjs", unpromote],
+  ["scripts/tombstone.mjs", tombstone],
+  ["scripts/comments-rows.mjs", commentsRows],
+]) {
   if (new RegExp(`(?:FROM|UPDATE|INTO|JOIN)\\s+["']?${commentsSql.sql}\\b`, "i").test(source)) {
     console.error(`  data register consumer ${path}: repeats comments table ${commentsSql.sql}`);
     process.exitCode = 1;

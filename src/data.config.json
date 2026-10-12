@@ -276,14 +276,14 @@
       },
       {
         "ref": "comments",
-        "fields": ["deletedAt", "promotedAt"]
+        "fields": ["deletedAt"]
       }
     ],
     "writeBack": ["promote", "tombstone"],
     "origin": "others",
     "recovery": "keep",
     "purposes": ["content"],
-    "description": "Base: chosen comments in git, joined to SQL by activityId. Delta, applied on read: withdrawals (deletedAt). promotedAt is write-back bookkeeping, not content."
+    "description": "Base: chosen comments in git, joined to SQL by activityId. Delta, applied on read: withdrawals (deletedAt). Promotion is read from the git base."
   },
   "site-config": {
     "layers": [
