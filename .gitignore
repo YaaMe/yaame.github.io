@@ -17,6 +17,7 @@ docs/identity.md
 worker-configuration.d.ts
 worker/wrangler.generated.jsonc
 .data/
+.blogu-recovery-stage-*/
 
 # Generated from src/data.config.json; consumers must run `make data` first.
 /src/data.config.generated.mjs

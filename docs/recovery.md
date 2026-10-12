@@ -6,6 +6,13 @@ facility author supplies access to a store, while the contract supplies the
 format, register selection, and validation. Host bindings and credentials stay
 in the facility's deployment tooling.
 
+The node JSON records pair keeps its host-free adapter in
+[`scripts/recovery-records.mjs`](../scripts/recovery-records.mjs). The target
+shell entry points and [`scripts/platform/node/records.mjs`](../scripts/platform/node/records.mjs)
+exchange a JSON snapshot (`{ document?, records: [...] }`) and a JSON write plan
+with the adapter, so the same contract logic can be reused by the other facility
+pairs.
+
 ## The intermediate format
 
 The document is JSON and names both its format and its version. Version 1 has
@@ -68,9 +75,9 @@ facility can be imported by another facility for the same store kind:
 - A keyed `records` layer (`records` is a string) is an array of objects with
   exactly `key` and `value`. `key` is the register's declared key, with any
   pattern placeholders resolved, and `value` is the stored JSON value.
-- A keyless `records: true` layer and `memory` layers retain the generic JSON
-  payload used by the reference facility. Other host-neutral layer kinds use
-  their declared facility contract.
+- `memory` layers retain the generic JSON payload used by the reference
+  facility. A keyless `records: true` layer has no portable node-records
+  payload; other host-neutral layer kinds use their declared facility contract.
 
 The contract validates these shapes on export and before the first import write.
 It is not a database dump and must not contain credentials. The register layer
@@ -167,3 +174,84 @@ fresh clone has a verified object database and the same commit and tracked tree,
 and the restored working tree has no changes. Keep the bundle according to the
 owner's retention policy; discard it when that policy says it is no longer
 needed.
+
+## Node local JSON records export and import SOP
+
+This SOP covers the node target's JSON records under `AP_DATA_DIR`. The
+credential is **file access to that data directory**; no API token or value from
+the directory belongs in the recovery document. The node pair selects the
+register entries whose layers are local `records` layers (and their declared
+git base), while carrying owner-held names without their values. SQLite, KV and
+other facilities have their own pair and document.
+
+Run every command from the repository root. The commands are selected by
+`DEPLOY_TARGET=node`, and `AP_DATA_DIR` defaults to `.data` when it is omitted.
+Use an absolute directory for a move so the source and destination cannot be
+confused.
+
+1. Confirm that the operator has read and write file access to the source
+   `AP_DATA_DIR` directory and the destination parent directory. Keep the recovery document in a
+   separate location with the same access control.
+2. Generate the register consumers and validate the register:
+
+   ```sh
+   make data
+   ```
+
+3. Preview an export from the source. Redirect stdout to a new recovery file;
+   this does not change the data directory:
+
+   ```sh
+   DEPLOY_TARGET=node AP_DATA_DIR=/srv/blogu-data \
+     make recovery-export > /srv/backup/blogu-node-records.json
+   ```
+
+   Inspect that the output starts with `"format":"blogu-recovery"`, has
+   `"version":1`, contains no credential, and names the expected record keys.
+4. If the owner wants the command itself to write the document, repeat the
+   export with an explicit state flag and output file. Both forms print the
+   document to stdout:
+
+   ```sh
+   DEPLOY_TARGET=node AP_DATA_DIR=/srv/blogu-data \
+     make recovery-export APPLY=1 FILE=/srv/backup/blogu-node-records.json
+   ```
+
+5. Choose an empty or absent destination path whose parent directory already
+   exists. An import destination is non-empty when `AP_DATA_DIR` contains any
+   entry; the import refuses it and does not merge or silently overwrite files.
+   Preview the import first:
+
+   ```sh
+   DEPLOY_TARGET=node AP_DATA_DIR=/srv/blogu-new \
+     make recovery-import FILE=/srv/backup/blogu-node-records.json
+   ```
+
+6. Apply the import only after the preview is correct:
+
+   ```sh
+   DEPLOY_TARGET=node AP_DATA_DIR=/srv/blogu-new \
+     make recovery-import APPLY=1 FILE=/srv/backup/blogu-node-records.json
+   ```
+
+   The target stages every record in a complete sibling directory and commits
+   it with one rename into the destination. A crash before that rename leaves
+   the old empty or absent destination and can be repaired by rerunning the
+   import, after deleting the `.blogu-recovery-stage-*` directory it leaves
+   beside the destination — it holds the staged records; after the rename the
+   destination is complete. A malformed document
+   or a non-empty store leaves the destination untouched.
+7. Export the destination and compare the two documents. Both exports use the
+   same register order and JSON values, so a byte comparison is evidence of the
+   round trip:
+
+   ```sh
+   DEPLOY_TARGET=node AP_DATA_DIR=/srv/blogu-new \
+     make recovery-export > /srv/backup/blogu-node-records-after.json
+   cmp /srv/backup/blogu-node-records.json \
+       /srv/backup/blogu-node-records-after.json
+   ```
+
+The owner must run this SOP once against temporary source and destination
+directories and record the result in the issue. **[ ] Not followed by this
+repository change.**

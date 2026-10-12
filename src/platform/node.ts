@@ -4,18 +4,20 @@ import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { drizzle } from "drizzle-orm/node-sqlite";
 import type { Platform } from "./types";
+import { recordFile } from "./node-records";
 
 /**
  * A plain Node process.
  *
- * The only file allowed to import `node:*`.
+ * Runtime-specific helpers live beside this adapter; this module wires the
+ * platform services while the record filename helper remains side-effect free.
  *
  * Deliberately the simplest thing that satisfies the interface: durable records
  * are files, and there is no queue — so delivery here is synchronous and a
  * failure is final.
  */
 const DIR = process.env.AP_DATA_DIR ?? ".data";
-const path = (key: string) => join(DIR, `${key.replace(/[^\w.-]/g, "_")}.json`);
+const path = (key: string) => recordFile(DIR, key);
 
 const platform = {} as Platform;
 
