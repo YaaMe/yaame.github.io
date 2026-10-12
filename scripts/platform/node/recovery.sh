@@ -8,6 +8,7 @@ DATA_DIR=${AP_DATA_DIR:-.data}
 COMMAND_APPLY=0
 COMMAND_HELP=0
 COMMAND_FILE=
+COMMAND_FACILITY=records
 
 parse_recovery_flags() {
   local apply=0 dry_run=0 flag
@@ -23,6 +24,15 @@ parse_recovery_flags() {
         COMMAND_FILE=$1
         shift
         ;;
+      --facility)
+        (($# > 0)) || { echo "--facility needs a value" >&2; return 2; }
+        COMMAND_FACILITY=$1
+        shift
+        case "$COMMAND_FACILITY" in
+          records|sqlite) ;;
+          *) echo "unknown recovery facility: $COMMAND_FACILITY" >&2; return 2 ;;
+        esac
+        ;;
       --*) echo "unknown option: $flag" >&2; return 2 ;;
       *) echo "unexpected argument: $flag" >&2; return 2 ;;
     esac
@@ -34,27 +44,36 @@ parse_recovery_flags() {
   if (( apply )); then COMMAND_APPLY=1; fi
 }
 
-run_export_records() {
-  local snapshot
-  if ! snapshot=$(AP_DATA_DIR="$DATA_DIR" ${NODE[@]} "$ROOT/scripts/platform/node/records.mjs" --snapshot); then
-    return 1
-  fi
-  printf '%s\n' "$snapshot" | ${NODE[@]} "$ROOT/scripts/recovery-records.mjs" --export
+recovery_reader() {
+  AP_DATA_DIR="$DATA_DIR" "${NODE[@]}" "$ROOT/scripts/platform/node/$COMMAND_FACILITY.mjs" "$@"
 }
 
-run_import_records() {
+recovery_adapter() {
+  local kind=$COMMAND_FACILITY
+  if [[ $kind == sqlite ]]; then kind=sql; fi
+  "${NODE[@]}" "$ROOT/scripts/recovery-$kind.mjs" "$@"
+}
+
+run_export() {
+  local snapshot
+  if ! snapshot=$(recovery_reader --snapshot); then
+    return 1
+  fi
+  printf '%s\n' "$snapshot" | recovery_adapter --export
+}
+
+run_import() {
   [[ -n $COMMAND_FILE ]] || {
     echo "import requires --file PATH" >&2
     return 2
   }
   local snapshot
-  if ! snapshot=$(AP_DATA_DIR="$DATA_DIR" ${NODE[@]} "$ROOT/scripts/platform/node/records.mjs" \
-    --snapshot --import --file "$COMMAND_FILE"); then
+  if ! snapshot=$(recovery_reader --snapshot --import --file "$COMMAND_FILE"); then
     return 1
   fi
-  printf '%s\n' "$snapshot" | ${NODE[@]} "$ROOT/scripts/recovery-records.mjs" --import
+  printf '%s\n' "$snapshot" | recovery_adapter --import
 }
 
 apply_plan() {
-  AP_DATA_DIR="$DATA_DIR" ${NODE[@]} "$ROOT/scripts/platform/node/records.mjs" --apply-plan
+  recovery_reader --apply-plan
 }

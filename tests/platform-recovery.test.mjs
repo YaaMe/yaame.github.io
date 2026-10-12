@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
@@ -82,7 +82,38 @@ test("node recovery import refuses a selected non-empty store without changing i
   const imported = run("import", ["--apply", "--file", input], { AP_DATA_DIR: target });
   assert.notEqual(imported.status, 0);
   assert.match(imported.stderr, /non-empty store/i);
+  assert.ok(imported.stderr.includes(`destination contains entries: ${target}`), imported.stderr);
   assert.equal(readFileSync(join(target, "ap_followers.json"), "utf8"), "[{\"id\":\"existing\"}]");
+});
+
+test("#56 records preview validates the same plan as apply without creating files", (context) => {
+  const directory = mkdtempSync(join(tmpdir(), "blogu-records-plan-"));
+  context.after(() => rmSync(directory, { recursive: true, force: true }));
+  const target = join(directory, "target");
+  const invoke = (mode, plan) => spawnSync(process.execPath, ["--experimental-strip-types", "scripts/platform/node/records.mjs", mode], {
+    cwd: root,
+    input: JSON.stringify(plan),
+    encoding: "utf8",
+    env: { ...process.env, AP_DATA_DIR: target },
+  });
+  const plan = { imported: ["followers"], writes: [{ action: "write", key: "ap:followers", value: [] }] };
+  const preview = invoke("--validate-plan", plan);
+  assert.equal(preview.status, 0, preview.stderr);
+  assert.deepEqual(JSON.parse(preview.stdout), plan);
+  assert.deepEqual(readdirSync(directory), []);
+  const duplicate = { writes: [plan.writes[0], { ...plan.writes[0], key: "ap_followers" }] };
+  for (const mode of ["--validate-plan", "--apply-plan"]) {
+    const invalid = invoke(mode, duplicate);
+    assert.equal(invalid.status, 1, invalid.stderr);
+    assert.match(invalid.stderr, /same physical file twice/);
+    assert.deepEqual(readdirSync(directory), []);
+  }
+  mkdirSync(target);
+  writeFileSync(join(target, "unrelated.json"), "preserve");
+  const refused = invoke("--apply-plan", plan);
+  assert.equal(refused.status, 1, refused.stderr);
+  assert.ok(refused.stderr.includes(`destination contains entries: ${target}`), refused.stderr);
+  assert.equal(readFileSync(join(target, "unrelated.json"), "utf8"), "preserve");
 });
 
 test("node recovery import validates the document before it stages any write", () => {

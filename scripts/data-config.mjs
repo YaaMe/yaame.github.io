@@ -2,6 +2,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { dirname, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { dataConfigSchema } from "../src/data.config.ts";
+import { isRecordKeyPattern, recordKeyPlaceholders, quoteSqlIdentifier } from "../src/lib/recovery.ts";
 
 const registerPath = new URL("../src/data.config.json", import.meta.url);
 const modulePath = new URL("../src/data.config.generated.mjs", import.meta.url);
@@ -100,22 +101,15 @@ function externalValues(config, kind) {
   return { external: true };
 }
 
-function quotedIdentifier(value) {
-  if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(value)) {
-    throw new Error(`invalid SQL identifier in data register: ${value}`);
-  }
-  return `"${value}"`;
-}
-
 function sqlValues(config, kind) {
   const layer = layerFor(config, kind, "sql");
   const columns = { ...layer.columns };
   const quotedColumns = Object.fromEntries(
-    Object.entries(columns).map(([name, value]) => [name, quotedIdentifier(value)]),
+    Object.entries(columns).map(([name, value]) => [name, quoteSqlIdentifier(value)]),
   );
   return {
     sql: layer.sql,
-    table: quotedIdentifier(layer.sql),
+    table: quoteSqlIdentifier(layer.sql),
     columns,
     quotedColumns,
   };
@@ -131,13 +125,13 @@ function exportName(kind) {
 }
 
 function recordPattern(value) {
-  return typeof value?.records === "string" && /\{[A-Za-z][A-Za-z0-9_]*\}/.test(value.records)
+  return typeof value?.records === "string" && isRecordKeyPattern(value.records)
     ? value.records
     : null;
 }
 
 function recordAccessor(pattern) {
-  const names = [...pattern.matchAll(/\{([A-Za-z][A-Za-z0-9_]*)\}/g)].map((match) => match[1]);
+  const names = recordKeyPlaceholders(pattern);
   let expression = JSON.stringify(pattern);
   for (const name of names) expression += `.replaceAll(${JSON.stringify(`{${name}}`)}, ${name})`;
   return `(${names.map((name) => `${name}`).join(", ")}) => ${expression}`;
@@ -176,7 +170,7 @@ function generateTypes(values, staticImports, recordPatterns) {
       lines.push(`export declare const ${name}: ${typeFor(value)};`, "");
       continue;
     }
-    const names = [...pattern.matchAll(/\{([A-Za-z][A-Za-z0-9_]*)\}/g)].map((match) => match[1]);
+    const names = recordKeyPlaceholders(pattern);
     const keyType = `(${names.map((name) => `${name}: string`).join(", ")}) => string`;
     lines.push(
       `export declare const ${name}: { readonly records: string; readonly key: ${keyType}; readonly list: string };`,

@@ -127,23 +127,34 @@ function escapeRegex(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-/** Return whether a records declaration contains a named key placeholder. */
-export function isRecordKeyPattern(declaration: string): boolean {
-  return /\{[A-Za-z][A-Za-z0-9_]*\}/u.test(declaration);
+const RECORD_KEY_PLACEHOLDER = /\{([A-Za-z][A-Za-z0-9_]*)\}/gu;
+
+export function recordKeyPlaceholders(declaration: string): string[] {
+  return [...declaration.matchAll(RECORD_KEY_PLACEHOLDER)].map((match) => match[1]);
 }
 
-function recordKeyMatches(declaration: string, key: string): boolean {
+/** Return whether a records declaration contains a named key placeholder. */
+export function isRecordKeyPattern(declaration: string): boolean {
+  return recordKeyPlaceholders(declaration).length > 0;
+}
+
+export function recordKeyMatches(declaration: string, key: string): boolean {
   if (!isRecordKeyPattern(declaration)) return declaration === key;
-  const pattern = /^([\s\S]*?)\{([A-Za-z][A-Za-z0-9_]*)\}([\s\S]*)$/;
-  let rest = declaration;
+  let offset = 0;
   let expression = "^";
-  let match: RegExpExecArray | null;
-  while ((match = pattern.exec(rest))) {
-    expression += escapeRegex(match[1]) + ".+?";
-    rest = match[3];
+  for (const match of declaration.matchAll(RECORD_KEY_PLACEHOLDER)) {
+    expression += escapeRegex(declaration.slice(offset, match.index)) + ".+?";
+    offset = match.index + match[0].length;
   }
-  expression += escapeRegex(rest) + "$";
+  expression += escapeRegex(declaration.slice(offset)) + "$";
   return new RegExp(expression).test(key);
+}
+
+export function quoteSqlIdentifier(value: string): string {
+  if (typeof value !== "string" || !value || value.includes("\u0000")) {
+    throw new RecoveryError("INVALID_RECOVERY_REGISTER", "SQL identifiers must be non-empty strings without NUL");
+  }
+  return `"${value.replaceAll('"', '""')}"`;
 }
 
 function validateSqlRecords(layer: RecoveryLayer, records: unknown, label: string): unknown[] {

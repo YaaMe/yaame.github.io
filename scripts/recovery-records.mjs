@@ -11,19 +11,13 @@ import registerData from "../src/data.config.json" with { type: "json" };
 import {
   RecoveryError,
   exportRecovery,
-  importRecovery,
   isRecordKeyPattern,
+  recordKeyMatches,
   registerForLayerKinds,
   selectRecovery,
 } from "../src/lib/recovery.ts";
-
-function keyMatches(declaration, key) {
-  if (!isRecordKeyPattern(declaration)) return declaration === key;
-  const expression = declaration
-    .replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
-    .replace(/\\\{[A-Za-z][A-Za-z0-9_]*\\\}/gu, ".+?");
-  return new RegExp(`^${expression}$`, "u").test(key);
-}
+import { planRecoveryImport, runRecoveryAdapter } from "./recovery-plan.mjs";
+import { runIfMain } from "./run-cli.mjs";
 
 /** Describe the concrete records that a facility can enumerate. */
 export function recordLayerDescriptors(register, { allowRecordKeyPatterns = true } = {}) {
@@ -80,7 +74,7 @@ function snapshotFor(snapshot, kind, layer) {
   return snapshot.filter((item) => item.kind === kind && item.layer === layer);
 }
 
-function recordsFacility(snapshot, writes = []) {
+function recordsFacility(snapshot) {
   return {
     export({ kind, layer, layerIndex }) {
       const current = snapshotFor(snapshot, kind, layerIndex);
@@ -88,31 +82,8 @@ function recordsFacility(snapshot, writes = []) {
         throw new RecoveryError("INVALID_RECOVERY_REGISTER", `${kind}[${layerIndex}] is not a keyed records layer`);
       }
       return current
-        .filter((item) => item.present && keyMatches(layer.records, item.key))
+        .filter((item) => item.present && recordKeyMatches(layer.records, item.key))
         .map((item) => ({ key: item.key, value: item.value }));
-    },
-    import({ kind, layer, layerIndex, records }) {
-      if (typeof layer.records !== "string") {
-        throw new RecoveryError("INVALID_RECOVERY_REGISTER", `${kind}[${layerIndex}] is not a keyed records layer`);
-      }
-      if (isRecordKeyPattern(layer.records)) {
-        for (const record of records) {
-          writes.push({ action: "write", kind, layer: layerIndex, key: record.key, value: record.value });
-        }
-        return;
-      }
-      if (records.length > 1) {
-        throw new RecoveryError("INVALID_RECOVERY_RECORDS", `${kind}[${layerIndex}] has more than one record`);
-      }
-      if (records.length === 1) {
-        writes.push({
-          action: "write",
-          kind,
-          layer: layerIndex,
-          key: records[0].key,
-          value: records[0].value,
-        });
-      }
     },
   };
 }
@@ -125,57 +96,36 @@ export async function exportRecordRecovery({ register, snapshot }) {
 }
 
 /** Return a complete logical write plan after the contract has validated the document. */
-export async function importRecordRecovery({ register, document, snapshot }) {
+export async function importRecordRecovery({ register, document, snapshot, existing, existingReason }) {
   validateSnapshot(snapshot);
   recordLayerDescriptors(register);
-  const writes = [];
-  const result = await importRecovery({
+  return planRecoveryImport({
     document,
     register,
-    facilities: { records: recordsFacility(snapshot, writes) },
+    kind: "records",
+    existing: typeof existing === "boolean" ? existing || snapshot.some((item) => item.present) : existing,
+    existingReason,
+    facility({ kind, layer, layerIndex, records }) {
+      if (!isRecordKeyPattern(layer.records) && records.length > 1) {
+        throw new RecoveryError("INVALID_RECOVERY_RECORDS", `${kind}[${layerIndex}] has more than one record`);
+      }
+      return records.map(({ key, value }) => ({ action: "write", kind, layer: layerIndex, key, value }));
+    },
   });
-  return { ...result, writes };
-}
-
-async function readStdin() {
-  let input = "";
-  for await (const chunk of process.stdin) input += chunk;
-  return input;
-}
-
-function parseSnapshotInput(value) {
-  if (!value || typeof value !== "object" || Array.isArray(value)) {
-    throw new RecoveryError("INVALID_RECOVERY_RECORDS", "node recovery input must be a JSON object");
-  }
-  validateSnapshot(value.records);
-  return value;
 }
 
 async function cli() {
-  const input = parseSnapshotInput(JSON.parse(await readStdin()));
   const register = registerForLayerKinds(registerData, ["records"]);
-  if (process.argv.includes("--export")) {
-    process.stdout.write(`${JSON.stringify(await exportRecordRecovery({ register, snapshot: input.records }))}\n`);
-    return;
-  }
-  if (process.argv.includes("--import")) {
-    if (!Object.hasOwn(input, "document")) {
-      throw new RecoveryError("INVALID_RECOVERY_DOCUMENT", "node recovery import has no document");
-    }
-    const result = await importRecordRecovery({
+  return runRecoveryAdapter({
+    exportFn: (input) => exportRecordRecovery({ register, snapshot: input.records }),
+    importFn: (input) => importRecordRecovery({
       register,
       document: input.document,
       snapshot: input.records,
-    });
-    process.stdout.write(`${JSON.stringify(result)}\n`);
-    return;
-  }
-  throw new Error("recovery records command needs --export or --import");
-}
-
-if (process.argv[1]?.replaceAll("\\", "/").endsWith("/scripts/recovery-records.mjs")) {
-  cli().catch((error) => {
-    console.error(error?.stack ?? error);
-    process.exitCode = 1;
+      existing: input.existing,
+      existingReason: input.existingReason,
+    }),
   });
 }
+
+await runIfMain(import.meta.url, cli);
