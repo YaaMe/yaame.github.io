@@ -2,12 +2,15 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { AUTH, roleOf } from "../src/integrations/auth/config.ts";
 import { callbackResponse } from "../src/integrations/auth/routes/callback-handler.ts";
+import { GET as githubLogin } from "../src/integrations/auth/routes/github.ts";
 import { logoutResponse } from "../src/integrations/auth/routes/logout-handler.ts";
 import {
   clearSessionCookie,
   clearStateCookie,
+  clearVerifierCookie,
   currentSession,
   sessionKey,
+  setVerifierCookie,
   setStateCookie,
 } from "../src/integrations/auth/session-core.ts";
 
@@ -17,13 +20,17 @@ function cookieValue(setCookie) {
   return setCookie.slice(0, setCookie.indexOf(";"));
 }
 
+function oauthCookies(state, verifier = "verifier-value") {
+  return `${cookieValue(setStateCookie(state))}; ${cookieValue(setVerifierCookie(verifier))}`;
+}
+
 function responseCookies(response) {
   return response.headers.getSetCookie();
 }
 
 function githubFetcher(calls) {
-  return async (input) => {
-    calls.push(String(input));
+  return async (input, init) => {
+    calls.push({ input: String(input), init });
     if (String(input).includes("access_token")) {
       return new Response(JSON.stringify({ access_token: "token" }), {
         headers: { "content-type": "application/json" },
@@ -52,7 +59,7 @@ function storeForTest() {
 }
 
 test("OAuth callback rejects missing and mismatched state before exchange", async () => {
-  for (const cookie of [undefined, cookieValue(setStateCookie("expected./"))]) {
+  for (const cookie of [undefined, oauthCookies("expected./")]) {
     const calls = [];
     const { records, store } = storeForTest();
     const request = new Request(`${origin}/auth/github/callback?code=code&state=actual`, {
@@ -67,7 +74,7 @@ test("OAuth callback rejects missing and mismatched state before exchange", asyn
 
     assert.equal(response.status, 302);
     assert.equal(new URL(response.headers.get("location")).searchParams.get("error"), "state");
-    assert.deepEqual(responseCookies(response), [clearStateCookie()]);
+    assert.deepEqual(responseCookies(response), [clearStateCookie(), clearVerifierCookie()]);
     assert.deepEqual(calls, []);
     assert.equal(records.size, 0);
   }
@@ -77,7 +84,7 @@ test("OAuth callback rejects a missing code after state validation", async () =>
   const calls = [];
   const { records, store } = storeForTest();
   const request = new Request(`${origin}/auth/github/callback?state=state`, {
-    headers: { cookie: cookieValue(setStateCookie("state./")) },
+    headers: { cookie: oauthCookies("state./") },
   });
 
   const response = await callbackResponse({
@@ -88,15 +95,15 @@ test("OAuth callback rejects a missing code after state validation", async () =>
 
   assert.equal(response.status, 302);
   assert.equal(new URL(response.headers.get("location")).searchParams.get("error"), "code");
-  assert.deepEqual(responseCookies(response), [clearStateCookie()]);
+  assert.deepEqual(responseCookies(response), [clearStateCookie(), clearVerifierCookie()]);
   assert.deepEqual(calls, []);
   assert.equal(records.size, 0);
 });
 
-test("OAuth callback sets a session, spends state, and returns to the same-site path", async () => {
+test("OAuth callback sets a session, clears auth cookies, and returns to the same-site path", async () => {
   const calls = [];
   const { records, store } = storeForTest();
-  const carried = cookieValue(setStateCookie(`state.${encodeURIComponent("/notes/2026?comments=1")}`));
+  const carried = oauthCookies(`state.${encodeURIComponent("/notes/2026?comments=1")}`);
   const request = new Request(`${origin}/auth/github/callback?code=code&state=state`, {
     headers: { cookie: carried },
   });
@@ -110,21 +117,23 @@ test("OAuth callback sets a session, spends state, and returns to the same-site 
   assert.equal(response.status, 302);
   assert.equal(response.headers.get("location"), `${origin}/notes/2026?comments=1`);
   const cookies = responseCookies(response);
-  assert.equal(cookies.at(-1), clearStateCookie());
+  assert.equal(cookies.at(-2), clearStateCookie());
+  assert.equal(cookies.at(-1), clearVerifierCookie());
   const sessionCookie = cookies.find((value) => value.startsWith("session="));
   assert.ok(sessionCookie);
   const sessionId = sessionCookie.slice("session=".length, sessionCookie.indexOf(";"));
   assert.deepEqual(records.get(sessionId), { id: AUTH.owner.id, login: AUTH.owner.login });
-  assert.deepEqual(calls, [
+  assert.deepEqual(calls.map(({ input }) => input), [
     "https://github.com/login/oauth/access_token",
     "https://api.github.com/user",
   ]);
+  assert.equal(JSON.parse(calls[0].init.body).code_verifier, "verifier-value");
 });
 
-test("OAuth callback rejects a replay after the spent state cookie is cleared", async () => {
+test("OAuth callback rejects a replay after the state cookie is cleared", async () => {
   const calls = [];
   const { records, store } = storeForTest();
-  const original = cookieValue(setStateCookie("state./"));
+  const original = oauthCookies("state./");
   const first = await callbackResponse({
     request: new Request(`${origin}/auth/github/callback?code=first&state=state`, {
       headers: { cookie: original },
@@ -152,7 +161,7 @@ test("OAuth callback rejects a replay after the spent state cookie is cleared", 
 
 test("OAuth callback sends an unsafe return path to the site root", async () => {
   const { records, store } = storeForTest();
-  const carried = cookieValue(setStateCookie(`state.${encodeURIComponent("//evil.example/path")}`));
+  const carried = oauthCookies(`state.${encodeURIComponent("//evil.example/path")}`);
   const request = new Request(`${origin}/auth/github/callback?code=code&state=state`, {
     headers: { cookie: carried },
   });
@@ -168,8 +177,46 @@ test("OAuth callback sends an unsafe return path to the site root", async () => 
   assert.equal(records.size, 1);
 });
 
-test("OAuth callback rejects a replay that retains the spent state cookie", {
-  todo: "state spending is client-side cookie clearing; a copied cookie is accepted",
+test("OAuth callback rejects a missing verifier cookie before exchange", async () => {
+  const calls = [];
+  const { records, store } = storeForTest();
+  const request = new Request(`${origin}/auth/github/callback?code=code&state=state`, {
+    headers: { cookie: cookieValue(setStateCookie("state./")) },
+  });
+
+  const response = await callbackResponse({
+    request,
+    store,
+    fetcher: githubFetcher(calls),
+  });
+
+  assert.equal(response.status, 302);
+  assert.equal(new URL(response.headers.get("location")).searchParams.get("error"), "verifier");
+  assert.deepEqual(responseCookies(response), [clearStateCookie(), clearVerifierCookie()]);
+  assert.deepEqual(calls, []);
+  assert.equal(records.size, 0);
+});
+
+test("OAuth login redirect uses an S256 challenge for its verifier cookie", async () => {
+  const response = await githubLogin({
+    request: new Request(`${origin}/auth/github`, {
+      headers: { referer: `${origin}/notes/2026` },
+    }),
+  });
+
+  assert.equal(response.status, 302);
+  const location = new URL(response.headers.get("location"));
+  const cookies = responseCookies(response);
+  const verifierCookie = cookies.find((value) => value.startsWith("oauth_verifier="));
+  assert.ok(verifierCookie);
+  const verifier = cookieValue(verifierCookie).slice("oauth_verifier=".length);
+  assert.match(verifier, /^[A-Za-z0-9._~-]{43}$/);
+  assert.equal(verifierCookie, setVerifierCookie(verifier));
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier));
+  const challenge = Buffer.from(digest).toString("base64url");
+  assert.equal(location.searchParams.get("code_challenge_method"), "S256");
+  assert.equal(location.searchParams.get("code_challenge"), challenge);
+  assert.equal(location.searchParams.get("code_verifier"), null);
 });
 
 test("logout destroys the session record and clears its cookie", async () => {

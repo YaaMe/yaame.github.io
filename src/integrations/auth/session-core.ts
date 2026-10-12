@@ -18,6 +18,8 @@ export type Session = {
 
 const COOKIE = "session";
 const STATE = "oauth_state";
+const VERIFIER = "oauth_verifier";
+const OAUTH_COOKIE_MAX_AGE = 600;
 
 function cookie(header: string | null, name: string): string | null {
   if (!header) return null;
@@ -46,10 +48,15 @@ export const setSessionCookie = (id: string) =>
   `${COOKIE}=${id}; ${attrs(AUTH.sessionDays * 86400)}`;
 export const clearSessionCookie = () => `${COOKIE}=; ${attrs(0)}`;
 export const setStateCookie = (value: string) =>
-  `${STATE}=${value}; ${attrs(600, "/auth")}`;
+  `${STATE}=${value}; ${attrs(OAUTH_COOKIE_MAX_AGE, "/auth")}`;
 export const clearStateCookie = () => `${STATE}=; ${attrs(0, "/auth")}`;
+export const setVerifierCookie = (value: string) =>
+  `${VERIFIER}=${value}; ${attrs(OAUTH_COOKIE_MAX_AGE, "/auth")}`;
+export const clearVerifierCookie = () => `${VERIFIER}=; ${attrs(0, "/auth")}`;
 export const readStateCookie = (req: Request) =>
   cookie(req.headers.get("cookie"), STATE);
+export const readVerifierCookie = (req: Request) =>
+  cookie(req.headers.get("cookie"), VERIFIER);
 export const readSessionCookie = (req: Request) =>
   cookie(req.headers.get("cookie"), COOKIE);
 

@@ -11,11 +11,14 @@ export type { Session } from "./session-core";
 export {
   clearSessionCookie,
   clearStateCookie,
+  clearVerifierCookie,
   readStateCookie,
+  readVerifierCookie,
   refererPath,
   safeReturn,
   setSessionCookie,
   setStateCookie,
+  setVerifierCookie,
 } from "./session-core";
 
 /**
