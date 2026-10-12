@@ -21,3 +21,20 @@ wrappers pass `APPLY=1` as `--apply` and otherwise pass `--dry-run`.
 The JavaScript builders emit SQLite statements. A target implementation must
 therefore speak SQLite when it executes those statements and pass normalized
 `{"rows": [...]}` input to the host-free logic.
+
+Recovery entry points follow the same boundary. A target that implements a
+facility provides `export.sh` and `import.sh`; the Makefile selects them with
+`DEPLOY_TARGET`. They accept `--dry-run`, `--apply`, and `--help`, default to a
+preview, and reject both state flags together. Export prints a versioned
+`blogu-recovery` document. Import validates the complete document before it
+starts its facility transaction, and the target reports a non-zero failure
+without silently skipping a declared layer. The node records facility uses
+file access to `AP_DATA_DIR` as its credential. Its bash entry point and the
+small node reader in `scripts/platform/node/records.mjs` exchange one JSON
+snapshot (`{ document?, records: [...] }`) and one JSON write plan with the
+host-free adapter. Export requires `AP_DATA_DIR` to exist. An import destination
+is non-empty when `AP_DATA_DIR` contains any entry; import requires an empty or
+absent destination whose parent exists, and refuses a missing parent.
+It stages every record in a complete sibling directory and commits that
+directory with one rename, so a crash leaves the old empty or absent
+destination or the new complete destination.

@@ -6,7 +6,9 @@ import {
   RECOVERY_FORMAT_VERSION,
   InMemoryRecoveryFacility,
   exportRecovery,
+  isRecordKeyPattern,
   importRecovery,
+  registerForLayerKinds,
   selectRecovery,
 } from "../src/lib/recovery.ts";
 
@@ -72,6 +74,28 @@ test("selection keeps entries, explains excluded recovery, and names owner-held 
     { kind: "absent", recovery: "none", reason: "not part of recovery" },
   ]);
   assert.deepEqual(selected.ownerHeld, ["secret"]);
+});
+
+test("layer-kind registration keeps only the requested facility family and git base", () => {
+  const scoped = registerForLayerKinds({
+    records: {
+      ...register.kept,
+      layers: [{ records: "records:key" }, { git: "records-base" }],
+    },
+    sql: {
+      ...register.kept,
+      layers: [{ sql: "sql" }],
+    },
+    mixed: {
+      ...register.kept,
+      layers: [{ records: "records:key" }, { sql: "sql" }],
+    },
+    secret: register.secret,
+  }, ["records"]);
+
+  assert.deepEqual(Object.keys(scoped), ["records", "secret"]);
+  assert.equal(isRecordKeyPattern("auth:session:{id}"), true);
+  assert.equal(isRecordKeyPattern("ap:followers"), false);
 });
 
 test("the in-memory facility round-trips the versioned recovery document", async () => {

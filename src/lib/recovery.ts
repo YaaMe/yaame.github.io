@@ -14,7 +14,7 @@ const EXCLUSION_REASONS = Object.freeze({
 });
 
 const LAYER_KINDS = ["git", "sql", "records", "memory", "external", "ref"] as const;
-type LayerKind = typeof LAYER_KINDS[number];
+export type LayerKind = typeof LAYER_KINDS[number];
 
 export type RecoveryLayer = Record<string, unknown>;
 export type RecoveryEntry = {
@@ -72,7 +72,7 @@ export class RecoveryError extends Error {
   }
 }
 
-function layerKind(layer: RecoveryLayer): LayerKind | null {
+export function layerKind(layer: RecoveryLayer): LayerKind | null {
   if (!layer || typeof layer !== "object") return null;
   for (const kind of LAYER_KINDS) {
     if (Object.hasOwn(layer, kind)) return kind;
@@ -127,7 +127,13 @@ function escapeRegex(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+/** Return whether a records declaration contains a named key placeholder. */
+export function isRecordKeyPattern(declaration: string): boolean {
+  return /\{[A-Za-z][A-Za-z0-9_]*\}/u.test(declaration);
+}
+
 function recordKeyMatches(declaration: string, key: string): boolean {
+  if (!isRecordKeyPattern(declaration)) return declaration === key;
   const pattern = /^([\s\S]*?)\{([A-Za-z][A-Za-z0-9_]*)\}([\s\S]*)$/;
   let rest = declaration;
   let expression = "^";
@@ -163,7 +169,6 @@ function validateSqlRecords(layer: RecoveryLayer, records: unknown, label: strin
 }
 
 function validateRecordStoreRecords(layer: RecoveryLayer, records: unknown, label: string): unknown {
-  if (layer.records === true) return cloneJson(records, label);
   if (typeof layer.records !== "string" || !Array.isArray(records)) {
     throw new RecoveryError("INVALID_RECOVERY_RECORDS", `${label} must be an array of keyed records`);
   }
@@ -176,6 +181,24 @@ function validateRecordStoreRecords(layer: RecoveryLayer, records: unknown, labe
     }
     return { key: record.key, value: cloneJson(record.value, `${label}[${index}].value`) };
   });
+}
+
+/**
+ * Select a register slice for one family of facilities while retaining git
+ * layers that describe the same entry and all owner-held names.
+ */
+export function registerForLayerKinds(
+  register: RecoveryRegister,
+  kinds: readonly LayerKind[],
+): RecoveryRegister {
+  const wanted = new Set<LayerKind>(kinds);
+  return Object.fromEntries(Object.entries(register).filter(([, entry]) => {
+    if (entry?.recovery === "owner-held") return true;
+    if (!entry || !Array.isArray(entry.layers)) return false;
+    const layerKinds = entry.layers.map((layer) => layerKind(layer));
+    return layerKinds.some((kind) => kind !== null && wanted.has(kind))
+      && layerKinds.every((kind) => kind === "git" || (kind !== null && wanted.has(kind)));
+  }));
 }
 
 function validateLayerRecords(layer: RecoveryLayer, records: unknown, label: string): unknown {
