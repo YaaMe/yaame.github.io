@@ -5,22 +5,23 @@ source "$(dirname -- "$0")/recovery.sh"
 parse_recovery_flags "$@" || exit $?
 if (( COMMAND_HELP )); then
   cat <<'USAGE'
-Usage: scripts/platform/node/import.sh [--dry-run|--apply|--help] --file PATH
+Usage: scripts/platform/node/import.sh [--facility records|sqlite] [--dry-run|--apply|--help] --file PATH
 
-The file-access credential is AP_DATA_DIR (default: .data). --file supplies a
-blogu-recovery document. Preview is the default. Import refuses a non-empty
-destination and never merges or overwrites it silently; --apply writes an
-empty or absent destination whose parent already exists.
+The credential is file access: records (default) uses AP_DATA_DIR (.data);
+sqlite uses AP_DB_URL (AP_DATA_DIR/interactions.sqlite by default). --file
+supplies a blogu-recovery document. Preview is the default. Import refuses a
+non-empty destination: any directory entry for records, any user schema for
+sqlite. --apply writes an empty or absent destination whose parent exists.
 USAGE
   exit 0
 fi
 
-plan=$(run_import_records)
+plan=$(run_import)
 
 if (( COMMAND_APPLY )); then
   result=$(printf '%s\n' "$plan" | apply_plan)
 else
-  result=$plan
+  result=$(printf '%s\n' "$plan" | recovery_reader --validate-plan)
 fi
 
 printf '%s\n' "$result"

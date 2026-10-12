@@ -32,10 +32,13 @@ function osFixture(paths) {
 }
 
 test("the data generator validates the register and emits resolved values", (t) => {
-  const cwd = fixture(t, ["scripts/data-config.mjs", "src/data.config.ts", "src/data.config.json"]);
+  const cwd = fixture(t, ["scripts/data-config.mjs", "src/data.config.ts", "src/data.config.json", "src/lib/recovery.ts", "src/integrations/activitypub/following.json"]);
   const registerPath = join(cwd, "src/data.config.json");
   const register = JSON.parse(readFileSync(registerPath, "utf8"));
   register["promoted-comments"].layers[0].git = "archive/promoted comments/{posts,notes}/*.json";
+  register.sessions.layers[0].records = "auth:{tenant_id}:{Token2}";
+  register.comments.layers[0].sql = 'quoted "table';
+  register.comments.layers[0].columns.content = 'quoted "column';
   writeFileSync(registerPath, JSON.stringify(register));
 
   const result = spawnSync(process.execPath, ["--experimental-strip-types", "scripts/data-config.mjs"], { cwd, encoding: "utf8" });
@@ -44,6 +47,13 @@ test("the data generator validates the register and emits resolved values", (t) 
   assert.match(generated, /^\/\/ generated from src\/data\.config\.json, do not edit/);
   assert.match(generated, /"gitRoot": "archive\/promoted comments"/);
   assert.match(readFileSync(join(cwd, "src/data.config.generated.d.ts"), "utf8"), /^\/\/ generated from/);
+  assert.match(readFileSync(join(cwd, "src/data.config.generated.d.ts"), "utf8"), /key: \(tenant_id: string, Token2: string\) => string/);
+  const consumer = spawnSync(process.execPath, ["--input-type=module", "--eval", `
+    import { sessions, comments } from "./src/data.config.generated.mjs";
+    console.log(JSON.stringify([sessions.key("owner", "token"), comments.table, comments.quotedColumns.content]));
+  `], { cwd, encoding: "utf8" });
+  assert.equal(consumer.status, 0, consumer.stderr);
+  assert.deepEqual(JSON.parse(consumer.stdout), ["auth:owner:token", '"quoted ""table"', '"quoted ""column"']);
 
   register.comments.origin = "strangers";
   writeFileSync(registerPath, JSON.stringify(register));
@@ -57,6 +67,7 @@ test("the tombstone workflow scopes both Git operations to the relocated registe
     "scripts/data-config.mjs",
     "src/data.config.ts",
     "src/data.config.json",
+    "src/lib/recovery.ts",
     "src/integrations/activitypub/following.json",
   ]);
   const registerPath = join(cwd, "src/data.config.json");

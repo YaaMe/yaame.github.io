@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { isRecordKeyPattern } from "./lib/recovery.ts";
 
 export const ORIGINS = ["owner", "others", "system"] as const;
 export const RECOVERIES = ["keep", "owner-held", "rebuild", "reset", "ephemeral", "none"] as const;
@@ -67,7 +68,7 @@ export const dataConfigSchema = z.record(z.string(), dataEntrySchema).superRefin
         }
         continue;
       }
-      const patterned = /\{[A-Za-z][A-Za-z0-9_]*\}/.test(candidate.records);
+      const patterned = isRecordKeyPattern(candidate.records);
       if (patterned && entry.list === undefined) {
         context.addIssue({
           code: "custom",

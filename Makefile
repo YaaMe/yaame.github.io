@@ -127,11 +127,11 @@ tombstone: data ## 删掉已进 git 而后被撤回的评论，有回复的留�
 
 recovery-export: ## 导出所选设施的 blogu-recovery 文档（APPLY=1 可写入 FILE）
 	@$(MAKE) --no-print-directory data >/dev/null
-	@scripts/platform/$(DEPLOY_TARGET)/export.sh $(MODE_FLAG) $(if $(FILE),--file "$(FILE)",)
+	@scripts/platform/$(DEPLOY_TARGET)/export.sh $(MODE_FLAG) $(if $(FACILITY),--facility "$(FACILITY)",) $(if $(FILE),--file "$(FILE)",)
 
 recovery-import: ## 预览或导入 blogu-recovery 文档（FILE=…，APPLY=1 才写）
 	@$(MAKE) --no-print-directory data >/dev/null
-	@scripts/platform/$(DEPLOY_TARGET)/import.sh $(MODE_FLAG) $(if $(FILE),--file "$(FILE)",)
+	@scripts/platform/$(DEPLOY_TARGET)/import.sh $(MODE_FLAG) $(if $(FACILITY),--facility "$(FACILITY)",) $(if $(FILE),--file "$(FILE)",)
 
 ap-check: ## 对线上 ActivityPub 端点做一致性检查（URL=… 可指定）
 	@node scripts/ap-check.mjs $(URL)
