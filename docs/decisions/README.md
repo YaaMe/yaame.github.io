@@ -49,9 +49,15 @@ section is empty the record is not worth keeping.
 What is now true because of this — including what it costs.
 ```
 
-Numbers are never reused. A superseded record keeps its number and gains a
-pointer; the replacement says what changed and why the earlier reasoning no
-longer holds.
+Numbers are never reused. When a decision changes, the record is edited in
+place or superseded as the agent-skills
+[decision-records standard](https://github.com/YaaMe/agent-skills/blob/main/docs/standards/decision-records.md)
+sets out; a superseded record keeps its number and gains a pointer, and the
+replacement says what changed and why the earlier reasoning no longer holds.
+
+First formal release: none yet. The `v0.1.0` tag marks the move to Astro, not a
+release; the first release is when the framework is published for others to
+build on.
 
 `docs/identity.md` and `docs/interactions.md` predate this directory and are
 not rewritten into this format. They describe how things work now; new
