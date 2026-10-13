@@ -2,31 +2,7 @@
 # host-free reconciliation modules.
 DB_NAME="yaame-ap-interactions"
 
-# Parse the state-changing command contract once for every Cloudflare entry
-# point. The caller decides what usage text to print for --help.
-parse_command_flags() {
-  COMMAND_APPLY=0
-  COMMAND_HELP=0
-  local apply=0 dry_run=0 flag
-  for flag in "$@"; do
-    case "$flag" in
-      --apply) apply=1 ;;
-      --dry-run) dry_run=1 ;;
-      --help) COMMAND_HELP=1 ;;
-      *) echo "unknown option: $flag" >&2; return 2 ;;
-    esac
-  done
-  if [[ $apply == 1 && $dry_run == 1 ]]; then
-    echo "--dry-run and --apply cannot be used together" >&2
-    return 2
-  fi
-  if [[ $COMMAND_HELP == 1 ]]; then
-    return 0
-  fi
-  if [[ $apply == 1 ]]; then
-    COMMAND_APPLY=1
-  fi
-}
+source "$(dirname -- "${BASH_SOURCE[0]}")/../flags.sh"
 
 require_d1() {
   if [[ -z ${CF_D1_ID:-} ]]; then

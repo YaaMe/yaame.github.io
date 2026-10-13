@@ -41,6 +41,11 @@ test("Cloudflare entry points share flag parsing and help has no host reads", ()
     });
     assert.equal(refused.status, 2, `${name}: ${refused.stderr}`);
     assert.match(refused.stderr, /cannot be used together/);
+    const fileFlag = run(name, ["--file", "not-a-recovery-command.json"], {
+      env: { CF_D1_ID: "", CF_KV_ID: "" },
+    });
+    assert.equal(fileFlag.status, 2, fileFlag.stderr);
+    assert.match(fileFlag.stderr, /unknown option: --file/);
   }
 });
 

@@ -55,8 +55,15 @@ export function sqlClearStatements(register) {
   }));
 }
 
-export function sqlUserSchemaStatement() {
-  return { sql: "SELECT 1 FROM sqlite_schema WHERE name NOT GLOB 'sqlite_*' LIMIT 1", parameters: [] };
+export function sqlUserSchemaStatement({ excludedPrefixes = ["sqlite_"], excludedNames = [] } = {}) {
+  const predicates = [
+    ...excludedPrefixes.map(() => "substr(name, 1, length(?)) != ?"),
+    ...excludedNames.map(() => "name != ?"),
+  ];
+  return {
+    sql: `SELECT 1 FROM sqlite_schema${predicates.length ? ` WHERE ${predicates.join(" AND ")}` : ""} LIMIT 1`,
+    parameters: [...excludedPrefixes.flatMap((prefix) => [prefix, prefix]), ...excludedNames],
+  };
 }
 
 export async function exportSqlRecovery({ register, snapshot }) {
@@ -96,6 +103,15 @@ export async function importSqlRecovery({ register, document, existing }) {
     existing,
     facility: ({ kind, layerIndex, records }) => [{ action: "insert", kind, layer: layerIndex, rows: records }],
   });
+}
+
+export async function validateSqlPlan(register, value) {
+  if (!value || !Array.isArray(value.writes) || value.writes.some((write) => write?.action !== "insert")) {
+    throw new Error("SQL recovery write plan is malformed");
+  }
+  const document = await exportSqlRecovery({ register, snapshot: value.writes });
+  const plan = await importSqlRecovery({ register, document, existing: false });
+  return { document, plan };
 }
 
 async function cli() {

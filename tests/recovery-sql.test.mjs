@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { DatabaseSync } from "node:sqlite";
 import {
-  exportSqlRecovery, importSqlRecovery, sqlSnapshotStatements, sqlInsertStatements, sqlClearStatements,
+  exportSqlRecovery, importSqlRecovery, sqlSnapshotStatements, sqlInsertStatements, sqlClearStatements, sqlUserSchemaStatement,
 } from "../scripts/recovery-sql.mjs";
 import { InMemoryRecoveryFacility, exportRecovery, importRecovery } from "../src/lib/recovery.ts";
 import { planRecoveryImport } from "../scripts/recovery-plan.mjs";
@@ -18,6 +18,27 @@ const register = {
   temporary: { recovery: "reset", layers: [{ sql: "temporary", columns: { id: "id" } }] },
   credential: { recovery: "owner-held", layers: [{ external: true }] },
 };
+
+test("user-schema queries exclude only the target's internal prefixes and exact names", () => {
+  const database = new DatabaseSync(":memory:");
+  const query = (options) => {
+    const { sql, parameters } = sqlUserSchemaStatement(options);
+    return Boolean(database.prepare(sql).get(...parameters));
+  };
+  const exclusions = { excludedPrefixes: ["sqlite_", "_cf_"], excludedNames: ["d1_migrations"] };
+  try {
+    database.exec("CREATE TABLE _cf_KV (key TEXT); CREATE TABLE d1_migrations (id INTEGER PRIMARY KEY AUTOINCREMENT)");
+    assert.equal(query(), true);
+    assert.equal(query(exclusions), false);
+    database.exec("CREATE TABLE d1_migrations_backup (id INTEGER)");
+    assert.equal(query(exclusions), true);
+    assert.equal(query({ excludedPrefixes: [...exclusions.excludedPrefixes, "d1_migrations"] }), false);
+    database.exec("CREATE TABLE sqliteXowned (id INTEGER)");
+    assert.equal(query({ excludedPrefixes: [...exclusions.excludedPrefixes, "d1_migrations"] }), true);
+  } finally {
+    database.close();
+  }
+});
 
 test("host-free SQL statements bind values, map columns, and leave unselected tables intact", () => {
   const selected = {

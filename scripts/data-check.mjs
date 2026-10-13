@@ -1,5 +1,6 @@
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
+import { recordKeyPlaceholders } from "../src/lib/recovery.ts";
 
 function registerError(error) {
   if (Array.isArray(error?.issues)) {
@@ -315,7 +316,8 @@ const recordLocations = [
 ];
 for (const [path, source] of sourceWithoutComments) {
   for (const [name, location] of recordLocations) {
-    const prefix = location.records.replace(/\{[A-Za-z][A-Za-z0-9_]*\}/g, "");
+    const prefix = recordKeyPlaceholders(location.records)
+      .reduce((key, placeholder) => key.replaceAll(`{${placeholder}}`, ""), location.records);
     if (source.includes(location.records) || (prefix && source.includes(prefix))) {
       console.error(`  data register consumer ${path}: repeats ${name} records key`);
       process.exitCode = 1;

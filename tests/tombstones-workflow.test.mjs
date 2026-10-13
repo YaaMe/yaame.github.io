@@ -165,6 +165,7 @@ test("data-check rejects workflow path copies and unscoped Git commands", (t) =>
     "Makefile",
     workflowPath,
     "scripts/data-check.mjs",
+    "src/lib/recovery.ts",
     "src/data.config.generated.mjs",
     "src/integrations/activitypub/following.json",
     "src/content.config.ts",

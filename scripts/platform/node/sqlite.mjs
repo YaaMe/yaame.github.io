@@ -1,4 +1,4 @@
-import { chmodSync, existsSync, lstatSync, mkdtempSync, readFileSync, renameSync, rmSync } from "node:fs";
+import { chmodSync, existsSync, lstatSync, mkdtempSync, renameSync, rmSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { drizzle } from "drizzle-orm/node-sqlite";
@@ -7,9 +7,10 @@ import { registerForLayerKinds } from "../../../src/lib/recovery.ts";
 import { databaseFile } from "../../../src/platform/node-sqlite.ts";
 import { migrate } from "../../../src/integrations/activitypub/store/schema.ts";
 import {
-  exportSqlRecovery, importSqlRecovery, sqlSnapshotStatements, sqlInsertStatements, sqlClearStatements, sqlUserSchemaStatement,
+  exportSqlRecovery, sqlSnapshotStatements, sqlInsertStatements, sqlClearStatements, sqlUserSchemaStatement, validateSqlPlan,
 } from "../../recovery-sql.mjs";
 import { runIfMain } from "../../run-cli.mjs";
+import { runRecoveryReader } from "../../recovery-plan.mjs";
 
 const register = registerForLayerKinds(registerData, ["sql"]);
 
@@ -54,13 +55,6 @@ function destinationExists(path) {
   }
 }
 
-async function documentFromPlan(plan) {
-  if (!plan || !Array.isArray(plan.writes) || plan.writes.some((write) => write?.action !== "insert")) {
-    throw new Error("SQL recovery write plan is malformed");
-  }
-  return exportSqlRecovery({ register, snapshot: plan.writes });
-}
-
 async function populate(database, plan) {
   database.exec("BEGIN IMMEDIATE");
   try {
@@ -75,8 +69,7 @@ async function populate(database, plan) {
 }
 
 async function preparePlan(value) {
-  const document = await documentFromPlan(value);
-  const plan = await importSqlRecovery({ register, document, existing: false });
+  const { document, plan } = await validateSqlPlan(register, value);
   const database = new DatabaseSync(":memory:");
   try {
     await populate(database, plan);
@@ -112,34 +105,29 @@ async function applyPlan(path, plan) {
   return { ...plan, applied: true };
 }
 
-async function cli() {
+function snapshot(path, importMode) {
+  if (importMode) return { existing: destinationExists(path) };
+  requireFile(path, true);
+  const database = new DatabaseSync(path, { readOnly: true });
+  try {
+    database.exec("BEGIN");
+    const result = { existing: true, sql: readSqlSnapshot(database) };
+    database.exec("COMMIT");
+    return result;
+  } finally {
+    database.close();
+  }
+}
+
+function cli() {
   const path = databaseFile(process.env.AP_DATA_DIR ?? ".data", process.env.AP_DB_URL);
   if (!path || path === ":memory:") throw new Error("AP_DB_URL must name a database file");
-  const argv = process.argv.slice(2);
-  let result;
-  if (argv.includes("--snapshot")) {
-    if (argv.includes("--import")) {
-      const fileIndex = argv.indexOf("--file");
-      if (fileIndex === -1 || !argv[fileIndex + 1]) throw new Error("import requires --file PATH");
-      result = { existing: destinationExists(path), document: JSON.parse(readFileSync(argv[fileIndex + 1], "utf8")) };
-    } else {
-      requireFile(path, true);
-      const database = new DatabaseSync(path, { readOnly: true });
-      try {
-        database.exec("BEGIN");
-        result = { existing: true, sql: readSqlSnapshot(database) };
-        database.exec("COMMIT");
-      } finally {
-        database.close();
-      }
-    }
-  } else if (argv.includes("--apply-plan") || argv.includes("--validate-plan")) {
-    const plan = await preparePlan(JSON.parse(readFileSync(0, "utf8")));
-    result = argv.includes("--apply-plan") ? await applyPlan(path, plan) : plan;
-  } else {
-    throw new Error("node SQLite reader needs --snapshot, --validate-plan or --apply-plan");
-  }
-  process.stdout.write(`${JSON.stringify(result)}\n`);
+  return runRecoveryReader({
+    label: "node SQLite reader",
+    snapshot: (importMode) => snapshot(path, importMode),
+    prepare: preparePlan,
+    apply: (plan) => applyPlan(path, plan),
+  });
 }
 
 await runIfMain(import.meta.url, cli);
