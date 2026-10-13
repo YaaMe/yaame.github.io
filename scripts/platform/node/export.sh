@@ -2,7 +2,7 @@
 set -euo pipefail
 source "$(dirname -- "$0")/recovery.sh"
 
-parse_recovery_flags "$@" || exit $?
+parse_command_flags "$@" || exit $?
 if (( COMMAND_HELP )); then
   cat <<'USAGE'
 Usage: scripts/platform/node/export.sh [--facility records|sqlite] [--dry-run|--apply|--help] [--file PATH]
@@ -15,14 +15,4 @@ USAGE
   exit 0
 fi
 
-document=$(run_export)
-if (( COMMAND_APPLY )) && [[ -n $COMMAND_FILE ]]; then
-  directory=$(dirname -- "$COMMAND_FILE")
-  mkdir -p "$directory"
-  temporary=$(mktemp "$directory/.blogu-recovery-export.XXXXXX")
-  trap 'rm -f "$temporary"' EXIT
-  printf '%s\n' "$document" > "$temporary"
-  mv "$temporary" "$COMMAND_FILE"
-  trap - EXIT
-fi
-printf '%s\n' "$document"
+run_export

@@ -15,6 +15,7 @@ import registerData from "../../../src/data.config.json" with { type: "json" };
 import { recordFile } from "../../../src/platform/node-records.ts";
 import { recordLayerDescriptors } from "../../recovery-records.mjs";
 import { registerForLayerKinds } from "../../../src/lib/recovery.ts";
+import { runRecoveryReader } from "../../recovery-plan.mjs";
 import { runIfMain } from "../../run-cli.mjs";
 
 const dataDir = process.env.AP_DATA_DIR ?? ".data";
@@ -56,14 +57,12 @@ function readSnapshot() {
   return records;
 }
 
-function snapshotCommand(file, importMode) {
+function snapshot(importMode) {
   if (importMode) requireParent(dataDir);
   const existingReason = importMode ? destinationConflict(dataDir) : null;
-  const value = importMode
+  return importMode
     ? { records: [], existing: existingReason !== null, existingReason }
     : { records: readSnapshot(), existing: destinationConflict(dataDir) !== null };
-  if (file) value.document = JSON.parse(readFileSync(file, "utf8"));
-  process.stdout.write(JSON.stringify(value) + "\n");
 }
 
 function validatePlan(plan) {
@@ -79,6 +78,7 @@ function validatePlan(plan) {
     if (keys.has(path)) fail("recovery write plan contains the same physical file twice: " + path);
     keys.add(path);
   }
+  return plan;
 }
 
 function applyPlan(plan) {
@@ -97,26 +97,11 @@ function applyPlan(plan) {
     if (existsSync(stage)) rmSync(stage, { recursive: true, force: true });
     throw error;
   }
-  process.stdout.write(JSON.stringify({ ...plan, applied: true }) + "\n");
+  return { ...plan, applied: true };
 }
 
 function cli() {
-  const argv = process.argv.slice(2);
-  if (argv.includes("--snapshot")) {
-    const fileIndex = argv.indexOf("--file");
-    const file = fileIndex === -1 ? undefined : argv[fileIndex + 1];
-    if (fileIndex !== -1 && !file) fail("--file needs a value");
-    snapshotCommand(file, argv.includes("--import"));
-    return;
-  }
-  if (argv.includes("--apply-plan") || argv.includes("--validate-plan")) {
-    const plan = JSON.parse(readFileSync(0, "utf8"));
-    validatePlan(plan);
-    if (argv.includes("--apply-plan")) applyPlan(plan);
-    else process.stdout.write(JSON.stringify(plan) + "\n");
-    return;
-  }
-  fail("node records reader needs --snapshot, --validate-plan or --apply-plan");
+  return runRecoveryReader({ label: "node records reader", snapshot, prepare: validatePlan, apply: applyPlan });
 }
 
 await runIfMain(import.meta.url, cli);

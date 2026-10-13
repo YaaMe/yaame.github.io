@@ -11,7 +11,7 @@ import { exportRecovery, registerForLayerKinds } from "../src/lib/recovery.ts";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
 const runner = new URL("../scripts/run-cli.mjs", import.meta.url).href;
-const modules = ["scripts/recovery-records.mjs", "scripts/recovery-sql.mjs", "scripts/platform/node/records.mjs", "scripts/platform/node/sqlite.mjs"];
+const modules = ["scripts/recovery-records.mjs", "scripts/recovery-sql.mjs", "scripts/platform/node/records.mjs", "scripts/platform/node/sqlite.mjs", "scripts/platform/cloudflare/d1.mjs"];
 
 function fixture(context) {
   const directory = realpathSync(mkdtempSync(join(tmpdir(), "blogu-recovery-cli-")));
@@ -24,7 +24,7 @@ function run(args, directory, input = "null") {
     cwd: root,
     input,
     encoding: "utf8",
-    env: { ...process.env, AP_DATA_DIR: join(directory, "records"), AP_DB_URL: join(directory, "database.sqlite") },
+    env: { ...process.env, CF_D1_ID: "", AP_DATA_DIR: join(directory, "records"), AP_DB_URL: join(directory, "database.sqlite") },
   });
 }
 
@@ -73,6 +73,20 @@ test("#56 both recovery adapters require an object, a boolean existing, and an i
         assert.match(refused.stderr, expected);
         assert.equal(refused.stdout, "");
       }
+    }
+  }
+});
+
+test("#58 recovery readers reject missing or conflicting modes before reading input or stores", (context) => {
+  const directory = fixture(context);
+  const readers = ["scripts/platform/node/records.mjs", "scripts/platform/node/sqlite.mjs", "scripts/platform/cloudflare/d1.mjs"];
+  const modes = ["--snapshot", "--validate-plan", "--apply-plan"];
+  for (const module of readers) {
+    for (const args of [...modes.map((mode) => modes.filter((other) => other !== mode)), modes, []]) {
+      const refused = run([module, ...args], directory, "not JSON");
+      assert.equal(refused.status, 1, `${module} ${args}: ${refused.stderr}`);
+      assert.match(refused.stderr, /needs exactly one of --snapshot, --validate-plan or --apply-plan/);
+      assert.equal(refused.stdout, "");
     }
   }
 });

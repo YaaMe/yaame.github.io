@@ -6,7 +6,7 @@ facility author supplies access to a store, while the contract supplies the
 format, register selection, and validation. Host bindings and credentials stay
 in the facility's deployment tooling.
 
-The node records and SQLite pairs keep their host-free adapters in
+The node records pair and the SQLite/D1 pairs keep their host-free adapters in
 [`scripts/recovery-records.mjs`](../scripts/recovery-records.mjs) and
 [`scripts/recovery-sql.mjs`](../scripts/recovery-sql.mjs). Both use
 [`scripts/recovery-plan.mjs`](../scripts/recovery-plan.mjs):
@@ -17,19 +17,42 @@ supplied `facility(request)` function to build logical writes in memory.
 facility's refusal detail, such as the non-empty directory's path.
 `runRecoveryAdapter({ exportFn, importFn })` owns both adapters' stdin and
 stdout: an object with a required boolean `existing`, plus `document` for
-import, produces one JSON result or a failure. Both readers support
-`--validate-plan`, so the shell uses the same preview path for either facility.
-Neither planner accesses a store. The bash entry points under
-`scripts/platform/node/` and their `records.mjs` / `sqlite.mjs` readers exchange
-JSON snapshots and write plans with these adapters; the readers own file access
+import, produces one JSON result or a failure.
+`runRecoveryReader({ label, snapshot, prepare, apply })` owns all three readers'
+mode dispatch, stdin parsing and JSON stdout. It requires exactly one of
+`--snapshot`, `--validate-plan` or `--apply-plan` before reading input or calling
+the supplied operations; `--import` selects the destination snapshot. The
+shell uses the same preview path for every facility. Neither planner accesses
+a store. The bash entry points under
+`scripts/platform/node/` and `scripts/platform/cloudflare/` exchange JSON
+snapshots and write plans with these adapters; their readers own store access
 and the final commit. `FACILITY=sqlite` selects SQLite through Make, while
-records remains the default (`FACILITY=records`).
+records remains the node default (`FACILITY=records`). Cloudflare currently
+provides `FACILITY=d1`, its default.
+
+`scripts/platform/flags.sh` owns state-flag parsing, opt-in `--file`, the
+document-input reader and the atomic export-file write. Targets declare their
+accepted facilities. `scripts/platform/recovery.sh` owns the shared
+snapshot → adapter → validate/apply pipeline, including preview validation.
+The target hooks select a reader and an adapter; they do not copy this flow.
+Export writes a mode-`0600` sibling temporary file before renaming it into
+`FILE`, and prints the document after any requested file write succeeds. An
+interrupted file write can leave a `.blogu-recovery-export.*` file beside the
+destination. A successful snapshot remains usable if temporary-file cleanup
+fails: export still prints the document and writes it with `--apply --file`,
+and import still validates and prints its preview plan (or applies it when
+requested). The command then exits non-zero with the leftover directory named
+on stderr. A failed read stops before any export-file or destination write.
 
 `scripts/recovery-sql.mjs` builds the SQLite SELECT, INSERT, clearing and
 user-schema queries as SQL plus bound parameters. It owns logical aliases,
 column order and boolean conversion; targets execute those statements and
-own connections and transactions. Quoting and record-key placeholder grammar
-have one owner in `src/lib/recovery.ts`. The four command modules use
+own connections and transactions. `sqlUserSchemaStatement` accepts excluded
+prefixes and exact names, so each target can recognise its internal schema.
+`validateSqlPlan` checks the complete logical plan for both SQL readers;
+SQLite adds its in-memory constraint and round-trip checks. Quoting and
+record-key placeholder grammar have one owner in `src/lib/recovery.ts`, also
+used by the register generator and consumer checker. The command modules use
 `scripts/run-cli.mjs` for main-module detection and failure reporting, including
 when invoked through a renamed file or a filesystem alias.
 
@@ -392,3 +415,207 @@ planner. These automated checks do not attest an operator rehearsal.
 
 The owner must follow this SOP once with temporary source and destination
 files and record the result in the issue. **[ ] Followed once.**
+
+## Cloudflare D1 export and import SOP
+
+This pair covers the SQL facility in Cloudflare D1. The credential is an
+**owner-held Cloudflare account API token with D1 Read for export and D1 Write
+for import**, restricted to the intended account, or an owner's Wrangler
+login with equivalent access. Import also reads the destination schema. Use
+`CLOUDFLARE_API_TOKEN` for the token and `CLOUDFLARE_ACCOUNT_ID` to select the
+account; `CF_D1_ID` selects the database by ID on every command. These are
+operator credentials, not CI secrets for this procedure. No token or login
+value is written into a recovery document.
+
+The pair uses the same SQL register slice, logical column payload and canonical
+row ordering as node SQLite. Only `recovery: keep` SQL layers are transferred;
+owner-held entries are names only. It reads all selected tables and fails on
+a missing table, failed statement or incomplete response. Cloudflare's
+`_cf_*` objects, SQLite's `sqlite_*` objects, and the exact `d1_migrations`
+table are internal schema. They are neither transferred nor cleared. Any
+other schema object makes an import destination non-empty, even an empty
+application table. An initialized blog database is not an empty destination.
+
+The target reader is `scripts/platform/cloudflare/d1.mjs`. It runs the installed
+Wrangler through `npx --no-install`, using a temporary config containing only
+the selected D1 binding. It does not regenerate the site's Wrangler config
+or require `CF_KV_ID`. The shared SQL statements remain `{ sql, parameters }`;
+because Wrangler's CLI has no parameter-binding option, the D1 transport
+renders their bound scalars into SQL literals, encoding strings as UTF-8 hex
+cast to text. Document values never supply SQL or identifiers. The temporary
+config and import SQL file have mode `0600` inside a private temporary directory
+and are removed after the command finishes. A killed process can leave that
+directory (`blogu-d1-recovery-*` under `TMPDIR`); its SQL file contains data.
+
+The commit boundary is **one remote SQL-file import** (`wrangler d1 execute
+--remote --file`). Wrangler runs an import job (init → upload → ingest → poll),
+so rollback is a provider guarantee, not a client-side SQL transaction.
+Cloudflare's [April 2024 D1 GA announcement](https://blog.cloudflare.com/building-d1-a-global-database/)
+states that `wrangler d1 execute --file` imports are atomic and never leave the
+database half-imported. Wrangler's remote-file import prompt, also reproduced
+in [cloudflare/workers-sdk#8020](https://github.com/cloudflare/workers-sdk/issues/8020),
+says: "if the execution fails to complete, your DB will return to its original
+state and you can safely retry".
+
+This path and prompt were checked against the installed **Wrangler 4.132.0**
+source on October 13, 2026. Wrangler is not a direct dependency:
+`package-lock.json` resolves it through the Cloudflare adapter's `^4.125.0`
+peer range. `npm ci` keeps that locked version. Older Wrangler 2.x split large
+files into separate batches, so the guarantee depends on the version and
+must be rechecked when updating the lockfile.
+
+The file first checks that user schema is still absent, then bootstraps the runtime's
+append-only schema history and inserts every selected payload, including the
+exported migration ledger. `schemaBootstrapStatements()` in
+`src/integrations/activitypub/store/schema.ts` supplies the same schema history
+as the runtime; recovery does not invent migrations or timestamps. There are
+no per-row remote writes, merge, table clearing or partial-batch retries. The
+generated SQL contains no `BEGIN`, `COMMIT` or `SAVEPOINT`; D1 rejects them.
+
+The guarantee is weaker than node SQLite in two ways. Preview validates the
+entire document and logical plan but cannot rehearse D1's constraints or
+type affinity in an in-memory instance of that service. Constraint failures
+are detected when D1 executes the import; a valid scalar can be coerced to a
+different storage type. Also, losing a connection or acknowledgement can
+leave a complete remote import whose result the caller does not know. A
+non-zero exit after submission without an acknowledged result means
+**unconfirmed**, not proof of rollback.
+The tool never retries automatically. A confirmed D1 execution failure relies
+on the service restoring the original database; offline tests cannot prove
+that service guarantee. Keep writers stopped and compare exports before
+switching the application to the destination. An import that succeeds with
+wrong data does not trigger failure rollback: use D1 Time Travel to restore a
+known pre-import point, within its available recovery window, and verify the
+restored state before resuming writers.
+
+Run from the repository root with the same checkout, register and migration
+history as the source. Use the installed dependencies. Keep backups outside
+the repository in an access-controlled directory.
+
+1. Have the owner supply the account ID and token from their secret store,
+   or run `npx --no-install wrangler login` as the owner. Confirm D1 Read on
+   the source and D1 Write on the intended destination account. Record the
+   source database ID. In Cloudflare D1, create a new destination database
+   and record its ID; do not apply migrations or bind an active Worker to it.
+   For the rehearsal, both databases must be disposable test instances. Seed
+   the source with the runtime schema and at least one valid comment so the
+   deliberate constraint failure below reaches D1 execution.
+2. Stop every writer to the source and destination: the site Worker, queue
+   consumer and any manual database commands. Leave them stopped throughout
+   export, import and verification. The export uses one multi-statement read
+   request, but does not claim a snapshot spanning concurrent writes. Prepare
+   the register and restrict newly created backup files:
+
+   ```sh
+   make data
+   umask 077
+   ```
+
+3. Preview an export, substituting the recorded source ID and an existing
+   backup directory. The account ID and credential remain in the owner's
+   environment. This form redirects stdout and never changes D1:
+
+   ```sh
+   DEPLOY_TARGET=cloudflare CF_D1_ID='source-database-id' \
+     make recovery-export FACILITY=d1 > /srv/backup/blogu-d1.json
+   ```
+
+   Inspect `format: "blogu-recovery"`, `version: 1`, the selected entries,
+   logical columns and owner-held names. Currently the SQL entries are
+   reactions, migrations and comments. The document contains stored data;
+   protect it like the source. Wrangler's captured response is limited to
+   64 MiB; exceeding it fails rather than emitting a partial document.
+4. Alternatively, let the command publish the export file atomically. It
+   still prints the document to stdout. Without `APPLY=1`, `FILE` is not
+   written:
+
+   ```sh
+   DEPLOY_TARGET=cloudflare CF_D1_ID='source-database-id' \
+     make recovery-export FACILITY=d1 APPLY=1 FILE=/srv/backup/blogu-d1.json
+   ```
+
+5. Confirm that the destination ID is different from the source and has no
+   user schema. Preview the import against that destination:
+
+   ```sh
+   DEPLOY_TARGET=cloudflare CF_D1_ID='destination-database-id' \
+     make recovery-import FACILITY=d1 FILE=/srv/backup/blogu-d1.json
+   ```
+
+   The preview reads schema and prints a validated plan. It performs no D1
+   writes. Wrong versions, selections, layers and malformed rows fail before
+   an import is submitted. A successful preview is not a constraint or type
+   round-trip check on D1.
+6. **Disposable-database rehearsal only:** observe a failed import before the
+   successful one. In the D1 console, capture the destination's complete
+   schema with `SELECT type, name, tbl_name, sql FROM sqlite_schema ORDER BY type, name`
+   and the rows of any readable pre-existing internal tables. Keep these
+   results as the before-state; user schema must be absent.
+
+   Make a separate copy of the export at `/srv/backup/blogu-d1-invalid.json`.
+   In that copy, set `entries.comments.records[0].records[0].content` to
+   `null`. This passes the recovery format's scalar check but violates the
+   runtime's `NOT NULL` constraint. Keep the original backup intact. Preview
+   the invalid copy, then deliberately apply it to the disposable destination:
+
+   ```sh
+   DEPLOY_TARGET=cloudflare CF_D1_ID='disposable-destination-database-id' \
+     make recovery-import FACILITY=d1 FILE=/srv/backup/blogu-d1-invalid.json
+   DEPLOY_TARGET=cloudflare CF_D1_ID='disposable-destination-database-id' \
+     make recovery-import FACILITY=d1 APPLY=1 FILE=/srv/backup/blogu-d1-invalid.json
+   ```
+
+   Expect preview success followed by a non-zero apply exit and no
+   `"applied":true` result. That exit alone does not prove rollback. Repeat
+   the schema query and internal-row reads from a fresh console request:
+   they must match the before-state, with no application tables, indexes or
+   partial rows left behind. Preview the original valid backup again; it
+   must still accept the destination as empty. Record the Wrangler version,
+   refusal and before/after comparison in the issue. Stop if anything differs.
+   This deliberate failure and state comparison are the SOP's observation of
+   live rollback; the successful round trip and fake tests cannot supply it.
+7. Apply after reviewing the preview. The command repeats document validation,
+   rechecks the destination, and submits the complete SQL file once:
+
+   ```sh
+   DEPLOY_TARGET=cloudflare CF_D1_ID='destination-database-id' \
+     make recovery-import FACILITY=d1 APPLY=1 FILE=/srv/backup/blogu-d1.json
+   ```
+
+   Only an acknowledged successful import prints `"applied":true`. If local
+   temporary-file cleanup then fails, that result is still printed and the
+   command exits non-zero. Its diagnostic confirms completion, names the
+   leftover directory and tells the owner to delete the recovery data there
+   after confirming no importer owns it. Verify the import before cutover;
+   a cleanup failure alone does not call for retrying it.
+
+   If submission fails without an acknowledged result, leave writers stopped.
+   Try exporting the destination: if it matches the backup, the import
+   completed; if it has only internal schema, a fresh preview can precede a
+   retry. Any other state
+   requires investigation or a new empty destination. Do not clear an
+   existing database to make a retry pass. Inspect any abandoned private
+   temporary directory and remove it after confirming no importer owns it.
+8. Export the destination and compare bytes before binding or restarting the
+   application:
+
+   ```sh
+   DEPLOY_TARGET=cloudflare CF_D1_ID='destination-database-id' \
+     make recovery-export FACILITY=d1 > /srv/backup/blogu-d1-after.json
+   cmp /srv/backup/blogu-d1.json /srv/backup/blogu-d1-after.json
+   ```
+
+   A mismatch, including a type conversion, must be resolved before cutover.
+   Complete other facility and owner-held recovery steps, configure both
+   Workers to use the verified destination, and then restart writers. Keep
+   the backup under the owner's retention policy.
+
+`tests/platform-d1-recovery.test.mjs` runs the real shell entry points with
+fake `npx` on `PATH` and disposable SQLite files. It covers byte-identical
+round trips through the in-memory reference, validation before writes,
+simulated remote rollback, internal-table preservation and unconfirmed
+completion. It makes no Cloudflare requests and cannot establish live D1's
+transaction behavior, permissions, limits or an operator rehearsal.
+
+The owner must follow this SOP once against disposable D1 databases and
+record the result in the issue. **[ ] Followed once.**

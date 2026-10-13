@@ -138,6 +138,13 @@ const MIGRATIONS: string[] = [
   `CREATE INDEX IF NOT EXISTS reactions_by_object ON reactions (object_id, kind)`,
 ];
 
+export function schemaBootstrapStatements(): string[] {
+  return [
+    `CREATE TABLE IF NOT EXISTS ${migrationsLocation.table} (${migrationsColumns.quotedColumns.version} INTEGER PRIMARY KEY, ${migrationsColumns.quotedColumns.appliedAt} TEXT NOT NULL)`,
+    ...MIGRATIONS,
+  ];
+}
+
 /**
  * Bring a database up to the current schema.
  *
@@ -148,11 +155,7 @@ const MIGRATIONS: string[] = [
  * Idempotent, and one read when there is nothing to do.
  */
 export async function migrate(db: Database): Promise<number> {
-  await db.run(
-    sql.raw(
-      `CREATE TABLE IF NOT EXISTS ${migrationsLocation.table} (${migrationsColumns.quotedColumns.version} INTEGER PRIMARY KEY, ${migrationsColumns.quotedColumns.appliedAt} TEXT NOT NULL)`,
-    ),
-  );
+  await db.run(sql.raw(schemaBootstrapStatements()[0]));
 
   const rows = await db.all<{ version: number | null }>(
     sql.raw(

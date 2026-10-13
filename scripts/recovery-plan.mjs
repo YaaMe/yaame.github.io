@@ -43,3 +43,21 @@ export async function runRecoveryAdapter({ exportFn, importFn }) {
   const result = await (exporting ? exportFn(input) : importFn(input));
   process.stdout.write(`${JSON.stringify(result)}\n`);
 }
+
+export async function runRecoveryReader({ label, snapshot, prepare, apply }) {
+  const argv = process.argv.slice(2);
+  const modes = ["--snapshot", "--validate-plan", "--apply-plan"].filter((mode) => argv.includes(mode));
+  if (modes.length !== 1) {
+    throw new Error(`${label} needs exactly one of --snapshot, --validate-plan or --apply-plan`);
+  }
+  let result;
+  if (modes[0] === "--snapshot") {
+    result = await snapshot(argv.includes("--import"));
+  } else {
+    let text = "";
+    for await (const chunk of process.stdin) text += chunk;
+    const plan = await prepare(JSON.parse(text));
+    result = modes[0] === "--apply-plan" ? await apply(plan) : plan;
+  }
+  process.stdout.write(`${JSON.stringify(result)}\n`);
+}

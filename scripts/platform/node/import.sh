@@ -2,7 +2,7 @@
 set -euo pipefail
 source "$(dirname -- "$0")/recovery.sh"
 
-parse_recovery_flags "$@" || exit $?
+parse_command_flags "$@" || exit $?
 if (( COMMAND_HELP )); then
   cat <<'USAGE'
 Usage: scripts/platform/node/import.sh [--facility records|sqlite] [--dry-run|--apply|--help] --file PATH
@@ -16,12 +16,4 @@ USAGE
   exit 0
 fi
 
-plan=$(run_import)
-
-if (( COMMAND_APPLY )); then
-  result=$(printf '%s\n' "$plan" | apply_plan)
-else
-  result=$(printf '%s\n' "$plan" | recovery_reader --validate-plan)
-fi
-
-printf '%s\n' "$result"
+run_import
