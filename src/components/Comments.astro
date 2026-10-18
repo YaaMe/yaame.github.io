@@ -1,6 +1,7 @@
 ---
 import { handle, type Comment } from "../lib/comments";
 import { runLabel } from "../lib/comment-runs";
+import { commentHref } from "../lib/comment-schema";
 
 interface Props {
   comments: Comment[];
@@ -12,6 +13,10 @@ interface Props {
 const { comments, state, forId } = Astro.props;
 
 const stamp = (iso: string) => iso.slice(0, 10);
+const safeHref = (value: string) => {
+  const parsed = commentHref.safeParse(value);
+  return parsed.success ? parsed.data : undefined;
+};
 ---
 {(comments.length > 0 || state !== undefined) && (
   <section
@@ -31,11 +36,11 @@ const stamp = (iso: string) => iso.slice(0, 10);
           {comments.map((c) => (
             <li>
               <p class="who">
-                <a href={c.actorId} rel="nofollow ugc">
+                <a href={safeHref(c.actorId)} rel="nofollow ugc">
                   {c.name ?? handle(c.actorId)}
                 </a>
                 {c.name && <span class="at">{handle(c.actorId)}</span>}
-                <a class="when" href={c.objectId} rel="nofollow ugc">
+                <a class="when" href={safeHref(c.objectId)} rel="nofollow ugc">
                   <time datetime={c.published}>{stamp(c.published)}</time>
                 </a>
               </p>
@@ -48,7 +53,7 @@ const stamp = (iso: string) => iso.slice(0, 10);
                   <p class="body">
                     {paragraph.map((run) =>
                       run.type === "text" ? run.text : (
-                        <a href={run.href} rel="nofollow ugc">{runLabel(run)}</a>
+                        <a href={safeHref(run.href)} rel="nofollow ugc">{runLabel(run)}</a>
                       ),
                     )}
                   </p>

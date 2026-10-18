@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import {
+  actorName,
   computeStates,
   main,
   promotedComment,
@@ -11,6 +12,43 @@ import {
 import { byFollowing } from "../scripts/promote-filter.mjs";
 
 const id = (name) => `https://example.test/${name}`;
+
+test("actor names use an HTTP(S) URL without following redirects", async (t) => {
+  const requests = [];
+  t.mock.method(globalThis, "fetch", async (url, options) => {
+    requests.push({ url, options });
+    return Response.json({ name: " Friend " });
+  });
+
+  assert.equal(await actorName("https://mastodon.social/users/friend"), "Friend");
+  assert.equal(await actorName("http://example.test/users/friend"), "Friend");
+  assert.deepEqual(requests.map(({ url }) => url), [
+    "https://mastodon.social/users/friend",
+    "http://example.test/users/friend",
+  ]);
+  for (const { options } of requests) {
+    assert.equal(options.redirect, "error");
+    assert.equal(options.headers.accept, "application/activity+json");
+  }
+});
+
+test("actor names require an HTTP(S) URL before fetching", async (t) => {
+  const request = t.mock.method(globalThis, "fetch", async () => Response.json({ name: "Friend" }));
+
+  assert.equal(await actorName("ftp://example.test/users/friend"), undefined);
+  assert.equal(await actorName("not a URL"), undefined);
+  assert.equal(request.mock.callCount(), 0);
+});
+
+test("actor names stay absent when a redirect is refused", async (t) => {
+  const request = t.mock.method(globalThis, "fetch", async (_url, options) => {
+    if (options.redirect === "error") throw new TypeError("redirect refused");
+    return Response.json({ name: "Friend" });
+  });
+
+  assert.equal(await actorName("https://mastodon.social/users/friend"), undefined);
+  assert.equal(request.mock.callCount(), 1);
+});
 
 function comment(name, extra = {}) {
   return {
@@ -99,7 +137,7 @@ test("promotion validation rejects control characters, overlong content and bad 
     content: [[{ type: "text", text: "x".repeat(10001) }]],
   })).ok, false);
   assert.equal(validatePromotedComment(comment("link", {
-    content: [[{ type: "link", href: "javascript:alert(1)", label: "x" }]],
+    content: [[{ type: "link", href: "ftp://example.test/reference", label: "Reference" }]],
   })).ok, false);
   assert.equal(validatePromotedComment(comment("valid")).ok, true);
 });

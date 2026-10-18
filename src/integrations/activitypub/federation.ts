@@ -4,6 +4,7 @@ import { Person, Follow, Undo, Accept, Announce, Create, Delete, Like, Note, Rej
 import { configure, getConsoleSink } from "@logtape/logtape";
 import { platform } from "../../platform";
 import { AP } from "./config";
+import { commentHref } from "../../lib/comment-schema";
 import {
   actorDigest,
   departures,
@@ -425,8 +426,12 @@ federation
     if (!(object instanceof Note)) return;
     if (!create.id || !object.id || !object.replyTargetId) return;
 
-    const author = object.attributionId ?? create.actorId;
+    const author = create.actorId;
     if (!author) return;
+    if (object.attributionIds.some((id) => id.href !== author.href)) return;
+    if (![create.id, object.id, object.replyTargetId, author].every(
+      (id) => commentHref.safeParse(id.href).success,
+    )) return;
 
     await record(
       {

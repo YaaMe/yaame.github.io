@@ -7,6 +7,7 @@
  */
 import { and, asc, count, eq, inArray, isNotNull, isNull } from "drizzle-orm";
 import { platform } from "../../../platform";
+import { commentHref } from "../../../lib/comment-schema";
 import type { Database } from "../../../platform/types";
 import { comments, migrate } from "./schema";
 
@@ -87,7 +88,7 @@ export async function record(
 ): Promise<boolean> {
   const db = await store();
   const root = await rootOf(db, reply.replyToId, ours);
-  if (root === null) return false;
+  if (root === null || !commentHref.safeParse(root).success) return false;
 
   // RETURNING rather than a changed-row count. The two drivers name that count
   // differently — D1 `rowsAffected`, node:sqlite `changes` — and reading the

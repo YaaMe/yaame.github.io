@@ -26,16 +26,16 @@ export const commentRun = z.discriminatedUnion("type", [
  */
 export const commentSchema = z.object({
   // Required, not decorative: reconciliation identifies an entry by this id.
-  activityId: z.url(),
-  objectId: z.url(),
-  rootId: z.url(),
-  actorId: z.url(),
+  activityId: commentHref,
+  objectId: commentHref,
+  rootId: commentHref,
+  actorId: commentHref,
   // A copy of the actor's name; it will not follow future profile changes.
   name: z.string().optional(),
   // Structured runs, never HTML: promotion is not a sanitiser.
   content: z.array(z.array(commentRun)).optional(),
   published: z.string(),
-  replyToId: z.url().nullable().default(null),
+  replyToId: commentHref.nullable().default(null),
   deletedAt: z.string().optional(),
 }).refine((entry) => entry.deletedAt === undefined || entry.content === undefined, {
   message: "A withdrawn comment must have no content",

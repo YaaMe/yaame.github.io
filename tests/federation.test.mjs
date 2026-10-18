@@ -1,5 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { mkdtempSync, rmSync } from "node:fs";
+import { join, resolve } from "node:path";
+import { pathToFileURL } from "node:url";
+import { build } from "esbuild";
+import { Create, Note } from "@fedify/fedify/vocab";
 import {
   handleCommentDelete,
   handleFollow,
@@ -12,6 +17,162 @@ const firstFollower = {
   id: "https://remote.example/users/one",
   inbox: "https://remote.example/users/one/inbox",
 };
+
+async function commentInbox(context) {
+  const directory = mkdtempSync(join(process.cwd(), ".tmp-comment-inbox-"));
+  context.after(() => rmSync(directory, { recursive: true, force: true }));
+  const bundle = join(directory, "inbox.mjs");
+  await build({
+    stdin: {
+      contents: `
+        export { federation } from "./src/integrations/activitypub/federation.ts";
+        export { store } from "./src/integrations/activitypub/store/comments.ts";
+        export { comments } from "./src/integrations/activitypub/store/schema.ts";
+      `,
+      resolveDir: process.cwd(),
+    },
+    outfile: bundle,
+    bundle: true,
+    format: "esm",
+    platform: "node",
+    packages: "external",
+    alias: { "virtual:platform": resolve("src/platform/node.ts") },
+    define: { "process.env.AP_DB_URL": JSON.stringify(":memory:") },
+  });
+  const inbox = await import(pathToFileURL(bundle).href);
+  const database = await inbox.store();
+  context.after(() => database.$client.close());
+  context.mock.method(globalThis, "fetch", async () => {
+    throw new Error("comment inbox tests are offline");
+  });
+  return {
+    ...inbox,
+    database,
+    async receive(activity, stored = []) {
+      await database.delete(inbox.comments);
+      if (stored.length > 0) await database.insert(inbox.comments).values(stored);
+      const dispatched = inbox.federation.inboxListeners.dispatchWithClass(activity);
+      assert.ok(dispatched);
+      await dispatched.listener({}, activity);
+      return database.select().from(inbox.comments);
+    },
+  };
+}
+
+test("Create comments keep HTTP(S) identifiers and the signed actor", async (t) => {
+  const inbox = await commentInbox(t);
+  const friend = "https://mastodon.social/users/friend";
+  const root = `${ownActor}/notes/example`;
+  const createComment = (extra = {}) => {
+    const fields = {
+      activityId: "https://remote.example/activities/comment",
+      objectId: "https://remote.example/notes/comment",
+      replyToId: root,
+      actorId: friend,
+      attributionId: friend,
+      ...extra,
+    };
+    return new Create({
+      id: new URL(fields.activityId),
+      actor: fields.actorId === null ? null : new URL(fields.actorId),
+      object: new Note({
+        id: new URL(fields.objectId),
+        replyTarget: new URL(fields.replyToId),
+        attribution: fields.attributionId === null ? null : new URL(fields.attributionId),
+        content: "A reply",
+      }),
+    });
+  };
+
+  await t.test("a matching attribution is stored", async () => {
+    const rows = await inbox.receive(createComment());
+    assert.equal(rows.length, 1);
+    assert.equal(rows[0].actorId, friend);
+    assert.equal(rows[0].rootId, root);
+    assert.equal(rows[0].replyToId, null);
+  });
+
+  await t.test("an absent attribution uses the signed actor", async () => {
+    const rows = await inbox.receive(createComment({ attributionId: null }));
+    assert.equal(rows.length, 1);
+    assert.equal(rows[0].actorId, friend);
+  });
+
+  for (const attributionId of [
+    "https://remote.example/users/other",
+    "https://mastodon.social/users/other",
+  ]) {
+    await t.test("a different attribution is refused", async () => {
+      assert.deepEqual(await inbox.receive(createComment({ attributionId })), []);
+    });
+  }
+
+  await t.test("every attribution must match the signed actor", async () => {
+    const activity = createComment();
+    const note = await activity.getObject();
+    const object = note.clone({ attributions: [
+      new URL(friend),
+      new URL("https://mastodon.social/users/other"),
+    ] });
+    assert.deepEqual(await inbox.receive(activity.clone({ object })), []);
+  });
+
+  await t.test("the signed actor is required", async () => {
+    assert.deepEqual(await inbox.receive(createComment({ actorId: null })), []);
+  });
+
+  for (const field of ["activityId", "objectId", "actorId", "attributionId"]) {
+    await t.test(`${field} requires HTTP(S)`, async () => {
+      const extra = { [field]: "ftp://example.test/reference" };
+      if (field === "actorId") extra.attributionId = extra.actorId;
+      assert.deepEqual(await inbox.receive(createComment(extra)), []);
+    });
+  }
+
+  await t.test("HTTP identifiers are also stored", async () => {
+    const rows = await inbox.receive(createComment({
+      activityId: "http://remote.example/activities/comment",
+      objectId: "http://remote.example/notes/comment",
+      actorId: "http://remote.example/users/friend",
+      attributionId: "http://remote.example/users/friend",
+    }));
+    assert.equal(rows.length, 1);
+    assert.equal(rows[0].actorId, "http://remote.example/users/friend");
+  });
+
+  for (const field of ["replyToId", "rootId"]) {
+    await t.test(`${field} requires HTTP(S) when continuing a stored thread`, async () => {
+      const parent = {
+        activityId: "https://remote.example/activities/parent",
+        objectId: field === "replyToId" ? "ftp://example.test/reference" : "https://remote.example/notes/parent",
+        rootId: field === "rootId" ? "ftp://example.test/reference" : root,
+        actorId: friend,
+        content: "Parent",
+        published: "2026-10-10T00:00:00Z",
+        receivedAt: "2026-10-10T00:00:00Z",
+      };
+      const rows = await inbox.receive(createComment({ replyToId: parent.objectId }), [parent]);
+      assert.deepEqual(rows.map(({ objectId }) => objectId), [parent.objectId]);
+    });
+  }
+
+  await t.test("an HTTP(S) reply target keeps its stored root", async () => {
+    const parent = {
+      activityId: "https://remote.example/activities/parent",
+      objectId: "http://remote.example/notes/parent",
+      rootId: root,
+      actorId: friend,
+      content: "Parent",
+      published: "2026-10-10T00:00:00Z",
+      receivedAt: "2026-10-10T00:00:00Z",
+    };
+    const rows = await inbox.receive(createComment({ replyToId: parent.objectId }), [parent]);
+    const reply = rows.find(({ objectId }) => objectId !== parent.objectId);
+    assert.equal(rows.length, 2);
+    assert.equal(reply.replyToId, parent.objectId);
+    assert.equal(reply.rootId, root);
+  });
+});
 
 function followerStore(initial) {
   let followers = initial.map((entry) => ({ ...entry }));

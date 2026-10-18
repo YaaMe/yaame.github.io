@@ -21,7 +21,7 @@ import {
   writeDocument,
 } from "./comments-store.mjs";
 import { toContent } from "./promote-text.mjs";
-import { commentSchema } from "../src/lib/comment-schema.ts";
+import { commentHref, commentSchema } from "../src/lib/comment-schema.ts";
 import { promotedComments } from "../src/data.config.generated.mjs";
 const promoteWriteBack = promotedComments.writeBack?.find((name) => name === "promote");
 if (!promoteWriteBack) {
@@ -91,8 +91,11 @@ export function promotedComment(row) {
 }
 
 export async function actorName(actorId) {
+  const href = commentHref.safeParse(actorId);
+  if (!href.success) return undefined;
   try {
-    const response = await fetch(actorId, {
+    const response = await fetch(href.data, {
+      redirect: "error",
       headers: { accept: "application/activity+json" },
       signal: AbortSignal.timeout(10_000),
     });
