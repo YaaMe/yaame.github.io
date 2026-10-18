@@ -7,7 +7,7 @@
  */
 import { and, asc, count, eq, inArray, isNotNull, isNull } from "drizzle-orm";
 import { platform } from "../../../platform";
-import { commentHref } from "../../../lib/comment-schema";
+import { commentHref } from "../../../lib/interactions/comment-schema";
 import type { Database } from "../../../platform/types";
 import { comments, migrate } from "./schema";
 

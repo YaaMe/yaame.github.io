@@ -27,7 +27,7 @@ function fixture(t) {
     "scripts/promote.mjs", "scripts/promote-filter.mjs", "scripts/promote-text.mjs",
     "scripts/tombstone.mjs", "scripts/unpromote.mjs", "scripts/comments-store.mjs",
     "scripts/comments-rows.mjs",
-    "scripts/comments-cli.mjs", "src/lib/comment-schema.ts", "src/data.config.generated.mjs",
+    "scripts/comments-cli.mjs", "src/lib/interactions/comment-schema.ts", "src/data.config.generated.mjs",
   ]) {
     const target = join(cwd, path);
     mkdirSync(dirname(target), { recursive: true });

@@ -1,5 +1,5 @@
 import { getCollection, type CollectionEntry } from "astro:content";
-import { AP } from "../integrations/activitypub/config";
+import { AP } from "../../integrations/activitypub/config";
 import { visibleComments } from "./comment-view";
 
 export type Comment = CollectionEntry<"comments">["data"]["comments"][number];

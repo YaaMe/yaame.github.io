@@ -13,9 +13,9 @@ data layer — no line changes in a redesign
   src/site.config.ts      site identity, navigation, social links
   src/lib/posts.ts        posts, tags, the novel
   src/lib/notes.ts        notes, and the permalink they publish
-  src/lib/comments.ts     promoted comments
-  src/lib/comment-view.ts withdrawal and tombstone visibility
-  src/lib/comments-live.ts full-profile withdrawal view
+  src/lib/interactions/comments.ts     promoted comments
+  src/lib/interactions/comment-view.ts withdrawal and tombstone visibility
+  src/lib/interactions/comments-live.ts full-profile withdrawal view
   src/lib/recovery.ts portable recovery contract and selection
   scripts/recovery-records.mjs host-free JSON-record recovery adapter
   scripts/*.mjs           the commands the Makefile runs
@@ -49,11 +49,11 @@ What `src/lib/` exports:
 | `notes.ts` | `allNotes()` / `noteYears()` | notes, newest first, and their archive years |
 | | `noteHref(note)` | the note's URL |
 | | `noteHtml(note)` | the note's markup |
-| `comments.ts` | `commentsFor(slug)` | the promoted comments under one post or note |
+| `interactions/comments.ts` | `commentsFor(slug)` | the promoted comments under one post or note |
 | | `handle(actorId)` | a stored actor id prepared for display |
-| `comment-view.ts` | `visibleComments()` | withdrawal and fixed-point tombstone visibility |
-| `comment-runs.ts` | `runLabel()` / `renderedText()` | typed comment runs, prepared for display |
-| `comments-live.ts` | `liveCommentsFor(slug)` | the full profile's current withdrawal view |
+| `interactions/comment-view.ts` | `visibleComments()` | withdrawal and fixed-point tombstone visibility |
+| `interactions/comment-runs.ts` | `runLabel()` / `renderedText()` | typed comment runs, prepared for display |
+| `interactions/comments-live.ts` | `liveCommentsFor(slug)` | the full profile's current withdrawal view |
 
 This list is everything the design layer can get. To add new data, add it
 here first.
@@ -76,7 +76,7 @@ content rule. So `chapterCount()` counts chapters, and no page does.
 new design        rewrite layouts / components / pages / styles only
 add a CSS framework
                   a design-layer change. The data layer does not see it
-replace Astro     in the data layer, only content.config.ts and src/lib/*.ts
+replace Astro     in the data layer, only content.config.ts and src/lib/**/*.ts
                   know Astro. Content, the tag registry, the scripts and
                   the Makefile stay as they are
 ```

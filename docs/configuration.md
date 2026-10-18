@@ -58,9 +58,9 @@ implemented.
 
 Both implementations exist:
 
-- **`cloudflare.ts`** reads the Worker bindings `AP_KV`, `AP_DB` and
+- **`cloudflare/index.ts`** reads the Worker bindings `AP_KV`, `AP_DB` and
   `AP_QUEUE`, and reads secrets from the Worker environment.
-- **`node.ts`** uses the `@astrojs/node` adapter in standalone mode. It stores
+- **`node/index.ts`** uses the `@astrojs/node` adapter in standalone mode. It stores
   records as JSON files under `AP_DATA_DIR` (default `.data`). It stores the
   database in SQLite through the built-in `node:sqlite`, at `AP_DB_URL`
   (default `.data/interactions.sqlite`). It reads secrets from `process.env`.
@@ -70,7 +70,8 @@ No Makefile target and no CI job builds or deploys `DEPLOY_TARGET=node`. So
 nothing checks that this target still builds.
 
 The queue consumer in `worker/` does not read `DEPLOY_TARGET`. Its own
-`worker/wrangler.jsonc` always aliases `virtual:platform` to `cloudflare.ts`.
+`worker/wrangler.jsonc` selects `worker/tsconfig.json`, which aliases
+`virtual:platform` to `../src/platform/cloudflare` so either target form resolves.
 
 ## `CF_KV_ID` and `CF_D1_ID`
 
@@ -176,7 +177,7 @@ server.
 | `BUILD_PROFILE=full` with a wrong `CF_KV_ID` | `make deploy` succeeds. The Worker reads another namespace. **Nothing reports it** |
 | `activitypub=true` but a route is not injected | the actor advertises an endpoint that answers 404. **Nothing reports it.** The dispatchers in `federation.ts` and `PATHS` in `src/integrations/activitypub/index.ts` must match |
 | `platform.queue === false` | delivery is sent synchronously, and a failed delivery is not retried. This happens on Cloudflare when the `AP_QUEUE` binding is absent, and always under `DEPLOY_TARGET=node` |
-| `DEPLOY_TARGET=node` | the build uses `src/platform/node.ts` and the Node adapter. No make target or CI job builds it |
+| `DEPLOY_TARGET=node` | the build uses `src/platform/node/index.ts` and the Node adapter. No make target or CI job builds it |
 
 ## Not in this repository
 

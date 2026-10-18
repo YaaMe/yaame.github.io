@@ -37,5 +37,5 @@
     "consumers": [{ "queue": "yaame-ap-delivery", "max_batch_size": 10, "max_retries": 10 }]
   },
 
-  "alias": { "virtual:platform": "../src/platform/cloudflare.ts" }
+  "tsconfig": "./tsconfig.json"
 }

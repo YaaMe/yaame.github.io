@@ -2,14 +2,14 @@ import { env } from "cloudflare:workers";
 import { MemoryKvStore } from "@fedify/fedify";
 import { WorkersMessageQueue } from "@fedify/cfworkers";
 import { drizzle } from "drizzle-orm/d1";
-import type { Platform } from "./types";
+import type { Platform } from "../types";
 
 /**
  * Cloudflare Workers.
  *
  * The only file allowed to import `cloudflare:workers` — a module that exists
  * in workerd and nowhere else. It is never in the module graph on another host,
- * because DEPLOY_TARGET picks which of these files `virtual:platform` resolves
+ * because DEPLOY_TARGET picks which entry point `virtual:platform` resolves
  * to before the build.
  *
  * Assembled a piece at a time rather than as one literal, and each binding is

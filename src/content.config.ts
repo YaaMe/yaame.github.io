@@ -7,7 +7,7 @@ import { z } from "zod";
 import { glob } from "astro/loaders";
 import { TAG_SLUGS } from "./tags";
 import { site } from "./site.config";
-import { commentSchema } from "./lib/comment-schema";
+import { commentSchema } from "./lib/interactions/comment-schema";
 import {
   komorebi as komorebiLocation,
   notes as notesLocation,

@@ -12,7 +12,7 @@ import {
 } from "node:fs";
 import { dirname, join } from "node:path";
 import registerData from "../../../src/data.config.json" with { type: "json" };
-import { recordFile } from "../../../src/platform/node-records.ts";
+import { recordFile } from "../../../src/platform/node/records.ts";
 import { recordLayerDescriptors } from "../../recovery-records.mjs";
 import { registerForLayerKinds } from "../../../src/lib/recovery.ts";
 import { runRecoveryReader } from "../../recovery-plan.mjs";

@@ -1,0 +1,8 @@
+{
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "paths": {
+      "virtual:platform": ["../src/platform/cloudflare"]
+    }
+  }
+}

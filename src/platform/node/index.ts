@@ -3,9 +3,9 @@ import { DatabaseSync } from "node:sqlite";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
 import { drizzle } from "drizzle-orm/node-sqlite";
-import type { Platform } from "./types";
-import { recordFile } from "./node-records";
-import { databaseFile } from "./node-sqlite";
+import type { Platform } from "../types";
+import { recordFile } from "./records";
+import { databaseFile } from "./sqlite";
 
 /**
  * A plain Node process.

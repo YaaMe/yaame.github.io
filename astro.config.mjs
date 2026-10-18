@@ -62,7 +62,7 @@ export default defineConfig({
     build: { cssTarget: ["chrome123", "safari17.5", "firefox120", "edge123"] },
     resolve: {
       alias: {
-        "virtual:platform": `/src/platform/${TARGET}.ts`,
+        "virtual:platform": `/src/platform/${TARGET}`,
         "virtual:session-bar": SESSION_BAR,
         "virtual:comments-section": COMMENTS_SECTION,
         "virtual:note-comments": NOTE_COMMENTS,

@@ -38,6 +38,10 @@ any call that would change with the host: object storage, a queue, a database,
 a third-party API. The test is whether moving hosts would rewrite the line, not
 whether it imported anything unusual.
 
+Each target is either `<target>.ts` or `<target>/` with `index.ts`, never both:
+the alias has no extension, and a file beside a directory of the same name wins
+silently.
+
 What the protocol requires does not count: Fedify fetching a remote actor is
 the same call wherever it runs.
 
@@ -50,7 +54,7 @@ imports never have to exist.
 // astro.config.mjs
 const TARGET = process.env.DEPLOY_TARGET ?? "cloudflare";
 adapter: TARGET === "node" ? node() : cloudflare(),
-vite: { resolve: { alias: { "virtual:platform": `/src/platform/${TARGET}.ts` } } }
+vite: { resolve: { alias: { "virtual:platform": `/src/platform/${TARGET}` } } }
 ```
 
 This rule is stricter than the first in one way: breaking rule one makes a
@@ -73,11 +77,12 @@ different schedule.
   route/type commands have no abstract form; deployment setup is outside this
   runtime rule.
 
-`src/platform/` holds `cloudflare.ts` and `node.ts`, two implementations of the
+`src/platform/` holds `cloudflare/` and `node/`, two implementations of the
 `Platform` interface in `types.ts`, and `src/` reaches them only through
 `src/platform/index.ts`. The queue consumer in `worker/` imports
-`virtual:platform` directly, and its own wrangler config aliases that to the
-Cloudflare file.
+`virtual:platform` directly; `worker/tsconfig.json` maps it to the Cloudflare
+target, because Wrangler's own alias table does not accept an extensionless
+path.
 
 Scripts follow the same boundary for runtime data operations. Host-specific
 script work lives in bash entry points under `scripts/platform/<target>/`; the

@@ -4,7 +4,7 @@ import { Person, Follow, Undo, Accept, Announce, Create, Delete, Like, Note, Rej
 import { configure, getConsoleSink } from "@logtape/logtape";
 import { platform } from "../../platform";
 import { AP } from "./config";
-import { commentHref } from "../../lib/comment-schema";
+import { commentHref } from "../../lib/interactions/comment-schema";
 import {
   actorDigest,
   departures,

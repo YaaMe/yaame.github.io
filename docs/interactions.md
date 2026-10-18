@@ -328,7 +328,7 @@ found and opened, but it does not appear in timelines. That is correct, but
 ## Rendering comments on the site
 
 Post pages render promoted comments, in both profiles. `commentsFor(slug)` in
-`src/lib/comments.ts` reads the `comments` content collection. A build-time
+`src/lib/interactions/comments.ts` reads the `comments` content collection. A build-time
 alias selects the implementation: `static` renders that git view inline,
 while `full` leaves a deferred server island in the prerendered page. The full
 island reads the git view and asks the platform database for withdrawn ids,

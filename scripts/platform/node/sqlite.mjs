@@ -4,7 +4,7 @@ import { DatabaseSync } from "node:sqlite";
 import { drizzle } from "drizzle-orm/node-sqlite";
 import registerData from "../../../src/data.config.json" with { type: "json" };
 import { registerForLayerKinds } from "../../../src/lib/recovery.ts";
-import { databaseFile } from "../../../src/platform/node-sqlite.ts";
+import { databaseFile } from "../../../src/platform/node/sqlite.ts";
 import { migrate } from "../../../src/integrations/activitypub/store/schema.ts";
 import {
   exportSqlRecovery, sqlSnapshotStatements, sqlInsertStatements, sqlClearStatements, sqlUserSchemaStatement, validateSqlPlan,

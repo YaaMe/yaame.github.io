@@ -10,7 +10,7 @@ import {
   handleFollow,
   handleUndoFollow,
 } from "../src/integrations/activitypub/inbox-handlers.ts";
-import { visibleComments } from "../src/lib/comment-view.ts";
+import { visibleComments } from "../src/lib/interactions/comment-view.ts";
 
 const ownActor = "https://yaame.dev/users/yaame";
 const firstFollower = {
@@ -36,7 +36,7 @@ async function commentInbox(context) {
     format: "esm",
     platform: "node",
     packages: "external",
-    alias: { "virtual:platform": resolve("src/platform/node.ts") },
+    alias: { "virtual:platform": resolve("src/platform/node") },
     define: { "process.env.AP_DB_URL": JSON.stringify(":memory:") },
   });
   const inbox = await import(pathToFileURL(bundle).href);

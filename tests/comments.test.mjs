@@ -9,9 +9,9 @@ import { parseFragment } from "parse5";
 import { promotedComment } from "../scripts/promote.mjs";
 import { fileFor } from "../scripts/comments-store.mjs";
 import { promotedComments } from "../src/data.config.generated.mjs";
-import { commentSchema } from "../src/lib/comment-schema.ts";
-import { renderedText } from "../src/lib/comment-runs.ts";
-import { visibleComments } from "../src/lib/comment-view.ts";
+import { commentSchema } from "../src/lib/interactions/comment-schema.ts";
+import { renderedText } from "../src/lib/interactions/comment-runs.ts";
+import { visibleComments } from "../src/lib/interactions/comment-view.ts";
 
 const comment = {
   activityId: "https://example.test/activity",

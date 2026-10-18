@@ -1,5 +1,5 @@
 import { commentsFor, rootIdFor, type Comment } from "./comments";
-import { withdrawn, withdrawnMany } from "../integrations/activitypub/store/comments";
+import { withdrawn, withdrawnMany } from "../../integrations/activitypub/store/comments";
 
 /** Read the promoted view after applying withdrawals received by the inbox. */
 export async function liveCommentsFor(slug: string): Promise<Comment[]> {

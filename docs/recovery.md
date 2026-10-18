@@ -308,7 +308,7 @@ credential is **file access to the database file and its data directory**:
 read access for export, and write access to the destination parent for import.
 No API credential is needed or exported. `AP_DB_URL` names the database file;
 when omitted, both runtime and recovery use `interactions.sqlite` under
-`AP_DATA_DIR` (default `.data`), through `src/platform/node-sqlite.ts`.
+`AP_DATA_DIR` (default `.data`), through `src/platform/node/sqlite.ts`.
 
 The pair selects `registerForLayerKinds(register, ["sql"])` and retains only
 `recovery: keep` payloads. Currently these are reactions, migrations, and
