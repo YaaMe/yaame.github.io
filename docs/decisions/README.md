@@ -83,3 +83,4 @@ decisions land here.
 | [0014](0014-full-profile-renders-comments-from-live-withdrawals.md) | Full-profile comments use a deferred server island |
 | [0015](0015-promoted-comments-keep-structured-runs.md) | Promoted comments keep structured runs, not sender HTML |
 | [0016](0016-data-declares-where-it-lives.md) | Data declares where it lives, in one register |
+| [0017](0017-interactions-and-visitor-identities-have-internal-ids.md) | Interactions and visitor identities have internal ids |
