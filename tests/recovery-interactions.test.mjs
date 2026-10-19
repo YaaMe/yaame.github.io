@@ -7,18 +7,20 @@ import { writeSqlPlan } from "../scripts/platform/node/sqlite.mjs";
 import { importRecovery, InMemoryRecoveryFacility } from "../src/lib/recovery.ts";
 import { migrate } from "../src/integrations/activitypub/store/schema.ts";
 import { database } from "../src/platform/node/database.ts";
-import { storedComment } from "./fixtures/interactions.mjs";
-import { commentId } from "../src/lib/interactions/key-scheme.ts";
+import { storedComment, storedReaction } from "./fixtures/interactions.mjs";
+import { commentId, reactionId } from "../src/lib/interactions/key-scheme.ts";
 import { validateInteractionRows } from "../src/lib/interactions/records.ts";
 
-const register = { "visitor-identities": registerData["visitor-identities"], comments: registerData.comments };
+const register = { "visitor-identities": registerData["visitor-identities"], comments: registerData.comments, reactions: registerData.reactions };
 const comment = storedComment("recovery");
 const author = { id: comment.authorId, source: comment.source, identifier: comment.identifier, name: "Cached name" };
+const reaction = storedReaction("recovery");
 
 async function exported() {
   return exportSqlRecovery({ register, snapshot: [
     { kind: "visitor-identities", layer: 0, rows: [author] },
     { kind: "comments", layer: 0, rows: [comment] },
+    { kind: "reactions", layer: 0, rows: [reaction] },
   ] });
 }
 
@@ -32,7 +34,7 @@ test("interaction validation refuses kinds without a schema, including empty row
 
 test("registered reaction and migration rows require their stored fields", () => {
   for (const [kind, row, required] of [
-    ["reactions", { activityId: "reaction-1", objectId: "object-1", actorId: "actor-1", kind: "Like", receivedAt: "2026-10-13", undoneAt: null }, "actorId"],
+    ...["identifier", "activityId", "objectId", "target", "kind"].map((field) => ["reactions", storedReaction("required"), field]),
     ["migrations", { version: 0, appliedAt: "2026-10-13" }, "appliedAt"],
   ]) {
     assert.doesNotThrow(() => validateInteractionRows(kind, [row]));
@@ -52,12 +54,14 @@ test("recovery refuses registered kinds without schemas before any facility writ
   assert.throws(() => sqlInsertStatements(selected, { writes: [{ action: "insert", kind, layer: 0, rows: [] }] }), /No interaction schema for kind: future-interaction/);
 });
 
-test("recovery version 1 is refused before any facility can write", async () => {
-  const document = await exported();
-  document.version = 1;
-  let writes = 0;
-  await assert.rejects(importRecovery({ register, document, facilities: { sql: { import() { writes++; } } } }), /unsupported recovery format version: 1; expected 2.*Older exports/);
-  assert.equal(writes, 0);
+test("recovery versions 1 and 2 are refused before any facility can write", async () => {
+  for (const version of [1, 2]) {
+    const document = await exported();
+    document.version = version;
+    let writes = 0;
+    await assert.rejects(importRecovery({ register, document, facilities: { sql: { import() { writes++; } } } }), new RegExp(`unsupported recovery format version: ${version}; expected 3.*Older exports`));
+    assert.equal(writes, 0);
+  }
 });
 
 test("every recovery write entrance verifies both kinds' stored id inputs before writing", async () => {
@@ -71,6 +75,11 @@ test("every recovery write entrance verifies both kinds' stored id inputs before
     ["comments", "objectId", "https://other.example/note"],
     ["visitor-identities", "identifier", "https://example.test/users/another"],
     ["visitor-identities", "id", storedComment("other").authorId],
+    ["reactions", "identifier", "https://example.test/users/another"],
+    ["reactions", "activityId", "https://example.test/activity/another"],
+    ["reactions", "id", storedReaction("other").id],
+    ["reactions", "id", reactionId({ ...reaction, activityId: "https://example.test/activity/another" })],
+    ["reactions", "authorId", storedReaction("other").authorId],
   ]) {
     const document = await exported();
     const validPlan = await importSqlRecovery({ register, document, existing: false });
@@ -91,6 +100,7 @@ test("every recovery write entrance verifies both kinds' stored id inputs before
       await migrate(database(client));
       assert.throws(() => writeSqlPlan(client, plan, register));
       assert.equal(client.prepare("SELECT COUNT(*) AS count FROM comments").get().count, 0);
+      assert.equal(client.prepare("SELECT COUNT(*) AS count FROM reactions").get().count, 0);
       assert.equal(client.prepare("SELECT COUNT(*) AS count FROM visitor_identities").get().count, 0);
     } finally {
       client.close();
@@ -117,5 +127,114 @@ test("recovery preserves a Note id when its stored Create attribute changes", as
     assert.equal(client.prepare("SELECT id FROM visitor_identities").get().id, saved.author_id);
   } finally {
     client.close();
+  }
+});
+
+test("recovery refuses a reaction whose activity is on another origin than its signer", async () => {
+  const document = await exported();
+  const activityId = "https://other.example/activity/recovery";
+  Object.assign(document.entries.reactions.records[0].records[0], { activityId, id: reactionId({ ...reaction, activityId }) });
+  await assert.rejects(importRecovery({ register, document, facilities: { sql: new InMemoryRecoveryFacility() } }), /signing actor's origin/);
+});
+
+test("recovery restores a reaction with its identity on the node target", async () => {
+  const plan = await importSqlRecovery({ register, document: await exported(), existing: false });
+  const client = new DatabaseSync(":memory:");
+  try {
+    await migrate(database(client));
+    writeSqlPlan(client, plan, register);
+    const saved = client.prepare("SELECT id, author_id, object_id, target FROM reactions").get();
+    assert.deepEqual({ ...saved }, { id: reaction.id, author_id: reaction.authorId, object_id: reaction.objectId, target: reaction.target });
+    assert.equal(client.prepare("SELECT COUNT(*) AS count FROM visitor_identities WHERE id = ?").get(reaction.authorId).count, 1);
+  } finally {
+    client.close();
+  }
+});
+
+test("recovery refuses what the inbox would not have stored", async () => {
+  const github = storedComment("github-raw", {
+    source: "github", identifier: "00123", activityId: null, objectId: null, inReplyTo: null,
+    submissionId: "93dd7f06-26c1-4c35-9a73-79df6ec41607",
+  });
+  assert.doesNotThrow(() => validateInteractionRows("comments", [github]));
+  for (const [kind, row, message] of [
+    ["reactions", { ...reaction, target: "other" }, /target must be the content/],
+    ["reactions", storedReaction("recovery", { objectId: "https://elsewhere.example/users/yaame/notes/example" }), /target must be the content/],
+    ["reactions", storedReaction("recovery", { identifier: "HTTPS://EXAMPLE.TEST:443/users/recovery" }), /stored normalised/],
+    ["reactions", { ...reaction, receivedAt: "2026-10-10" }, /datetime/i],
+    ["reactions", { ...reaction, undoneAt: "later" }, /datetime/i],
+    ["comments", { ...comment, root: "other" }, /must have that content as its root/],
+    ["comments", storedComment("recovery", { inReplyTo: "https://elsewhere.example/users/yaame/notes/example" }), /must have that content as its root/],
+    ["comments", storedComment("recovery", { identifier: "HTTPS://EXAMPLE.TEST:443/users/recovery" }), /stored normalised/],
+    ["comments", { ...comment, receivedAt: "yesterday" }, /datetime/i],
+    ["comments", { ...comment, published: "2026-10-10" }, /datetime/i],
+    ["comments", { ...comment, deletedAt: "now" }, /datetime/i],
+    ["visitor-identities", { ...author, identifier: "HTTPS://EXAMPLE.TEST:443/users/recovery", id: storedComment("recovery", { identifier: "HTTPS://EXAMPLE.TEST:443/users/recovery" }).authorId }, /stored normalised/],
+  ]) {
+    assert.throws(() => validateInteractionRows(kind, [row]), message, `${kind}: ${message}`);
+    const document = await exported();
+    document.entries[kind].records[0].records[0] = row;
+    let writes = 0;
+    await assert.rejects(importRecovery({ register, document, facilities: { sql: { import() { writes++; } } } }), message);
+    assert.equal(writes, 0);
+  }
+  const reply = storedComment("reply", { root: "other", replyTo: storedComment("parent").id, inReplyTo: "https://example.test/object/parent" });
+  assert.doesNotThrow(() => validateInteractionRows("comments", [reply]));
+});
+
+test("every recovery entrance refuses a reference to a row the document does not hold", async () => {
+  const parent = storedComment("parent");
+  const reply = storedComment("reply", { replyTo: parent.id, inReplyTo: parent.objectId });
+  const parentAuthor = { id: parent.authorId, source: parent.source, identifier: parent.identifier, name: null };
+  const replyAuthor = { id: reply.authorId, source: reply.source, identifier: reply.identifier, name: null };
+  const like = storedReaction("liker");
+  const liker = { id: like.authorId, source: like.source, identifier: like.identifier, name: null };
+  const threaded = () => exportSqlRecovery({ register, snapshot: [
+    { kind: "visitor-identities", layer: 0, rows: [author, parentAuthor, replyAuthor, liker] },
+    { kind: "comments", layer: 0, rows: [comment, parent, reply] },
+    { kind: "reactions", layer: 0, rows: [like] },
+  ] });
+  const complete = await threaded();
+  await importRecovery({ register, document: complete, facilities: { sql: new InMemoryRecoveryFacility() } });
+  assert.ok(sqlInsertStatements(register, await importSqlRecovery({ register, document: complete, existing: false })).length > 0);
+
+  for (const [name, change, message] of [
+    ["visitor identities emptied", (document) => { document.entries["visitor-identities"].records[0].records = []; }, /reactions .* names author|comments .* names author/],
+    ["only the reaction's author removed", (document) => {
+      const records = document.entries["visitor-identities"].records[0];
+      records.records = records.records.filter(({ id }) => id !== like.authorId);
+    }, /reactions .* names author/],
+    ["the parent comment removed", (document) => {
+      const records = document.entries.comments.records[0];
+      records.records = records.records.filter(({ id }) => id !== parent.id);
+    }, /replies to .*, which is not among the comments/],
+  ]) {
+    const document = await threaded();
+    change(document);
+    let writes = 0;
+    await assert.rejects(importRecovery({ register, document, facilities: { sql: { import() { writes++; } } } }), message, name);
+    assert.equal(writes, 0, name);
+    const memory = new InMemoryRecoveryFacility();
+    await assert.rejects(importRecovery({ register, document, facilities: { sql: memory } }), message, name);
+    assert.deepEqual(memory.snapshot(), {}, name);
+    await assert.rejects(importSqlRecovery({ register, document, existing: false }), message, name);
+
+    const plan = structuredClone(await importSqlRecovery({ register, document: complete, existing: false }));
+    const planned = (kind) => plan.writes.find((write) => write.kind === kind);
+    for (const kind of ["visitor-identities", "comments"]) {
+      planned(kind).rows = document.entries[kind].records[0].records;
+    }
+    await assert.rejects(validateSqlPlan(register, plan), message, name);
+    assert.throws(() => sqlInsertStatements(register, plan), message, name);
+    const client = new DatabaseSync(":memory:");
+    try {
+      await migrate(database(client));
+      assert.throws(() => writeSqlPlan(client, plan, register), message, name);
+      for (const table of ["visitor_identities", "comments", "reactions"]) {
+        assert.equal(client.prepare(`SELECT COUNT(*) AS count FROM ${table}`).get().count, 0, `${name}: ${table}`);
+      }
+    } finally {
+      client.close();
+    }
   }
 });

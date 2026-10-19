@@ -58,15 +58,16 @@ when invoked through a renamed file or a filesystem alias.
 
 ## The intermediate format
 
-The document is JSON and names both its format and its version. Version 2 has
+The document is JSON and names both its format and its version. Version 3 has
 one `entries` member for every register entry whose `recovery` is `keep`. Each
 entry has one record payload for every non-git layer it declares; `layer` is
 the zero-based layer position in the register entry. Git layers are part of the
 repository base and are moved by the git SOP below, so they have no payload in
 this document. They are listed in `gitBase` so the selection is explicit.
 
-Version 2 adds visitor identities and the new comment columns. Imports reject
-older exports before writing; there is no converter. Until the first formal
+Version 2 added visitor identities and the new comment columns; version 3 adds
+the reaction ids. Imports reject older exports before writing; there is no
+converter. Until the first formal
 release, this beta format promises no compatibility between versions.
 
 This example shows a register slice containing comments and visitor identities:
@@ -74,7 +75,7 @@ This example shows a register slice containing comments and visitor identities:
 ```json
 {
   "format": "blogu-recovery",
-  "version": 2,
+  "version": 3,
   "entries": {
     "comments": {
       "records": [
@@ -135,14 +136,22 @@ facility can be imported by another facility for the same store kind:
   payload; other host-neutral layer kinds use their declared facility contract.
 
 The contract validates these shapes on export and before the first import write.
-For comments and visitor identities, it also recomputes each id from the
-stored inputs. A federated comment's inputs are its source, signing actor URL
+For comments, reactions and visitor identities, it also recomputes each id
+from the stored inputs. A federated comment's inputs are its source, signing actor URL
 and Note `objectId`; `activityId` remains a stored delivery attribute. The
 raw-SQL statement builder repeats that validation before returning any
-statements. Inserts place identities before their comments on both hosts.
-The application maintains `author_id` and `reply_to` as conceptual references;
-the database deliberately enforces no foreign keys. Reactions retain their
-existing columns and `activity_id` keys until issue #71.
+statements. A reaction's inputs are its source, signing actor URL and
+`activityId`, which must share the actor's origin. Recovery refuses what the
+inbox refuses: a reaction's `target`, and the `root` of a federated comment
+that replies to the site's content, must be the content identifier its URL
+names; a federated identifier must be stored normalised (a GitHub identifier
+keeps its raw form); and stored times must be ISO 8601 date-times. Every
+comment's and reaction's author must be a visitor identity in the same
+document, and every comment's `replyTo` a comment in it; a missing reference
+refuses the whole import before any write. Inserts place identities
+before their comments and reactions on both hosts. The application maintains
+`author_id` and `reply_to` as conceptual references; the database deliberately
+enforces no foreign keys.
 It is not a database dump and must not contain credentials. The register layer
 position keeps multiple layers of one entry distinct.
 
@@ -161,7 +170,7 @@ register it is given. It validates the whole document and all facility coverage
 before the first facility import call. An unknown version therefore fails
 without writing anything. A facility failure is reported as a
 `RecoveryError` with `code` `RECOVERY_EXPORT_FAILED` or
-`RECOVERY_IMPORT_FAILED`; an entry is never silently skipped. Version 2 ignores
+`RECOVERY_IMPORT_FAILED`; an entry is never silently skipped. Version 3 ignores
 unknown wrapper fields and entry ordering, while the format and version fields,
 the selected entry names, and every declared layer remain required.
 
@@ -272,7 +281,8 @@ confused.
    ```
 
    Inspect that the output starts with `"format":"blogu-recovery"`, has
-   `"version":1`, contains no credential, and names the expected record keys.
+   a `"version"` equal to `RECOVERY_FORMAT_VERSION` in `src/lib/recovery.ts`,
+   contains no credential, and names the expected record keys.
 4. If the owner wants the command itself to write the document, repeat the
    export with an explicit state flag and output file. Both forms print the
    document to stdout:
@@ -362,7 +372,8 @@ first; that pair refuses any directory entry, including a SQLite database.
      make recovery-export FACILITY=sqlite > /srv/backup/blogu-node-sqlite.json
    ```
 
-   Inspect `format: "blogu-recovery"`, `version: 1`, the expected selected
+   Inspect `format: "blogu-recovery"`, a `version` equal to
+   `RECOVERY_FORMAT_VERSION` in `src/lib/recovery.ts`, the expected selected
    entries and logical column names. The document contains stored data and
    must have the same access protection as the source. Keep it outside the
    source and destination database paths.
@@ -541,7 +552,8 @@ the repository in an access-controlled directory.
      make recovery-export FACILITY=d1 > /srv/backup/blogu-d1.json
    ```
 
-   Inspect `format: "blogu-recovery"`, `version: 1`, the selected entries,
+   Inspect `format: "blogu-recovery"`, a `version` equal to
+   `RECOVERY_FORMAT_VERSION` in `src/lib/recovery.ts`, the selected entries,
    logical columns and owner-held names. Currently the SQL entries are
    reactions, migrations and comments. The document contains stored data;
    protect it like the source. Wrangler's captured response is limited to

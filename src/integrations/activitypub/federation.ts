@@ -4,7 +4,7 @@ import { Person, Follow, Undo, Accept, Announce, Create, Delete, Like, Note, Rej
 import { configure, getConsoleSink } from "@logtape/logtape";
 import { platform } from "../../platform";
 import { AP } from "./config";
-import { contentIdentifier } from "../../lib/interactions/records";
+import { contentIdentifierOf } from "../../lib/interactions/records";
 import {
   actorDigest,
   departures,
@@ -97,21 +97,6 @@ async function announceIfChanged(ctx: RequestContext<void>, person: Person): Pro
     }),
   );
 }
-
-/**
- * Whether an object id is one of ours.
- *
- * A prefix test, not a lookup: asking the content layer would pull
- * `astro:content` into the queue consumer, which cannot resolve it.
- */
-const OURS = `https://${AP.actorHost}/users/${AP.user}/notes/`;
-const ours = (id: string) => id.startsWith(OURS);
-const commentRoot = (id: string) => {
-  if (!ours(id)) return null;
-  let identifier: string;
-  try { identifier = decodeURIComponent(id.slice(OURS.length)); } catch { return null; }
-  return contentIdentifier.safeParse(identifier).success ? identifier : null;
-};
 
 /**
  * Why a follower is no longer on the list.
@@ -374,6 +359,14 @@ const followerStore = {
   departure: (id: string) => recordDeparture(id, "unfollowed"),
 };
 
+/** Reads an object only when it is embedded; a bare URL is not dereferenced. */
+const EMBEDDED_ONLY = {
+  documentLoader: async (): Promise<never> => {
+    throw new Error("embedded objects only");
+  },
+  suppressError: true,
+};
+
 federation
   .setInboxListeners(`/users/{identifier}/inbox`, "/inbox")
   // Fedify has already verified the signature and that the sender speaks for
@@ -447,7 +440,7 @@ federation
         // the type existing.
         published: object.published?.toString() ?? new Date().toISOString(),
       },
-      commentRoot,
+      contentIdentifierOf,
     );
   })
   .on(Announce, async (_ctx, announce) => {
@@ -459,7 +452,7 @@ federation
         actorId: announce.actorId.href,
         kind: "Announce",
       },
-      ours,
+      contentIdentifierOf,
     );
   })
   .on(Like, async (_ctx, like) => {
@@ -471,7 +464,7 @@ federation
         actorId: like.actorId.href,
         kind: "Like",
       },
-      ours,
+      contentIdentifierOf,
     );
   })
   .on(Delete, async (_ctx, del) => {
@@ -529,9 +522,27 @@ federation
     await platform.put(FOLLOWING, list.filter((href) => href !== reject.actorId!.href));
   })
   .on(Undo, async (_ctx, undo) => {
-    const object = await undo.getObject();
     if (!undo.actorId) return;
+    const embedded = await undo.getObject(EMBEDDED_ONLY);
 
+    // Without this the counts only ever rise, and someone who changed their
+    // mind stays counted for good. The id is computed from the signer and the
+    // activity named, embedded or by reference, so nothing is fetched and
+    // anyone else's Undo names a row that does not exist.
+    //
+    // An unfollow must not depend on the interactions database: a failed
+    // lookup falls through to the Follow case and is raised only if the Undo
+    // turns out not to be one.
+    let lookupFailure: unknown = null;
+    if (!(embedded instanceof Follow) && undo.objectId) {
+      try {
+        if (await reactions.undo(undo.actorId.href, undo.objectId.href)) return;
+      } catch (error) {
+        lookupFailure = error;
+      }
+    }
+
+    const object = embedded ?? await undo.getObject();
     if (object instanceof Follow) {
       await handleUndoFollow(
         undo.actorId.href,
@@ -540,20 +551,7 @@ federation
       );
       return;
     }
-
-    // Without this the counts only ever rise, and someone who changed their
-    // mind stays counted for good.
-    //
-    // Narrowed on the concrete classes: `Object` has no `objectId`.
-    if (object instanceof Announce || object instanceof Like) {
-      const target = object.objectId;
-      if (!target) return;
-      await reactions.undo(
-        target.href,
-        undo.actorId.href,
-        object instanceof Announce ? "Announce" : "Like",
-      );
-    }
+    if (lookupFailure !== null) throw lookupFailure;
   });
 
 federation.setFollowersDispatcher(`/users/{identifier}/followers`, async (_ctx, identifier, cursor) => {

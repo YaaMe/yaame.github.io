@@ -213,9 +213,13 @@
       {
         "sql": "reactions",
         "columns": {
+          "id": "id",
+          "source": "source",
+          "identifier": "identifier",
+          "authorId": "author_id",
           "activityId": "activity_id",
           "objectId": "object_id",
-          "actorId": "actor_id",
+          "target": "target",
           "kind": "kind",
           "receivedAt": "received_at",
           "undoneAt": "undone_at"
@@ -226,7 +230,7 @@
     "origin": "others",
     "recovery": "keep",
     "purposes": ["federation", "content"],
-    "description": "Incoming likes and boosts, retained so de-duplication and undo remain durable."
+    "description": "Incoming likes and boosts, keyed by the computed id and retained so de-duplication and undo remain durable."
   },
   "migrations": {
     "layers": [

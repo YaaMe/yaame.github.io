@@ -7,6 +7,7 @@ import {
 } from "../scripts/recovery-records.mjs";
 import {
   InMemoryRecoveryFacility,
+  RECOVERY_FORMAT_VERSION,
   exportRecovery,
   importRecovery,
 } from "../src/lib/recovery.ts";
@@ -108,7 +109,7 @@ test("a malformed document is rejected before a node records write plan", async 
       register,
       document: {
         format: "blogu-recovery",
-        version: 2,
+        version: RECOVERY_FORMAT_VERSION,
         entries: {
           followers: { records: [{ layer: 0, records: [{ key: "ap:followers", value: { bad: () => 1 } }] }] },
           following: { records: [{ layer: 0, records: [] }] },

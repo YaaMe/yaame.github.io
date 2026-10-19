@@ -58,7 +58,7 @@ test("the schema accepts HTTP(S) metadata with matching ActivityPub identity has
       id: commentId({ source: SOURCES.activitypub, identifier, objectId }),
       activityId,
       objectId,
-      inReplyTo: `${protocol}://yaame.dev/users/yaame/notes/written-slug`,
+      inReplyTo: "https://yaame.dev/users/yaame/notes/written-slug",
       author: { ...author, id: identityId(SOURCES.activitypub, identifier), identifier, name: "Friend" },
     };
     assert.deepEqual(commentSchema.parse(entry), entry);
@@ -117,7 +117,7 @@ test("the archive validates Note identity while preserving the Create attribute"
 
 test("the schema accepts content identifiers and rejects ActivityPub URLs as roots", () => {
   for (const root of ["written-slug", "2023-07", "8nicubmr"]) {
-    assert.equal(commentSchema.parse({ ...comment, root }).root, root);
+    assert.equal(commentSchema.parse({ ...comment, root, inReplyTo: `https://yaame.dev/users/yaame/notes/${root}` }).root, root);
   }
   for (const root of [comment.inReplyTo, "", "../written-slug"]) {
     assert.equal(commentSchema.safeParse({ ...comment, root }).success, false, root);

@@ -7,7 +7,7 @@ import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { DatabaseSync } from "node:sqlite";
 import { database as nodeDatabase } from "../src/platform/node/database.ts";
-import { seedComment, storedComment } from "./fixtures/interactions.mjs";
+import { seedComment, seedReaction, storedComment } from "./fixtures/interactions.mjs";
 import { migrate } from "../src/integrations/activitypub/store/schema.ts";
 import { comments, reactions } from "../src/data.config.generated.mjs";
 import registerData from "../src/data.config.json" with { type: "json" };
@@ -31,9 +31,7 @@ async function fixture() {
       database.exec("CREATE TABLE _cf_KV (key TEXT PRIMARY KEY, value TEXT); INSERT INTO _cf_KV VALUES ('internal', 'preserve'); CREATE TABLE d1_migrations (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT); INSERT INTO d1_migrations (name) VALUES ('internal')");
       if (path === source) {
         await migrate(nodeDatabase(database));
-        database.prepare(`INSERT INTO ${reactions.table} (${Object.values(reactions.quotedColumns).join(", ")}) VALUES (?, ?, ?, ?, ?, ?)`).run(
-          "reaction-1", "object-1", "actor-1", "Like", "2026-10-13", null,
-        );
+        seedReaction(database, "reaction-1");
         seedComment(database, "one", { content: "你好 'quoted'; -- ?" });
       }
     } finally {
@@ -404,7 +402,7 @@ test("D1 imports empty selected layers and records the bootstrapped migrations",
   const after = run("export", [], target);
   assert.equal(after.status, 0, after.stderr);
   const restored = JSON.parse(after.stdout);
-  assert.deepEqual(restored.entries.migrations.records[0].records.map(({ version }) => version), [0, 1, 2, 3, 4, 5]);
+  assert.deepEqual(restored.entries.migrations.records[0].records.map(({ version }) => version), [0, 1, 2, 3, 4, 5, 6]);
   restored.entries.migrations = document.entries.migrations;
   assert.deepEqual(restored, document);
   const database = new DatabaseSync(target);
@@ -432,7 +430,7 @@ for (const ledger of ["empty", "incomplete"]) {
       assert.equal(before[0].content, "你好 'quoted'; -- ?");
       assert.equal(await migrate(nodeDatabase(database)), 0);
       assert.deepEqual(database.prepare("SELECT * FROM comments").all(), before);
-      assert.deepEqual(database.prepare("SELECT version FROM migrations ORDER BY version").all().map(({ version }) => version), [0, 1, 2, 3, 4, 5]);
+      assert.deepEqual(database.prepare("SELECT version FROM migrations ORDER BY version").all().map(({ version }) => version), [0, 1, 2, 3, 4, 5, 6]);
       for (const record of migrations.records) {
         assert.equal(database.prepare("SELECT applied_at FROM migrations WHERE version = ?").get(record.version).applied_at, record.appliedAt);
       }

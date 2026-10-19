@@ -3,10 +3,10 @@
  * module owns the document shape and the register's selection rule.
  */
 
-import { validateInteractionRows } from "./interactions/records.ts";
+import { validateInteractionReferences, validateInteractionRows } from "./interactions/records.ts";
 
 export const RECOVERY_FORMAT = "blogu-recovery" as const;
-export const RECOVERY_FORMAT_VERSION = 2 as const;
+export const RECOVERY_FORMAT_VERSION = 3 as const;
 
 const EXCLUSION_REASONS = Object.freeze({
   rebuild: "rebuild on restore",
@@ -444,6 +444,16 @@ export async function importRecovery({
   }
   if (failures.length > 0) {
     throw new RecoveryError("RECOVERY_IMPORT_FAILED", "no facility can import every declared recovery layer", { failures });
+  }
+  const sqlRows = new Map<string, unknown[]>();
+  for (const { request } of work) {
+    if (layerKind(request.layer) !== "sql") continue;
+    sqlRows.set(request.kind, [...sqlRows.get(request.kind) ?? [], ...request.records as unknown[]]);
+  }
+  try {
+    validateInteractionReferences(sqlRows);
+  } catch (error) {
+    throw new RecoveryError("INVALID_RECOVERY_RECORDS", error instanceof Error ? error.message : String(error));
   }
 
   const imported: string[] = [];

@@ -6,7 +6,7 @@ import {
 } from "../scripts/recovery-sql.mjs";
 import { InMemoryRecoveryFacility, exportRecovery, importRecovery } from "../src/lib/recovery.ts";
 import { planRecoveryImport } from "../scripts/recovery-plan.mjs";
-import { storedComment } from "./fixtures/interactions.mjs";
+import { storedComment, storedReaction } from "./fixtures/interactions.mjs";
 
 const register = {
   "visitor-identities": {
@@ -72,16 +72,19 @@ test("host-free SQL statements bind values, map columns, and leave unselected ta
   }
 });
 
-test("SQL recovery inserts identities before comments and clears them in reverse for either input order", () => {
+test("SQL recovery inserts identities before comments and reactions and clears them in reverse for either input order", () => {
   const comment = storedComment("sql-order");
+  const reaction = storedReaction("sql-order");
   const author = { id: comment.authorId, source: comment.source, identifier: comment.identifier, name: null };
   const entries = [
     ["visitor-identities", { recovery: "keep", layers: [{ sql: "visitor_identities", columns: { id: "id" } }] }],
     ["comments", { recovery: "keep", layers: [{ sql: "comments", columns: { id: "id", authorId: "author_id" } }] }],
+    ["reactions", { recovery: "keep", layers: [{ sql: "reactions", columns: { id: "id", authorId: "author_id" } }] }],
   ];
   const writes = [
     { action: "insert", kind: "visitor-identities", layer: 0, rows: [author] },
     { action: "insert", kind: "comments", layer: 0, rows: [comment] },
+    { action: "insert", kind: "reactions", layer: 0, rows: [reaction] },
   ];
   for (const entryOrder of [entries, [...entries].reverse()]) {
     for (const writeOrder of [writes, [...writes].reverse()]) {
@@ -89,16 +92,20 @@ test("SQL recovery inserts identities before comments and clears them in reverse
       const plan = { writes: structuredClone(writeOrder) };
       const database = new DatabaseSync(":memory:");
       try {
-        database.exec("PRAGMA foreign_keys = ON; CREATE TABLE visitor_identities (id TEXT PRIMARY KEY); CREATE TABLE comments (id TEXT PRIMARY KEY, author_id TEXT NOT NULL REFERENCES visitor_identities(id))");
+        database.exec("PRAGMA foreign_keys = ON; CREATE TABLE visitor_identities (id TEXT PRIMARY KEY); CREATE TABLE comments (id TEXT PRIMARY KEY, author_id TEXT NOT NULL REFERENCES visitor_identities(id)); CREATE TABLE reactions (id TEXT PRIMARY KEY, author_id TEXT NOT NULL REFERENCES visitor_identities(id))");
         const inserts = sqlInsertStatements(selected, plan);
-        assert.deepEqual(inserts.map(({ kind }) => kind), ["visitor-identities", "comments"]);
+        assert.equal(inserts[0].kind, "visitor-identities");
+        assert.deepEqual(inserts.slice(1).map(({ kind }) => kind).sort(), ["comments", "reactions"]);
         assert.deepEqual(plan.writes, writeOrder);
         for (const { sql, parameters } of inserts) database.prepare(sql).run(...parameters);
         assert.equal(database.prepare("SELECT author_id FROM comments").get().author_id, author.id);
+        assert.equal(database.prepare("SELECT author_id FROM reactions").get().author_id, reaction.authorId);
         const clears = sqlClearStatements(selected);
-        assert.deepEqual(clears.map(({ kind }) => kind), ["comments", "visitor-identities"]);
+        assert.equal(clears.at(-1).kind, "visitor-identities");
+        assert.deepEqual(clears.slice(0, -1).map(({ kind }) => kind).sort(), ["comments", "reactions"]);
         for (const { sql, parameters } of clears) database.prepare(sql).run(...parameters);
         assert.equal(database.prepare("SELECT COUNT(*) AS count FROM comments").get().count, 0);
+        assert.equal(database.prepare("SELECT COUNT(*) AS count FROM reactions").get().count, 0);
         assert.equal(database.prepare("SELECT COUNT(*) AS count FROM visitor_identities").get().count, 0);
       } finally {
         database.close();

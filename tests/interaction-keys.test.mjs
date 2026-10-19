@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { NAMESPACE, SOURCES, identityId, commentId } from "../src/lib/interactions/key-scheme.ts";
+import { NAMESPACE, SOURCES, identityId, commentId, reactionId } from "../src/lib/interactions/key-scheme.ts";
 
 test("stored v5 ids remain stable across builds", () => {
   const identifier = "https://remote.example/users/alice";
@@ -44,4 +44,22 @@ test("normalisation is deterministic without replacing raw inputs", () => {
   assert.throws(() => identityId(SOURCES.activitypub, "ftp://remote.example/"));
   assert.throws(() => identityId(SOURCES.github, "login"));
   assert.throws(() => commentId({ ...input, submissionId: "not-a-uuid" }));
+});
+
+test("a reaction key is computed from its source, signing actor and activity", () => {
+  const input = { source: SOURCES.activitypub, identifier: "https://remote.example/users/one", activityId: "https://remote.example/likes/1" };
+  const bytes = createHash("sha1")
+    .update(Buffer.from(NAMESPACE.replaceAll("-", ""), "hex"))
+    .update(JSON.stringify([SOURCES.activitypub, input.identifier, input.activityId])).digest().subarray(0, 16);
+  bytes[6] = (bytes[6] & 0x0f) | 0x50;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  assert.equal(reactionId(input).replaceAll("-", ""), bytes.toString("hex"));
+  assert.equal(reactionId({ ...input, objectId: "https://yaame.dev/users/yaame/notes/other" }), reactionId(input));
+  assert.equal(reactionId({ ...input, activityId: "HTTPS://REMOTE.EXAMPLE:443/likes/1" }), reactionId(input));
+  assert.notEqual(reactionId({ ...input, identifier: "https://remote.example/users/two" }), reactionId(input));
+  assert.notEqual(reactionId({ ...input, activityId: "https://remote.example/likes/2" }), reactionId(input));
+  for (const activityId of [undefined, null, "", "ftp://remote.example/likes/1"]) {
+    assert.throws(() => reactionId({ ...input, activityId }));
+  }
+  assert.throws(() => reactionId({ ...input, source: SOURCES.github, identifier: "123" }));
 });

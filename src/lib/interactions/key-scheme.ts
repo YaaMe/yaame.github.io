@@ -20,6 +20,8 @@ export function normalizedIdentifier(source: Source, identifier: string): string
   return BigInt(identifier).toString();
 }
 
+// Fields run broad to narrow — source, identity, object — and their order is part
+// of every stored id: reordering them is a migration that recomputes all ids.
 function v5(fields: string[]): string {
   const input = new TextEncoder().encode(JSON.stringify(fields));
   const bytes = sha1(new Uint8Array([...namespaceBytes, ...input])).slice(0, 16);
@@ -49,6 +51,16 @@ export function commentId(input: {
     object = input.submissionId.toLowerCase();
   }
   return v5([input.source, identifier, object]);
+}
+
+export function reactionId(input: {
+  source: Source;
+  identifier: string;
+  activityId?: string | null;
+}): string {
+  if (input.source !== SOURCES.activitypub) throw new Error("a reaction is federated");
+  if (!input.activityId) throw new Error("a federated reaction requires its activityId");
+  return v5([input.source, normalizedIdentifier(input.source, input.identifier), normalizedUrl(input.activityId)]);
 }
 
 export function sameOrigin(identifier: string, ...attributes: string[]): boolean {

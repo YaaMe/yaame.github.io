@@ -7,9 +7,9 @@ import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { DatabaseSync } from "node:sqlite";
 import { database as nodeDatabase } from "../src/platform/node/database.ts";
-import { seedComment, storedComment } from "./fixtures/interactions.mjs";
+import { seedComment, seedReaction, storedComment } from "./fixtures/interactions.mjs";
 import { migrate } from "../src/integrations/activitypub/store/schema.ts";
-import { comments, reactions } from "../src/data.config.generated.mjs";
+import { comments } from "../src/data.config.generated.mjs";
 import registerData from "../src/data.config.json" with { type: "json" };
 import { InMemoryRecoveryFacility, exportRecovery, importRecovery, registerForLayerKinds } from "../src/lib/recovery.ts";
 import { readSqlSnapshot, writeSqlPlan } from "../scripts/platform/node/sqlite.mjs";
@@ -35,9 +35,8 @@ async function fixture(context) {
   const database = new DatabaseSync(source);
   try {
     await migrate(nodeDatabase(database));
-    const insertReaction = database.prepare(`INSERT INTO ${reactions.table} (${Object.values(reactions.quotedColumns).join(", ")}) VALUES (?, ?, ?, ?, ?, ?)`);
-    insertReaction.run("reaction-z", "object-1", "actor-1", "Like", "2026-10-13", null);
-    insertReaction.run("reaction-a", "object-2", "actor-2", "Announce", "2026-10-12", "2026-10-13");
+    seedReaction(database, "reaction-z");
+    seedReaction(database, "reaction-a", { kind: "Announce", target: "other", undoneAt: "2026-10-13T00:00:00Z" });
     seedComment(database, "one", { content: "你好 'quoted'" });
   } finally {
     database.close();

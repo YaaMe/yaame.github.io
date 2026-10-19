@@ -25,10 +25,9 @@ An identity's inputs are its source and identifier: the actor URL for
 ActivityPub, or the numeric user id for GitHub. A federated comment's
 inputs are its source, the signing actor URL and the Note object id. The Note
 is the comment; a Create only delivers it. The same Note in a new Create
-therefore keeps the same comment id. A federated reaction's inputs remain
-its source, the signing actor URL and the activity id. Issue #70 implements
-the comment keys; reactions keep their existing `activity_id` primary keys
-until issue #71. A GitHub
+therefore keeps the same comment id. A federated reaction's inputs are
+its source, the signing actor URL and the activity id: the Like or Announce
+is the reaction. A GitHub
 comment's inputs are its source, the numeric user id and a UUID generated when
 the browser opens the comment form. A retry keeps those inputs. A new comment
 gets a new form UUID.
@@ -49,13 +48,14 @@ sources are never merged automatically. A GitHub identity is the numeric user
 id, never the login, as [0010](0010-a-session-is-not-a-privilege.md) requires.
 
 Federated URLs are attributes present exactly on federated records. Comments
-retain the activity and object URLs; reactions retain the activity URL.
+and reactions retain the activity and object URLs.
 These attributes support protocol matching and reference resolution. They
 and ActivityPub actor URLs must be HTTP(S). On receipt, each activity URL and
 a comment's object URL must share the signing actor's origin. A `Delete`
 computes the comment id from the signing actor URL and the named Note, then
-matches that primary key directly. An `Undo` requires the reaction's author
-as signer.
+matches that primary key directly. An `Undo` likewise computes the reaction
+id from the signing actor URL and the activity it names, embedded or by
+reference, and matches that primary key.
 
 A comment's `root` and a reaction's `target` hold the site's content identifier.
 For posts, this is the written `slug`, or the file name when no slug is written.

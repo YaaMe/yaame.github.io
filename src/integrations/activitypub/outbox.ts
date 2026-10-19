@@ -61,6 +61,17 @@ const fromNote = (n: NoteEntry): Item => ({
   url: new URL(noteHref(n), AP.blogUrl),
 });
 
+type Tally = { replies: number; likes: number; shares: number };
+
+/** Two grouped queries for every slug passed, not two per post; every slug gets a tally. */
+async function interactionCounts(slugs: string[]): Promise<Map<string, Tally>> {
+  const [replyTally, reactionTally] = await Promise.all([replyCounts(slugs), reactionCounts(slugs)]);
+  return new Map(slugs.map((slug) => [slug, {
+    replies: replyTally.get(slug) ?? 0,
+    ...(reactionTally.get(slug) ?? { likes: 0, shares: 0 }),
+  }]));
+}
+
 /** Newest first, which `OrderedCollection` requires (ActivityPub §5). */
 async function timeline(): Promise<Item[]> {
   const [posts, notes] = await Promise.all([allPosts(), allNotes()]);
@@ -80,7 +91,7 @@ async function timeline(): Promise<Item[]> {
  * as both: its pages are static assets served ahead of the Worker, so a request
  * for application/activity+json gets HTML no matter what it asked for.
  */
-const note = (ctx: Context<void>, item: Item, tally = { replies: 0, likes: 0, shares: 0 }) => {
+const note = (ctx: Context<void>, item: Item, tally: Tally = { replies: 0, likes: 0, shares: 0 }) => {
   const id = ctx.getObjectUri(Note, { identifier: AP.user, slug: item.slug });
   return new Note({
     id,
@@ -240,18 +251,10 @@ federation
     if (identifier !== AP.user) return null;
 
     const items = (await timeline()).slice(0, window());
-    const ids = items.map((i) => ctx.getObjectUri(Note, { identifier: AP.user, slug: i.slug }).href);
-    // Two grouped queries for the whole window, not two per post.
-    const [replyTally, reactionTally] = await Promise.all([
-      replyCounts(items.map((item) => item.slug)),
-      reactionCounts(ids),
-    ]);
+    const tally = await interactionCounts(items.map((item) => item.slug));
     const notes: Note[] = [];
-    const all = items.map((item, i) => {
-      const object = note(ctx, item, {
-        replies: replyTally.get(item.slug) ?? 0,
-        ...(reactionTally.get(ids[i]) ?? { likes: 0, shares: 0 }),
-      });
+    const all = items.map((item) => {
+      const object = note(ctx, item, tally.get(item.slug));
       notes.push(object);
       return new Create({
         // Alongside the object it wraps, rather than on the blog: an activity is
@@ -288,15 +291,9 @@ federation
 federation.setFeaturedDispatcher(`/users/{identifier}/featured`, async (ctx, identifier) => {
   if (identifier !== AP.user) return null;
   const pinned = (await allPosts()).filter((p) => p.data.pinned).map(fromPost);
-  const ids = pinned.map((i) => ctx.getObjectUri(Note, { identifier, slug: i.slug }).href);
-  const [replyTally, reactionTally] = await Promise.all([replyCounts(pinned.map((item) => item.slug)), reactionCounts(ids)]);
+  const tally = await interactionCounts(pinned.map((item) => item.slug));
   return {
-    items: pinned.map((item, i) =>
-      note(ctx, item, {
-        replies: replyTally.get(item.slug) ?? 0,
-        ...(reactionTally.get(ids[i]) ?? { likes: 0, shares: 0 }),
-      }),
-    ),
+    items: pinned.map((item) => note(ctx, item, tally.get(item.slug))),
     nextCursor: null,
   };
 }).setCounter(async (_ctx, identifier) =>
@@ -321,15 +318,7 @@ federation.setObjectDispatcher(
     if (identifier !== AP.user) return null;
     const item = (await timeline()).find((i) => i.slug === slug);
     if (!item) return null;
-    const id = ctx.getObjectUri(Note, { identifier, slug }).href;
-    const [replyTally, reactionTally] = await Promise.all([
-      replyCounts([slug]),
-      reactionCounts([id]),
-    ]);
-    return note(ctx, item, {
-      replies: replyTally.get(slug) ?? 0,
-      ...(reactionTally.get(id) ?? { likes: 0, shares: 0 }),
-    });
+    return note(ctx, item, (await interactionCounts([slug])).get(slug));
   },
 );
 

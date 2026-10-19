@@ -2,10 +2,14 @@ import registerData from "../src/data.config.json" with { type: "json" };
 import { RecoveryError, exportRecovery, quoteSqlIdentifier, registerForLayerKinds, selectRecovery } from "../src/lib/recovery.ts";
 import { planRecoveryImport, runRecoveryAdapter } from "./recovery-plan.mjs";
 import { runIfMain } from "./run-cli.mjs";
-import { validateInteractionRows } from "../src/lib/interactions/records.ts";
+import { validateInteractionReferences, validateInteractionRows } from "../src/lib/interactions/records.ts";
+
+// Rows that reference a visitor identity are written after it and cleared before it.
+// A kind missing here sorts last and is refused by validateInteractionRows.
+const WRITE_RANK = new Map([["visitor-identities", 0], ["comments", 1], ["reactions", 1], ["migrations", 1]]);
 
 function kindRank(kind) {
-  return kind === "visitor-identities" ? 0 : 1;
+  return WRITE_RANK.get(kind) ?? 2;
 }
 
 function sqlLayerDescriptors(register) {
@@ -41,11 +45,13 @@ export function sqlSnapshotStatements(register) {
 export function sqlInsertStatements(register, plan) {
   const descriptors = sqlLayerDescriptors(register);
   const writes = [...plan.writes].sort((left, right) => kindRank(left.kind) - kindRank(right.kind));
-  return writes.flatMap((write) => {
+  const rowsByKind = new Map();
+  const statements = writes.flatMap((write) => {
     const descriptor = descriptors.find(({ kind, layer }) => kind === write.kind && layer === write.layer);
     if (!descriptor || write.action !== "insert") throw new Error("SQL recovery write plan has an unknown layer or action");
     const { kind, layer, table, columns } = descriptor;
     validateInteractionRows(kind, write.rows);
+    rowsByKind.set(kind, [...rowsByKind.get(kind) ?? [], ...write.rows]);
     const sql = `INSERT INTO ${table} (${Object.values(columns).join(", ")}) VALUES (${Object.keys(columns).map(() => "?").join(", ")})`;
     return write.rows.map((row) => ({
       kind,
@@ -54,6 +60,8 @@ export function sqlInsertStatements(register, plan) {
       parameters: Object.keys(columns).map((logical) => typeof row[logical] === "boolean" ? Number(row[logical]) : row[logical]),
     }));
   });
+  validateInteractionReferences(rowsByKind);
+  return statements;
 }
 
 export function sqlClearStatements(register) {

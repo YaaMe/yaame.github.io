@@ -3,7 +3,8 @@ import assert from "node:assert/strict";
 import { DatabaseSync } from "node:sqlite";
 import { migrate, schemaBootstrapStatements } from "../src/integrations/activitypub/store/schema.ts";
 import { insertComment } from "../src/integrations/activitypub/store/write-comment.ts";
-import { storedComment } from "./fixtures/interactions.mjs";
+import { insertReaction } from "../src/integrations/activitypub/store/reaction-rows.ts";
+import { storedComment, storedReaction } from "./fixtures/interactions.mjs";
 import { testDatabase } from "./fixtures/databases.mjs";
 
 const oldRow = `INSERT INTO comments VALUES ('https://test.example/create', 'https://test.example/note', 'https://yaame.dev/users/yaame/notes/example', NULL, 'https://test.example/actor', '', '2026-09-18', '2026-09-18', '2026-09-18', NULL)`;
@@ -20,7 +21,12 @@ async function legacyDatabase(context, host) {
   const fixture = await testDatabase(context, host);
   for (const statement of schemaBootstrapStatements().slice(0, 6)) await fixture.execute(statement);
   for (let version = 0; version < 5; version++) await fixture.execute(`INSERT INTO migrations VALUES (${version}, 'before')`);
-  await fixture.execute("INSERT INTO reactions VALUES ('reaction', 'object', 'actor', 'Like', 'before', NULL)");
+  for (const [activity, kind, receivedAt, undoneAt] of [
+    ["https://activitypub.academy/users/banules_kuraks/statuses/117291094176571436/activity", "Announce", "2026-09-18T08:27:52.904Z", "2026-09-18T08:27:53.251Z"],
+    ["https://activitypub.academy/users/banules_kuraks#likes/1690", "Like", "2026-09-18T08:27:53.059Z", "2026-09-18T08:27:59.604Z"],
+  ]) {
+    await fixture.execute(`INSERT INTO reactions VALUES ('${activity}', 'https://yaame.dev/users/yaame/notes/2025-year', 'https://activitypub.academy/users/banules_kuraks', '${kind}', '${receivedAt}', '${undoneAt}')`);
+  }
   return fixture;
 }
 
@@ -35,12 +41,12 @@ for (const host of ["node", "d1"]) {
     const { database, execute, rows } = await testDatabase(context, host);
     for (const statement of schemaBootstrapStatements()) await execute(statement);
     await insertComment(database, storedComment("restored"));
-    await execute("INSERT INTO reactions VALUES ('reaction', 'object', 'actor', 'Like', 'before', NULL)");
+    await insertReaction(database, storedReaction("restored"));
     const commentsBefore = await rows("SELECT * FROM comments");
     const identitiesBefore = await rows("SELECT * FROM visitor_identities");
     const reactionsBefore = await rows("SELECT * FROM reactions");
     assert.equal(await migrate(database), 0);
-    assert.deepEqual((await rows("SELECT version FROM migrations ORDER BY version")).map(({ version }) => version), [0, 1, 2, 3, 4, 5]);
+    assert.deepEqual((await rows("SELECT version FROM migrations ORDER BY version")).map(({ version }) => version), [0, 1, 2, 3, 4, 5, 6]);
     assert.deepEqual(await rows("SELECT * FROM comments"), commentsBefore);
     assert.deepEqual(await rows("SELECT * FROM visitor_identities"), identitiesBefore);
     assert.deepEqual(await rows("SELECT * FROM reactions"), reactionsBefore);
@@ -50,11 +56,10 @@ for (const host of ["node", "d1"]) {
   test(`${host}: the appended migration accepts the approved row alone`, async (context) => {
     const { database, execute, rows } = await legacyDatabase(context, host);
     await execute(approvedRow);
-    assert.equal(await migrate(database), 1);
+    assert.equal(await migrate(database), 2);
     assert.deepEqual(await rows("SELECT * FROM comments"), []);
     assert.ok((await rows("PRAGMA table_info(comments)")).some((column) => column.name === "id" && column.pk === 1));
-    assert.equal((await rows("SELECT MAX(version) AS version FROM migrations"))[0].version, 5);
-    assert.equal((await rows("SELECT * FROM reactions"))[0].activity_id, "reaction");
+    assert.equal((await rows("SELECT MAX(version) AS version FROM migrations"))[0].version, 6);
     assert.equal(await migrate(database), 0);
   });
 
@@ -75,16 +80,17 @@ for (const host of ["node", "d1"]) {
       await context.test(name, async () => {
         for (const statement of statements) await execute(statement);
         const before = await rows("SELECT * FROM comments");
+        const reactions = await rows("SELECT * FROM reactions");
         await assert.rejects(migrate(database), /comments_drop_requires_approved_snapshot/);
         assert.deepEqual(await rows("SELECT * FROM comments"), before);
+        assert.deepEqual(await rows("SELECT * FROM reactions"), reactions);
         assert.equal((await rows("SELECT MAX(version) AS version FROM migrations"))[0].version, 4);
         assert.equal((await rows("SELECT name FROM sqlite_schema WHERE name IN ('visitor_identities', 'comments_drop_guard')")).length, 0);
         await execute("DELETE FROM comments");
       });
     }
-    await migrate(database);
+    assert.equal(await migrate(database), 2);
     assert.ok((await rows("PRAGMA table_info(comments)")).some((column) => column.name === "id" && column.pk === 1));
-    assert.equal((await rows("SELECT * FROM reactions"))[0].activity_id, "reaction");
     assert.equal(await migrate(database), 0);
   });
 
@@ -101,7 +107,7 @@ for (const host of ["node", "d1"]) {
     assert.equal((await rows("SELECT MAX(version) AS version FROM migrations"))[0].version, 4);
     assert.equal((await rows("SELECT name FROM sqlite_schema WHERE name IN ('visitor_identities', 'comments_drop_guard')")).length, 0);
     database.atomic = atomic;
-    assert.equal(await migrate(database), 1);
+    assert.equal(await migrate(database), 2);
   });
 
   test(`${host}: a stale concurrent migration cannot drop a newly received comment`, async (context) => {
@@ -122,7 +128,7 @@ for (const host of ["node", "d1"]) {
     const second = migrate(concurrent);
     await bothReady.promise;
     firstGate.resolve();
-    assert.equal(await first, 1);
+    assert.equal(await first, 2);
     const comment = storedComment("between-migrations");
     await insertComment(database, comment);
     secondGate.resolve();

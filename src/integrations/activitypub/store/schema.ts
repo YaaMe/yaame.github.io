@@ -59,6 +59,8 @@ export const comments = sqliteTable(
     promotedAt: text(commentsColumns.promotedAt),
   },
   (t) => [
+    // Index columns run broad to narrow, matching the queries that read them;
+    // change an order only together with its query.
     index("comments_by_thread").on(t.root, t.published),
     index("comments_by_actor").on(t.authorId, t.published),
     index("comments_by_object").on(t.objectId),
@@ -75,13 +77,16 @@ export const comments = sqliteTable(
 export const reactions = sqliteTable(
   reactionsLocation.sql,
   {
-    /** The activity id — de-duplication, §5.2, enforced by the database. */
-    activityId: text(reactionsColumns.activityId).primaryKey(),
+    id: text(reactionsColumns.id).primaryKey(),
+    source: text(reactionsColumns.source).notNull(),
+    identifier: text(reactionsColumns.identifier).notNull(),
+    // The application maintains the authorId reference; the database intentionally does not enforce it.
+    authorId: text(reactionsColumns.authorId).notNull(),
+    activityId: text(reactionsColumns.activityId).notNull(),
 
-    /** Which of our objects this is about. */
+    /** The object URL as received; `target` is derived from it. */
     objectId: text(reactionsColumns.objectId).notNull(),
-
-    actorId: text(reactionsColumns.actorId).notNull(),
+    target: text(reactionsColumns.target).notNull(),
 
     /** `Announce` or `Like`. */
     kind: text(reactionsColumns.kind).notNull(),
@@ -95,7 +100,11 @@ export const reactions = sqliteTable(
      */
     undoneAt: text(reactionsColumns.undoneAt),
   },
-  (t) => [index("reactions_by_object").on(t.objectId, t.kind)],
+  (t) => [
+    // Broad to narrow — content, kind, author — so the per-content count of
+    // distinct authors reads the index alone; change it only with that query.
+    index("reactions_by_target").on(t.target, t.kind, t.authorId),
+  ],
 );
 
 /**
@@ -172,6 +181,42 @@ const MIGRATIONS: (string | string[])[] = [
     `CREATE INDEX comments_by_actor ON comments (author_id, published)`,
     `CREATE INDEX comments_by_object ON comments (object_id)`,
     `DROP TABLE comments_drop_guard`,
+  ],
+  [
+    `CREATE TABLE reactions_drop_guard (approved INTEGER CONSTRAINT reactions_drop_requires_approved_snapshot CHECK (approved = 1))`,
+    `INSERT INTO reactions_drop_guard
+       SELECT CASE WHEN COUNT(*) = 0 OR (
+         COUNT(*) = 2 AND COUNT(CASE WHEN
+           activity_id = 'https://activitypub.academy/users/banules_kuraks/statuses/117291094176571436/activity'
+           AND actor_id = 'https://activitypub.academy/users/banules_kuraks'
+           AND object_id = 'https://yaame.dev/users/yaame/notes/2025-year'
+           AND kind = 'Announce'
+           AND received_at = '2026-09-18T08:27:52.904Z'
+           AND undone_at = '2026-09-18T08:27:53.251Z'
+         THEN 1 END) = 1 AND COUNT(CASE WHEN
+           activity_id = 'https://activitypub.academy/users/banules_kuraks#likes/1690'
+           AND actor_id = 'https://activitypub.academy/users/banules_kuraks'
+           AND object_id = 'https://yaame.dev/users/yaame/notes/2025-year'
+           AND kind = 'Like'
+           AND received_at = '2026-09-18T08:27:53.059Z'
+           AND undone_at = '2026-09-18T08:27:59.604Z'
+         THEN 1 END) = 1
+       ) THEN 1 ELSE 0 END FROM reactions`,
+    `DROP TABLE reactions`,
+    `CREATE TABLE reactions (
+       id TEXT PRIMARY KEY NOT NULL,
+       source TEXT NOT NULL,
+       identifier TEXT NOT NULL,
+       author_id TEXT NOT NULL,
+       activity_id TEXT NOT NULL,
+       object_id TEXT NOT NULL,
+       target TEXT NOT NULL,
+       kind TEXT NOT NULL,
+       received_at TEXT NOT NULL,
+       undone_at TEXT
+     )`,
+    `CREATE INDEX reactions_by_target ON reactions (target, kind, author_id)`,
+    `DROP TABLE reactions_drop_guard`,
   ],
 ];
 

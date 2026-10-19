@@ -15,7 +15,7 @@ const row = (name, extra = {}) => storedComment(name, {
   activityId: `https://social.test/activities/${name}`,
   objectId: `https://social.test/objects/${name}`,
   root: "2026-10",
-  inReplyTo: "https://blog.test/users/owner/notes/2026-10",
+  inReplyTo: "https://yaame.dev/users/yaame/notes/2026-10",
   identifier: `https://social.test/users/${name}`,
   ...extra,
 });
@@ -28,7 +28,7 @@ function fixture(t) {
     "scripts/tombstone.mjs", "scripts/unpromote.mjs", "scripts/comments-store.mjs",
     "scripts/comments-rows.mjs",
     "scripts/comments-cli.mjs", "src/lib/interactions/comment-schema.ts", "src/data.config.generated.mjs",
-    "src/lib/interactions/records.ts", "src/lib/interactions/key-scheme.ts",
+    "src/lib/interactions/records.ts", "src/lib/interactions/key-scheme.ts", "src/integrations/activitypub/config.ts",
   ]) {
     const target = join(cwd, path);
     mkdirSync(dirname(target), { recursive: true });

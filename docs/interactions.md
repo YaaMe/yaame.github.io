@@ -167,8 +167,9 @@ remains a stored federated attribute. Rewrapping the same Note in a new Create
 keeps the same comment id. Insertion relies on that key, without reading for
 a duplicate first, and preserves the first stored delivery. Another signer
 using the same Note id gets a different comment id. Both the activity and
-object URL must share the signing actor's origin. Reactions keep their
-`activity_id` keys until issue #71.
+object URL must share the signing actor's origin. A reaction's primary key
+is `v5(activitypub, signing actor URL, activity_id)`, and its activity URL must
+share the signing actor's origin.
 
 **On `Delete`, the server SHOULD remove the object.** §7.4 is a SHOULD, and
 the specification says the protocol cannot force a remote server to delete
@@ -269,7 +270,7 @@ The comments migration claims its version, checks the rows, recreates the
 table and records completion in one atomic operation. D1 uses a batch;
 `node:sqlite` uses a transaction. A concurrent attempt cannot repeat the
 drop after another attempt commits. Failure rolls back the marker and DDL.
-The reactions table keeps its existing schema for issue #71.
+The reactions migration, appended after it, works the same way.
 
 On October 19, 2026, the owner approved dropping one withdrawn comment read
 from D1 `yaame-ap-interactions`. The migration accepts an empty comments table
@@ -357,9 +358,38 @@ have the same sender, the same target and the same undo. An undo **marks the
 row and keeps it**. Deleting the row would let the same boost be counted again,
 and the primary key exists to stop that.
 
-Their key remains the activity URL, and their target remains the federated
-object URL. Issue #71 applies ADR 0017 to reactions. The comments migration
-does not alter their rows, receipt rules or Undo behavior.
+A reaction's id is computed from the signing actor and the activity, so a
+redelivered Like or Announce is refused by the primary key. The row keeps the
+received object URL and the derived `target`, the site's content identifier.
+The author is a visitor identity, inserted before the reaction.
+
+A reaction counts once per person per content: the published `likes` and
+`shares` count distinct authors per `target` and kind among rows not undone,
+grouped by the same key replies use. Someone holding two Likes on one post
+counts once, and still counts once after withdrawing one of them.
+
+An `Undo` withdraws exactly the reaction it names. The inbox computes the id
+from the signer and the named activity, embedded or as a bare URL, and matches
+that primary key, as `Delete` does for comments. Anyone else's `Undo` computes
+an id no row has. When nothing matches, the handler goes on to the `Follow`
+case, which may dereference a bare URL.
+
+### The appended reactions migration
+
+On October 19, 2026, the owner approved dropping two undone test reactions read
+from D1 `yaame-ap-interactions`. The migration accepts an empty reactions table
+or exactly these two rows, matching every stored column:
+
+| `kind` | `activity_id` | `received_at` | `undone_at` |
+| --- | --- | --- | --- |
+| `Announce` | `https://activitypub.academy/users/banules_kuraks/statuses/117291094176571436/activity` | `2026-09-18T08:27:52.904Z` | `2026-09-18T08:27:53.251Z` |
+| `Like` | `https://activitypub.academy/users/banules_kuraks#likes/1690` | `2026-09-18T08:27:53.059Z` | `2026-09-18T08:27:59.604Z` |
+
+Both have `actor_id` `https://activitypub.academy/users/banules_kuraks` and
+`object_id` `https://yaame.dev/users/yaame/notes/2025-year`. The guard compares
+the raw stored strings; no URL normalisation applies. Any other row or mismatch fails with
+`reactions_drop_requires_approved_snapshot` and rolls back atomically with the
+drop, on D1 and node.
 
 We publish **counts only, never who**:
 
@@ -490,8 +520,7 @@ here.
 
 - [x] Storage seam with two implementations, D1 and `node:sqlite`, through
       Drizzle
-- [x] Comments and visitor identities have computed UUID v5 keys; reactions
-      retain activity URL keys pending #71
+- [x] Comments, reactions and visitor identities have computed UUID v5 keys
 - [x] `.on(Create)`: replies are stored
 - [x] `.on(Delete)` tells an account deletion from an object deletion
 - [x] `.on(Announce)` and `.on(Like)`, with their `Undo`

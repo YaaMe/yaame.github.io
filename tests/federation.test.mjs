@@ -1,9 +1,5 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync } from "node:fs";
-import { join, resolve } from "node:path";
-import { pathToFileURL } from "node:url";
-import { build } from "esbuild";
 import { Create, Delete, Note } from "@fedify/fedify/vocab";
 import {
   handleCommentDelete,
@@ -13,6 +9,7 @@ import {
 import { visibleComments } from "../src/lib/interactions/comment-view.ts";
 import { storedComment } from "./fixtures/interactions.mjs";
 import { SOURCES, commentId, identityId } from "../src/lib/interactions/key-scheme.ts";
+import { inboxHarness } from "./fixtures/inbox.mjs";
 
 const ownActor = "https://yaame.dev/users/yaame";
 const firstFollower = {
@@ -20,50 +17,8 @@ const firstFollower = {
   inbox: "https://remote.example/users/one/inbox",
 };
 
-async function commentInbox(context) {
-  const directory = mkdtempSync(join(process.cwd(), ".tmp-comment-inbox-"));
-  context.after(() => rmSync(directory, { recursive: true, force: true }));
-  const bundle = join(directory, "inbox.mjs");
-  await build({
-    stdin: {
-      contents: `
-        export { federation } from "./src/integrations/activitypub/federation.ts";
-        export { store, record, replies, replyCounts, withdrawnMany } from "./src/integrations/activitypub/store/comments.ts";
-        export { comments, visitorIdentities } from "./src/integrations/activitypub/store/schema.ts";
-        export { insertComment } from "./src/integrations/activitypub/store/write-comment.ts";
-      `,
-      resolveDir: process.cwd(),
-    },
-    outfile: bundle,
-    bundle: true,
-    format: "esm",
-    platform: "node",
-    packages: "external",
-    alias: { "virtual:platform": resolve("src/platform/node") },
-    define: { "process.env.AP_DB_URL": JSON.stringify(":memory:") },
-  });
-  const inbox = await import(pathToFileURL(bundle).href);
-  const database = await inbox.store();
-  context.after(() => database.$client.close());
-  context.mock.method(globalThis, "fetch", async () => {
-    throw new Error("comment inbox tests are offline");
-  });
-  return {
-    ...inbox,
-    database,
-    async receive(activity, stored = []) {
-      await database.delete(inbox.comments);
-      for (const row of stored) await inbox.insertComment(database, row);
-      const dispatched = inbox.federation.inboxListeners.dispatchWithClass(activity);
-      assert.ok(dispatched);
-      await dispatched.listener({}, activity);
-      return database.select().from(inbox.comments);
-    },
-  };
-}
-
 test("Create comments keep HTTP(S) identifiers and the signed actor", async (t) => {
-  const inbox = await commentInbox(t);
+  const inbox = await inboxHarness(t);
   const friend = "https://remote.example/users/friend";
   const root = `${ownActor}/notes/example`;
   const createComment = (extra = {}) => {
