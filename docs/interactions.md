@@ -53,8 +53,8 @@ SQLite was not chosen for being better. The constraints left nothing else:
 
 For an embedded, single-file, serverless store, SQLite is the only mature
 option with both atomic transactions and queries. Plain JSON has no indexes
-and no atomic updates. That is enough at the size of the follower list, which
-is held as one JSON value in KV. LMDB and LevelDB have no queries, and Workers
+and no atomic updates; followers were one JSON value in KV until two Follows
+rewriting it at once kept only one. LMDB and LevelDB have no queries, and Workers
 have no equivalent. DuckDB is built for analytics, which is the wrong shape.
 
 ### Why comments cannot live in KV
@@ -69,8 +69,8 @@ Volume is not the problem. KV's guarantees are:
 | 1,000 writes a day on the free plan, across all keys | A hard ceiling |
 | Listing by key prefix only | One more filter dimension is too many |
 
-KV keeps small state that is written rarely: the follower list, the actor
-digest, the delivery record and login sessions.
+KV keeps small state that is written rarely: the following list, the actor
+digest, the note digests and login sessions.
 
 ### Keeping a move to another database cheap
 
@@ -403,16 +403,54 @@ We publish **counts only, never who**:
 `replies` is the opposite: a real collection with an id, fetchable and paged.
 A reply is public speech. A like is an action.
 
+## Followers
+
+One row per follower, keyed by its visitor identity id: the same v5 id from
+source and identifier that comments and reactions use for their author.
+ActivityPub is one source; the table holds any. The visitor identity is
+inserted first; the database enforces no foreign key. Every row stores its
+source, identifier and when it first followed. A federated row also stores
+what the Follow brought: the inbox (required), the shared inbox and the
+Follow's activity id. A row from another source has none of the three.
+
+| Writer | Effect |
+|---|---|
+| `Follow` | Inserts the row, or updates the inboxes and activity id of the existing one. A repeat Follow is how a moved inbox arrives |
+| `Undo{Follow}` | Deletes the signer's own row. Whoever the embedded Follow names, no other row is reachable |
+| `Delete` of the account | Deletes that account's row |
+| A written-off personal inbox | Deletes the followers that delivery was for, where that inbox is still their own. Another row publishing the same inbox is kept. A shared inbox removes nobody |
+
+Each changes only the rows it names, so deliveries handled together cannot
+overwrite each other. A follow writes the follower and its visitor identity in
+one atomic batch. Fan-out reads every ActivityPub row;
+the public collection pages the same rows, newest first. Followers are not
+promoted to git.
+
 ## Delivery
 
 | | |
 |---|---|
 | How much the outbox shows | `AP.published`; `0` means everything |
-| What goes to followers | `ap:delivered` records what was sent; only unsent posts go |
-| First run | Records everything as sent and sends nothing. A new account must not flood every follower with the archive |
+| What goes to followers | Posts without an `activitypub` row in `deliveries`. A row is written only after that post's own enqueue succeeded |
+| An enqueue fails | The post keeps no row, is logged, and is sent on the next build; the other posts still go. Failures after the enqueue are the queue's retries |
+| A post cannot be marked | Every mark is checked before anything is sent. A post whose identifier is not a content identifier, such as one with a `/`, is logged and never sent. A post whose mark fails after it was sent is held back in the process and only its mark is retried |
+| First run | No `activitypub` rows: every post is marked and none is sent. A new account must not flood every follower with the archive |
 | A post changes | When its fingerprint changes, an `Update{Note}` goes out. The fingerprint covers the content, URL and date, **never the counts** |
 
-The last row is deliberate. A push to every follower for every like would cost
+Deliveries are per channel; `activitypub` is the only one today, and each
+channel has its own marks and its own first run. A row is keyed by a v5 id of
+its channel and the post's content identifier, the identifier reactions store
+as `target` and comments as `root`. Each post's mark is its own statement, and
+a first run's marks are one atomic batch, so no build rewrites another's marks
+and a failed first run leaves none. A post held back after a failed mark is
+sent once more by a new process. A mark that fails after its enqueue
+succeeded, or two builds running at once, send the post twice. Receivers
+discard the second copy by the Create's stable id.
+
+A channel with nothing published at its first run keeps no rows, so its
+first post is marked without being sent.
+
+The last row of the table is deliberate. A push to every follower for every like would cost
 their servers. Mastodon does not do it either: counts update when someone
 fetches the object.
 

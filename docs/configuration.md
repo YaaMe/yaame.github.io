@@ -87,7 +87,7 @@ script fails.
   deploy bound to the wrong KV is worse than a failed deploy.
 - `make deploy` only checks that the values are present. It cannot detect a
   wrong id. With a wrong `CF_KV_ID`, the deploy succeeds and the Worker reads
-  another namespace instead of its own records, such as the follower list and
+  another namespace instead of its own records, such as the following list and
   sessions.
 - `make promote`, `make unpromote` and `make tombstone` need a real `CF_D1_ID`.
 

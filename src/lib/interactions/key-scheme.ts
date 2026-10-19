@@ -3,6 +3,9 @@ import { sha1 } from "@noble/hashes/legacy";
 export const NAMESPACE = "f3881559-97e2-41ff-88e1-f33f0862c162";
 export const SOURCES = Object.freeze({ activitypub: "activitypub", github: "github" } as const);
 export type Source = typeof SOURCES[keyof typeof SOURCES];
+/** Where the site sends its own content. A delivery is recorded per channel. */
+export const CHANNELS = Object.freeze({ activitypub: "activitypub" } as const);
+export type Channel = typeof CHANNELS[keyof typeof CHANNELS];
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const namespaceBytes = Uint8Array.from(NAMESPACE.replaceAll("-", "").match(/../g)!, (hex) => parseInt(hex, 16));
 
@@ -61,6 +64,17 @@ export function reactionId(input: {
   if (input.source !== SOURCES.activitypub) throw new Error("a reaction is federated");
   if (!input.activityId) throw new Error("a federated reaction requires its activityId");
   return v5([input.source, normalizedIdentifier(input.source, input.identifier), normalizedUrl(input.activityId)]);
+}
+
+/**
+ * The site's own record that one piece of its content was handed over on one
+ * channel. Its inputs are the channel and the content identifier, never a URL:
+ * the ActivityPub path can change and the identifier does not.
+ */
+export function deliveryId(channel: Channel, target: string): string {
+  if (!Object.values(CHANNELS).includes(channel)) throw new Error(`unknown delivery channel: ${String(channel)}`);
+  if (target.length === 0) throw new Error("a delivery requires its content identifier");
+  return v5(["delivery", channel, target]);
 }
 
 export function sameOrigin(identifier: string, ...attributes: string[]): boolean {

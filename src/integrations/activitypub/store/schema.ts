@@ -13,6 +13,8 @@ import { index, sqliteTable, text } from "drizzle-orm/sqlite-core";
 import type { Database } from "../../../platform/types";
 import {
   comments as commentsLocation,
+  deliveries as deliveriesLocation,
+  followers as followersLocation,
   migrations as migrationsLocation,
   reactions as reactionsLocation,
   visitorIdentities as identitiesLocation,
@@ -22,6 +24,8 @@ const commentsColumns = commentsLocation.columns;
 const reactionsColumns = reactionsLocation.columns;
 const migrationsColumns = migrationsLocation;
 const identityColumns = identitiesLocation.columns;
+const followerColumns = followersLocation.columns;
+const deliveryColumns = deliveriesLocation.columns;
 
 export const visitorIdentities = sqliteTable(identitiesLocation.sql, {
   id: text(identityColumns.id).primaryKey(),
@@ -104,6 +108,65 @@ export const reactions = sqliteTable(
     // Broad to narrow — content, kind, author — so the per-content count of
     // distinct authors reads the index alone; change it only with that query.
     index("reactions_by_target").on(t.target, t.kind, t.authorId),
+  ],
+);
+
+/**
+ * Who follows this account: one row per visitor identity, from any source.
+ *
+ * The id is the follower's visitor identity id, so a follow and an unfollow
+ * each touch only their own row and two arriving together cannot overwrite
+ * each other.
+ */
+export const followers = sqliteTable(
+  followersLocation.sql,
+  {
+    // Also a visitor identity id, which the application inserts first; the database intentionally does not enforce it.
+    id: text(followerColumns.id).primaryKey(),
+    source: text(followerColumns.source).notNull(),
+    identifier: text(followerColumns.identifier).notNull(),
+
+    /**
+     * Federated rows only, and required there. Nullable and nothing more in
+     * the database: the stored schema enforces the rule on every write and on
+     * recovery, so a writer that skips that schema can break it. Stored, not derived:
+     * `<actor>/inbox` is Mastodon's layout rather than a rule, and deriving it
+     * posts to a 404 on anything that chose otherwise — silently, because
+     * delivery is asynchronous and no one is waiting.
+     */
+    inbox: text(followerColumns.inbox),
+    sharedInbox: text(followerColumns.sharedInbox),
+    followId: text(followerColumns.followId),
+    followedAt: text(followerColumns.followedAt).notNull(),
+  },
+  (t) => [
+    // Broad to narrow, each matching its query: one source's followers newest
+    // first, and one source's rows at a written-off inbox. Change an order only
+    // together with its query.
+    index("followers_by_source").on(t.source, t.followedAt, t.id),
+    index("followers_by_inbox").on(t.source, t.inbox),
+  ],
+);
+
+/**
+ * Content handed over for delivery, one row per channel and post.
+ *
+ * A row is written only after its own hand-over succeeded, so a post without
+ * one is still pending on that channel. Retrying what was handed over is the
+ * channel's job.
+ */
+export const deliveries = sqliteTable(
+  deliveriesLocation.sql,
+  {
+    id: text(deliveryColumns.id).primaryKey(),
+    channel: text(deliveryColumns.channel).notNull(),
+    target: text(deliveryColumns.target).notNull(),
+    enqueuedAt: text(deliveryColumns.enqueuedAt).notNull(),
+  },
+  (t) => [
+    // Channel, then content, so one channel's marks read the index alone;
+    // change it only with that query.
+    index("deliveries_by_channel").on(t.channel, t.target),
   ],
 );
 
@@ -217,6 +280,28 @@ const MIGRATIONS: (string | string[])[] = [
      )`,
     `CREATE INDEX reactions_by_target ON reactions (target, kind, author_id)`,
     `DROP TABLE reactions_drop_guard`,
+  ],
+  [
+    `CREATE TABLE followers (
+       id TEXT PRIMARY KEY NOT NULL,
+       source TEXT NOT NULL,
+       identifier TEXT NOT NULL,
+       inbox TEXT,
+       shared_inbox TEXT,
+       follow_id TEXT,
+       followed_at TEXT NOT NULL
+     )`,
+    `CREATE INDEX followers_by_source ON followers (source, followed_at, id)`,
+    `CREATE INDEX followers_by_inbox ON followers (source, inbox)`,
+  ],
+  [
+    `CREATE TABLE deliveries (
+       id TEXT PRIMARY KEY NOT NULL,
+       channel TEXT NOT NULL,
+       target TEXT NOT NULL,
+       enqueued_at TEXT NOT NULL
+     )`,
+    `CREATE INDEX deliveries_by_channel ON deliveries (channel, target)`,
   ],
 ];
 

@@ -1,5 +1,5 @@
-import { SOURCES, commentId, identityId, reactionId } from "../../src/lib/interactions/key-scheme.ts";
-import { comments, reactions, visitorIdentities } from "../../src/data.config.generated.mjs";
+import { CHANNELS, SOURCES, commentId, deliveryId, identityId, reactionId } from "../../src/lib/interactions/key-scheme.ts";
+import { comments, deliveries, followers, reactions, visitorIdentities } from "../../src/data.config.generated.mjs";
 
 export function storedComment(name = "one", extra = {}) {
   const value = {
@@ -73,4 +73,34 @@ export function seedComment(database, name = "one", extra = {}) {
 
 export function seedReaction(database, name = "one", extra = {}) {
   return seed(database, reactions, storedReaction(name, extra));
+}
+
+export function storedFollower(name = "one", extra = {}) {
+  const value = {
+    source: SOURCES.activitypub,
+    identifier: `https://example.test/users/${name}`,
+    inbox: `https://example.test/users/${name}/inbox`,
+    sharedInbox: "https://example.test/inbox",
+    followId: `https://example.test/follows/${name}`,
+    followedAt: "2026-10-10T00:01:00Z",
+    ...extra,
+  };
+  return { id: identityId(value.source, value.identifier), ...value };
+}
+
+export function seedFollower(database, name = "one", extra = {}) {
+  const record = storedFollower(name, extra);
+  return seed(database, followers, { ...record, authorId: record.id });
+}
+
+export function storedDelivery(target = "example", extra = {}) {
+  const value = { channel: CHANNELS.activitypub, target, enqueuedAt: "2026-10-10T00:02:00Z", ...extra };
+  return { id: deliveryId(value.channel, value.target), ...value };
+}
+
+export function seedDelivery(database, target = "example", extra = {}) {
+  const record = storedDelivery(target, extra);
+  database.prepare(`INSERT INTO ${deliveries.table} (${Object.values(deliveries.quotedColumns).join(", ")}) VALUES (${Object.keys(deliveries.columns).map(() => "?").join(", ")})`)
+    .run(...Object.keys(deliveries.columns).map((column) => record[column]));
+  return record;
 }

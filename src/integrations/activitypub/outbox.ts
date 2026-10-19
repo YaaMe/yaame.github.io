@@ -11,11 +11,14 @@ import { Temporal } from "@js-temporal/polyfill";
 import { Create, Note, OrderedCollection, Update } from "@fedify/fedify/vocab";
 import { federation, reconcileFollowing } from "./federation";
 import { platform } from "../../platform";
-import { replies, replyCounts } from "./store/comments";
+import { replies, replyCounts, store } from "./store/comments";
+import { enqueuedTargets } from "./store/delivery-rows";
+import { deliverPending, type Pending } from "./delivery";
+import { CHANNELS } from "../../lib/interactions/key-scheme";
 import { counts as reactionCounts } from "./store/reactions";
 import { FIRST, page } from "./paging";
 import { AP } from "./config";
-import { delivered, noteDigests } from "../../data.config.generated.mjs";
+import { noteDigests } from "../../data.config.generated.mjs";
 import { allPosts, href, type Post } from "../../lib/posts";
 // Aliased: `Note` here is Fedify's protocol object, and the content entry that
 // becomes one needs a different name.
@@ -132,54 +135,33 @@ const note = (ctx: Context<void>, item: Item, tally: Tally = { replies: 0, likes
 };
 
 /**
- * Posts already sent to the followers.
+ * Send what has not been enqueued.
  *
- * Without this, every trigger would deliver the same Create again. Remote
+ * Without the marks, every trigger would deliver the same Create again. Remote
  * servers de-duplicate by activity id and ours is stable, so the duplicates
  * would be discarded rather than shown twice — but they would still be a
- * delivery attempt per follower, every time, and a follower whose server is
- * down would collect an hour of retries for a post it already has.
- */
-const DELIVERED = delivered.key;
-
-/**
- * Send what has not been sent.
+ * delivery attempt per follower, every time.
  *
  * Only the slice the outbox publishes is considered: delivering something the
  * outbox does not offer leaves a follower holding a post they cannot find in
  * the collection it supposedly came from.
  *
+ * A post whose enqueue fails is logged and left pending for the next build;
+ * one whose identifier cannot be marked is logged and never sent; the outbox
+ * is still served. What happens after the enqueue is the queue's
+ * retries.
+ *
  * Runs when the outbox is built, which after every deploy is the conformance
  * check fetching it. See
  * docs/decisions/0003-the-actor-announces-itself-when-it-is-built.md.
  */
-async function publishPending(ctx: Context<void>, activities: Create[]): Promise<void> {
-  const recorded = await platform.get<string[]>(DELIVERED);
-
-  // Nothing recorded means this actor has never delivered anything, which is
-  // not the same as everything being new. A first run marks the existing posts
-  // as sent and sends none of them, so the archive does not arrive in one
-  // burst; only what is written after that point is delivered.
-  if (recorded === null) {
-    await platform.put(DELIVERED, activities.flatMap((a) => (a.objectId ? [a.objectId.href] : [])));
-    return;
-  }
-
-  const sent = new Set(recorded);
-  const pending = activities.filter((a) => a.objectId && !sent.has(a.objectId.href));
-  if (pending.length === 0) return;
-
-  for (const activity of pending) {
-    // Recorded before sending: the queue retries a failed delivery, and a
-    // record written afterwards would be lost on the throw, leaving the post to
-    // be delivered again on the next build.
-    sent.add(activity.objectId!.href);
-  }
-  await platform.put(DELIVERED, [...sent]);
-
-  for (const activity of pending) {
-    await ctx.sendActivity({ identifier: AP.user }, "followers", activity);
-  }
+async function publishPending(ctx: Context<void>, pending: Pending<Create>[]): Promise<void> {
+  const { failed, refused, unmarked } = await deliverPending(await store(), CHANNELS.activitypub, pending, (activity) =>
+    ctx.sendActivity({ identifier: AP.user }, "followers", activity),
+  );
+  for (const { target, error } of failed) console.error("enqueue failed; the post stays pending", { target, error });
+  for (const target of refused) console.error("not a content identifier; the post is never delivered", { target });
+  for (const { target, error } of unmarked) console.error("sent but not marked; held back from sending again", { target, error });
 }
 
 /** What each delivered post looked like when it was last announced. */
@@ -200,12 +182,12 @@ const DIGESTS = noteDigests.key;
  * Only posts that were actually delivered are announced. Editing something the
  * followers never received is not news to them.
  */
-async function announceEdits(ctx: Context<void>, notes: Note[]): Promise<void> {
-  const delivered = new Set((await platform.get<string[]>(DELIVERED)) ?? []);
+async function announceEdits(ctx: Context<void>, notes: { target: string; note: Note }[]): Promise<void> {
+  const delivered = await enqueuedTargets(await store(), CHANNELS.activitypub);
   const digests = (await platform.get<Record<string, string>>(DIGESTS)) ?? {};
 
   const changed: Note[] = [];
-  for (const note of notes) {
+  for (const { target, note } of notes) {
     if (!note.id) continue;
     const body = JSON.stringify([note.content?.toString(), note.url?.toString(), note.published?.toString()]);
     const digest = [
@@ -219,7 +201,7 @@ async function announceEdits(ctx: Context<void>, notes: Note[]): Promise<void> {
     digests[note.id.href] = digest;
     // A post seen for the first time has nothing to compare against, and one
     // never delivered has no audience holding a stale copy.
-    if (!first && delivered.has(note.id.href)) changed.push(note);
+    if (!first && delivered.has(target)) changed.push(note);
   }
 
   if (Object.keys(digests).length > 0) await platform.put(DIGESTS, digests);
@@ -252,11 +234,12 @@ federation
 
     const items = (await timeline()).slice(0, window());
     const tally = await interactionCounts(items.map((item) => item.slug));
-    const notes: Note[] = [];
+    const notes: { target: string; note: Note }[] = [];
+    const pending: Pending<Create>[] = [];
     const all = items.map((item) => {
       const object = note(ctx, item, tally.get(item.slug));
-      notes.push(object);
-      return new Create({
+      notes.push({ target: item.slug, note: object });
+      const create = new Create({
         // Alongside the object it wraps, rather than on the blog: an activity is
         // this actor's, and nothing on the blog would ever answer for it.
         id: new URL("#create", object.id!),
@@ -264,12 +247,14 @@ federation
         to: PUBLIC,
         object,
       });
+      pending.push({ target: item.slug, activity: create });
+      return create;
     });
 
     // Delivery considers the whole published window, not the page in hand: a
     // reader asking for page three must not decide which posts the followers
     // have been sent.
-    await publishPending(ctx, all);
+    await publishPending(ctx, pending);
     // Reconciled at the same moment as delivery: a change of intent can only
     // arrive by deploy, and the check fetches this after every one.
     await reconcileFollowing(ctx);

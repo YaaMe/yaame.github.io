@@ -5,7 +5,10 @@ import { migrate, schemaBootstrapStatements } from "../src/integrations/activity
 import { insertComment } from "../src/integrations/activitypub/store/write-comment.ts";
 import { insertReaction } from "../src/integrations/activitypub/store/reaction-rows.ts";
 import { storedComment, storedReaction } from "./fixtures/interactions.mjs";
-import { testDatabase } from "./fixtures/databases.mjs";
+import { LATEST_MIGRATION, testDatabase } from "./fixtures/databases.mjs";
+
+// The legacy fixture records versions 0 to 4; everything from the comments migration on is still to run.
+const REMAINING = LATEST_MIGRATION - 4;
 
 const oldRow = `INSERT INTO comments VALUES ('https://test.example/create', 'https://test.example/note', 'https://yaame.dev/users/yaame/notes/example', NULL, 'https://test.example/actor', '', '2026-09-18', '2026-09-18', '2026-09-18', NULL)`;
 const approvedSnapshot = {
@@ -46,7 +49,7 @@ for (const host of ["node", "d1"]) {
     const identitiesBefore = await rows("SELECT * FROM visitor_identities");
     const reactionsBefore = await rows("SELECT * FROM reactions");
     assert.equal(await migrate(database), 0);
-    assert.deepEqual((await rows("SELECT version FROM migrations ORDER BY version")).map(({ version }) => version), [0, 1, 2, 3, 4, 5, 6]);
+    assert.deepEqual((await rows("SELECT version FROM migrations ORDER BY version")).map(({ version }) => version), Array.from({ length: LATEST_MIGRATION + 1 }, (_, version) => version));
     assert.deepEqual(await rows("SELECT * FROM comments"), commentsBefore);
     assert.deepEqual(await rows("SELECT * FROM visitor_identities"), identitiesBefore);
     assert.deepEqual(await rows("SELECT * FROM reactions"), reactionsBefore);
@@ -56,10 +59,10 @@ for (const host of ["node", "d1"]) {
   test(`${host}: the appended migration accepts the approved row alone`, async (context) => {
     const { database, execute, rows } = await legacyDatabase(context, host);
     await execute(approvedRow);
-    assert.equal(await migrate(database), 2);
+    assert.equal(await migrate(database), REMAINING);
     assert.deepEqual(await rows("SELECT * FROM comments"), []);
     assert.ok((await rows("PRAGMA table_info(comments)")).some((column) => column.name === "id" && column.pk === 1));
-    assert.equal((await rows("SELECT MAX(version) AS version FROM migrations"))[0].version, 6);
+    assert.equal((await rows("SELECT MAX(version) AS version FROM migrations"))[0].version, LATEST_MIGRATION);
     assert.equal(await migrate(database), 0);
   });
 
@@ -89,7 +92,7 @@ for (const host of ["node", "d1"]) {
         await execute("DELETE FROM comments");
       });
     }
-    assert.equal(await migrate(database), 2);
+    assert.equal(await migrate(database), REMAINING);
     assert.ok((await rows("PRAGMA table_info(comments)")).some((column) => column.name === "id" && column.pk === 1));
     assert.equal(await migrate(database), 0);
   });
@@ -107,7 +110,7 @@ for (const host of ["node", "d1"]) {
     assert.equal((await rows("SELECT MAX(version) AS version FROM migrations"))[0].version, 4);
     assert.equal((await rows("SELECT name FROM sqlite_schema WHERE name IN ('visitor_identities', 'comments_drop_guard')")).length, 0);
     database.atomic = atomic;
-    assert.equal(await migrate(database), 2);
+    assert.equal(await migrate(database), REMAINING);
   });
 
   test(`${host}: a stale concurrent migration cannot drop a newly received comment`, async (context) => {
@@ -128,7 +131,7 @@ for (const host of ["node", "d1"]) {
     const second = migrate(concurrent);
     await bothReady.promise;
     firstGate.resolve();
-    assert.equal(await first, 2);
+    assert.equal(await first, REMAINING);
     const comment = storedComment("between-migrations");
     await insertComment(database, comment);
     secondGate.resolve();

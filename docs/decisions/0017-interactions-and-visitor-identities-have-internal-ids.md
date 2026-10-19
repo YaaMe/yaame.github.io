@@ -41,6 +41,11 @@ recomputes ids in SQL and git together. These ids stay in storage, recovery
 exports and local commands; they do not become public page or protocol
 identifiers.
 
+Followers and deliveries follow the same source rule: a follower is keyed
+by its visitor identity id and stores its source and identifier, and a
+delivery's id is computed from its channel and content identifier. No table
+assumes ActivityPub is the only source.
+
 Visitor identities record authorship within a source, separately from login
 and roles. Their computed primary key makes each source and identifier pair
 unique, including concurrent first deliveries. Identities from different

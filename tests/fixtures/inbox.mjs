@@ -14,10 +14,10 @@ export async function inboxHarness(context, { databaseUrl = ":memory:", openStor
   await build({
     stdin: {
       contents: `
-        export { federation } from "./src/integrations/activitypub/federation.ts";
+        export { dropFollowersAt, federation } from "./src/integrations/activitypub/federation.ts";
         export { platform } from "./src/platform/index.ts";
         export { store, record, replies, replyCounts, withdrawnMany } from "./src/integrations/activitypub/store/comments.ts";
-        export { comments, reactions, visitorIdentities } from "./src/integrations/activitypub/store/schema.ts";
+        export { comments, followers, reactions, visitorIdentities } from "./src/integrations/activitypub/store/schema.ts";
         export { counts as reactionCounts } from "./src/integrations/activitypub/store/reactions.ts";
         export { insertComment } from "./src/integrations/activitypub/store/write-comment.ts";
       `,

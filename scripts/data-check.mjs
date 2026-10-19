@@ -23,7 +23,7 @@ try {
 
 const {
   actorDigest,
-  delivered,
+  deliveries,
   departures,
   deliveryFailures,
   followLedger,
@@ -52,6 +52,8 @@ const promotedRoot = promotedComments.gitRoot;
 const commentsSql = { sql: comments.sql, columns: comments.columns };
 const sqlLocations = [
   ["comments", comments],
+  ["followers", followers],
+  ["deliveries", deliveries],
   ["reactions", reactions],
   ["migrations", migrations],
   ["visitor-identities", visitorIdentities],
@@ -123,6 +125,15 @@ for (const field of Object.keys(commentsSql.columns)) {
 for (const field of Object.keys(reactions.columns)) {
   requires("src/integrations/activitypub/store/schema.ts", `reactionsColumns.${field}`);
 }
+requires("src/integrations/activitypub/store/schema.ts", "followersLocation.columns");
+requiresPattern("src/integrations/activitypub/store/schema.ts", /sqliteTable\s*\(\s*followersLocation\.sql/, "sqliteTable(followersLocation.sql)");
+for (const field of Object.keys(followers.columns)) {
+  requires("src/integrations/activitypub/store/schema.ts", `followerColumns.${field}`);
+}
+requiresPattern("src/integrations/activitypub/store/schema.ts", /sqliteTable\s*\(\s*deliveriesLocation\.sql/, "sqliteTable(deliveriesLocation.sql)");
+for (const field of Object.keys(deliveries.columns)) {
+  requires("src/integrations/activitypub/store/schema.ts", `deliveryColumns.${field}`);
+}
 for (const field of Object.keys(migrations.columns)) {
   requires("src/integrations/activitypub/store/schema.ts", `migrationsColumns.quotedColumns.${field}`);
 }
@@ -169,7 +180,7 @@ requires("scripts/tags.mjs", "posts.gitRoot");
 requires("scripts/tags.mjs", "komorebi.gitRoot");
 const federation = requires("src/integrations/activitypub/federation.ts", 'from "../../data.config.generated.mjs"');
 requires("src/integrations/activitypub/federation.ts", "followIntent");
-for (const name of ["actorDigest", "departures", "followLedger", "followers", "following"]) {
+for (const name of ["actorDigest", "departures", "followLedger", "following"]) {
   requires("src/integrations/activitypub/federation.ts", name);
 }
 if (federation.includes("readFollowIntent") || federation.includes("await followIntent")) {
@@ -178,7 +189,6 @@ if (federation.includes("readFollowIntent") || federation.includes("await follow
 }
 
 const outbox = requires("src/integrations/activitypub/outbox.ts", 'from "../../data.config.generated.mjs"');
-requires("src/integrations/activitypub/outbox.ts", "delivered");
 requires("src/integrations/activitypub/outbox.ts", "noteDigests");
 const session = requires("src/integrations/auth/session-core.ts", 'from "../../data.config.generated.mjs"');
 requires("src/integrations/auth/session-core.ts", "sessions.key");
@@ -312,11 +322,9 @@ const sourceWithoutComments = pathConsumers
   .map(([path, source]) => [path, withoutComments(source)]);
 const recordLocations = [
   ["actorDigest", actorDigest],
-  ["delivered", delivered],
   ["departures", departures],
   ["deliveryFailures", deliveryFailures],
   ["followLedger", followLedger],
-  ["followers", followers],
   ["following", following],
   ["noteDigests", noteDigests],
   ["sessions", sessions],

@@ -67,15 +67,23 @@
   "followers": {
     "layers": [
       {
-        "records": "ap:followers",
-        "format": "json"
+        "sql": "followers",
+        "columns": {
+          "id": "id",
+          "source": "source",
+          "identifier": "identifier",
+          "inbox": "inbox",
+          "sharedInbox": "shared_inbox",
+          "followId": "follow_id",
+          "followedAt": "followed_at"
+        }
       }
     ],
     "writeBack": [],
     "origin": "others",
     "recovery": "keep",
     "purposes": ["federation"],
-    "description": "Remote actors that follow this account, including the inboxes that receive deliveries."
+    "description": "Who follows this account, one row each keyed by their visitor identity id; federated rows carry the inboxes that receive deliveries."
   },
   "following": {
     "layers": [
@@ -103,18 +111,23 @@
     "purposes": ["federation"],
     "description": "Resolved actor ids for follow intent, carried with the owner's federation ledger and reconciled from git intent."
   },
-  "delivered": {
+  "deliveries": {
     "layers": [
       {
-        "records": "ap:delivered",
-        "format": "json"
+        "sql": "deliveries",
+        "columns": {
+          "id": "id",
+          "channel": "channel",
+          "target": "target",
+          "enqueuedAt": "enqueued_at"
+        }
       }
     ],
     "writeBack": [],
     "origin": "owner",
     "recovery": "keep",
     "purposes": ["federation"],
-    "description": "Object ids already sent to followers, preventing repeated delivery after a fetch."
+    "description": "One row per channel and post whose delivery was handed over, written after that hand-over succeeded; a post without one is still pending on that channel."
   },
   "note-digests": {
     "layers": [

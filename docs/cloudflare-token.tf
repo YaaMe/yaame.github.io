@@ -49,7 +49,7 @@ locals {
     # without it nothing ships at all
     "Workers Scripts Write" = "upload both Workers' code and static assets"
     # the AP_KV binding
-    "Workers KV Storage Write" = "follower list, actor digest, delivery record"
+    "Workers KV Storage Write" = "following list, actor digest, note digests"
     # both the producer and the consumer side
     "Queues Write" = "the delivery queue binding and its consumer config"
     # read only: both write-back jobs only SELECT; owner credentials handle

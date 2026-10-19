@@ -9,7 +9,6 @@ import {
   actorDigest,
   departures,
   followLedger,
-  followers,
   following,
   followIntent,
 } from "../../data.config.generated.mjs";
@@ -17,11 +16,11 @@ import {
 const intent = followIntent as { follow: string[] };
 const ACTOR_DIGEST = actorDigest.key;
 const DEPARTURES = departures.key;
-const FOLLOWERS = followers.key;
 const FOLLOWING = following.key;
 const FOLLOW_INTENT = followLedger.key;
 import { record, remove } from "./store/comments";
 import * as reactions from "./store/reactions";
+import * as followerRows from "./store/followers";
 import { FIRST, page } from "./paging";
 import {
   handleCommentDelete,
@@ -108,9 +107,9 @@ async function announceIfChanged(ctx: RequestContext<void>, person: Person): Pro
  *
  * Capped, because this grows without anything trimming it and only the recent
  * entries answer anything. Read-modify-write on a KV key is not atomic and two
- * departures in the same instant can lose one; that is the same race the
- * follower list itself already runs, and a lost diagnostic costs less than the
- * lost follower it describes.
+ * departures in the same instant can lose one; a lost diagnostic costs less
+ * than the lost follower it describes, which is why followers are rows and
+ * this is not.
  */
 type Departure = { id: string; reason: "unreachable" | "deleted" | "unfollowed"; at: string; detail?: string };
 
@@ -123,23 +122,22 @@ async function recordDeparture(id: string, reason: Departure["reason"], detail?:
 }
 
 /**
- * Drop a follower whose inbox has been written off (ActivityPub §7.5).
+ * Drop the followers a written-off delivery was for (ActivityPub §7.5).
  *
  * Without this the follower stays on the list and every later publish spends
  * another hour of retries on the same dead address.
  *
- * The match is on the personal inbox only. A shared inbox stands for everyone
- * on that host, so one failed delivery to it is not evidence about any
- * particular follower — pruning on it would turn a remote outage into a silent
- * loss of the audience.
+ * Only the actors the delivery named, and only where that inbox is their
+ * personal one. Another row carrying the same inbox string is not touched:
+ * an inbox is something a follower says about itself. A shared inbox stands
+ * for everyone on that host, so one failed delivery to it is not evidence
+ * about any particular follower — pruning on it would turn a remote outage
+ * into a silent loss of the audience.
  */
-export async function dropFollowerByInbox(inbox: string, reason?: string): Promise<string | null> {
-  const list = await readFollowers();
-  const gone = list.find((f) => f.inbox === inbox);
-  if (!gone) return null;
-  await platform.put(FOLLOWERS, list.filter((f) => f.inbox !== inbox));
-  await recordDeparture(gone.id, "unreachable", reason);
-  return gone.id;
+export async function dropFollowersAt(inbox: string, actorIds: readonly string[], reason?: string): Promise<string[]> {
+  const gone = await followerRows.dropAtInbox(actorIds, inbox);
+  for (const actorUrl of gone) await recordDeparture(actorUrl, "unreachable", reason);
+  return gone;
 }
 
 /**
@@ -152,8 +150,8 @@ export async function dropFollowerByInbox(inbox: string, reason?: string): Promi
  *
  * The retry ceiling covers the other shape, an address that keeps timing out.
  */
-federation.setOutboxPermanentFailureHandler(async (_ctx, { reason, inbox, activity }) => {
-  const dropped = await dropFollowerByInbox(inbox.href, String(reason));
+federation.setOutboxPermanentFailureHandler(async (_ctx, { reason, inbox, activity, actorIds }) => {
+  const dropped = await dropFollowersAt(inbox.href, actorIds.map((id) => id.href), String(reason));
   console.warn("permanent delivery failure", {
     reason,
     inbox: inbox.href,
@@ -340,23 +338,13 @@ federation
     }];
   });
 
-// Some stored entries are bare actor URIs. Their real inbox is not at hand, so
-// the derived one stands until that follower sends another Follow.
-const readFollowers = async (): Promise<Follower[]> => {
-  // Annotated, not inferred: `(T[] | null) ?? []` is a union of two array types,
-  // and `.map` resolves no overload against a union.
-  const stored: (Follower | string)[] =
-    (await platform.get<(Follower | string)[]>(FOLLOWERS)) ?? [];
-  return stored.map((f) => (typeof f === "string" ? { id: f, inbox: `${f}/inbox` } : f));
-};
-
 const readFollowing = async (): Promise<string[]> =>
   (await platform.get<string[]>(FOLLOWING)) ?? [];
 
 const followerStore = {
-  read: readFollowers,
-  write: (followers: Follower[]) => platform.put(FOLLOWERS, followers),
-  departure: (id: string) => recordDeparture(id, "unfollowed"),
+  add: followerRows.follow,
+  remove: followerRows.unfollow,
+  departure: (actorUrl: string) => recordDeparture(actorUrl, "unfollowed"),
 };
 
 /** Reads an object only when it is embedded; a bare URL is not dereferenced. */
@@ -374,17 +362,22 @@ federation
   .on(Follow, async (ctx, follow) => {
     const ownActorId = ctx.getActorUri(AP.user);
     if (follow.objectId?.href !== ownActorId.href) return;
+    const signer = follow.actorId;
+    if (!signer) return;
     const follower = await follow.getActor();
     // No inbox means nothing can be delivered to them, the Accept below
     // included — so there is nothing to record either.
     if (!follower?.id || !follower.inboxId) return;
+    // The row is keyed by the signer. An actor document naming anyone else
+    // would file that document's inbox under the signer's identity, or the
+    // signer's Follow under someone else's.
+    if (follower.id.href !== signer.href) return;
 
     const entry: Follower = {
-      id: follower.id.href,
+      actorUrl: signer.href,
       inbox: follower.inboxId.href,
-      ...(follower.endpoints?.sharedInbox
-        ? { sharedInbox: follower.endpoints.sharedInbox.href }
-        : {}),
+      sharedInbox: follower.endpoints?.sharedInbox?.href ?? null,
+      followId: follow.id?.href ?? null,
     };
     await handleFollow(
       {
@@ -476,9 +469,8 @@ federation
       const gone = del.actorId.href;
       // Both lists. Dropping only from followers leaves us publicly claiming to
       // follow someone who no longer exists.
-      const [followers, following] = await Promise.all([readFollowers(), readFollowing()]);
-      if (followers.some((f) => f.id === gone)) await recordDeparture(gone, "deleted");
-      await platform.put(FOLLOWERS, followers.filter((f) => f.id !== gone));
+      if (await followerRows.unfollow(gone)) await recordDeparture(gone, "deleted");
+      const following = await readFollowing();
       await platform.put(FOLLOWING, following.filter((href) => href !== gone));
       return;
     }
@@ -529,19 +521,12 @@ federation
     // mind stays counted for good. The id is computed from the signer and the
     // activity named, embedded or by reference, so nothing is fetched and
     // anyone else's Undo names a row that does not exist.
-    //
-    // An unfollow must not depend on the interactions database: a failed
-    // lookup falls through to the Follow case and is raised only if the Undo
-    // turns out not to be one.
-    let lookupFailure: unknown = null;
     if (!(embedded instanceof Follow) && undo.objectId) {
-      try {
-        if (await reactions.undo(undo.actorId.href, undo.objectId.href)) return;
-      } catch (error) {
-        lookupFailure = error;
-      }
+      if (await reactions.undo(undo.actorId.href, undo.objectId.href)) return;
     }
 
+    // The signer's own row is the only one an unfollow can remove, whoever
+    // the embedded Follow claims to be from.
     const object = embedded ?? await undo.getObject();
     if (object instanceof Follow) {
       await handleUndoFollow(
@@ -549,29 +534,27 @@ federation
         object.actorId?.href ?? null,
         followerStore,
       );
-      return;
     }
-    if (lookupFailure !== null) throw lookupFailure;
   });
 
 federation.setFollowersDispatcher(`/users/{identifier}/followers`, async (_ctx, identifier, cursor) => {
   if (identifier !== AP.user) return null;
-  const list = await readFollowers();
-  return page(
-    list.map((f) => ({
-      id: new URL(f.id),
-      inboxId: new URL(f.inbox),
-      // Fedify prefers this when fanning out, collapsing one POST per follower
-      // on a shared host into one POST for all of them.
-      endpoints: f.sharedInbox ? { sharedInbox: new URL(f.sharedInbox) } : null,
-    })),
-    cursor,
-  );
+  const list = (await followerRows.all()).map((f) => ({
+    id: new URL(f.identifier),
+    inboxId: new URL(f.inbox),
+    // Fedify prefers this when fanning out, collapsing one POST per follower
+    // on a shared host into one POST for all of them.
+    endpoints: f.sharedInbox ? { sharedInbox: new URL(f.sharedInbox) } : null,
+  }));
+  // Fan-out asks with no cursor and keeps only the items it gets back, so a
+  // first page here would deliver to the first twenty followers and no others.
+  // A reader of the collection always has a cursor: the first one is set below.
+  return cursor === null ? { items: list, nextCursor: null } : page(list, cursor);
 })
   // Without a counter the collection carries no totalItems — and a follower
   // count is what most software displays, as zero.
   .setCounter(async (_ctx, identifier) =>
-    identifier === AP.user ? (await readFollowers()).length : null,
+    identifier === AP.user ? (await followerRows.all()).length : null,
   )
   .setFirstCursor(FIRST);
 

@@ -16,7 +16,7 @@ export interface Platform {
    * stand-in it would be lost instead.
    */
   queue: MessageQueue | false;
-  /** Small JSON records of our own: followers, sessions, delivery bookkeeping. */
+  /** Small JSON records of our own: following, sessions, delivery bookkeeping. */
   get<T>(key: string): Promise<T | null>;
   /**
    * `ttl` is seconds, and is a request rather than a guarantee: a host that

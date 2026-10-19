@@ -8,12 +8,12 @@
  * touching the site.
  *
  * It imports the same federation as the site, so the actor, its keys and the
- * follower list are one definition rather than two that could drift. The
+ * follower store are one definition rather than two that could drift. The
  * outbox is deliberately not imported: it reads the posts through
  * astro:content, which exists only inside an Astro build.
  */
 import type { WorkersMessageQueue } from "@fedify/cfworkers";
-import { dropFollowerByInbox, federation } from "../src/integrations/activitypub/federation";
+import { dropFollowersAt, federation } from "../src/integrations/activitypub/federation";
 import { platform } from "virtual:platform";
 import { deliveryFailures } from "../src/data.config.generated.mjs";
 
@@ -67,11 +67,13 @@ export default {
     // request — indistinguishable, and a success belonging to the first was
     // read as success for the second.
     const describe = (m: unknown) => {
-      const msg = m as { type?: string; inbox?: string; activity?: Record<string, unknown> };
+      const msg = m as { type?: string; inbox?: string; actorIds?: unknown; activity?: Record<string, unknown> };
       const object = msg.activity?.object as { id?: string } | string | undefined;
       return {
         type: msg.type,
         inbox: msg.inbox,
+        // The followers this delivery was for; a write-off removes these and no one else.
+        actorIds: Array.isArray(msg.actorIds) ? msg.actorIds.filter((id): id is string => typeof id === "string") : [],
         activity: msg.activity?.id,
         object: typeof object === "string" ? object : object?.id,
       };
@@ -128,9 +130,9 @@ export default {
         // The address is settled as unreachable, so stop addressing it. Recording
         // the failure without this leaves the follower on the list and spends
         // another hour of retries on the next thing we publish.
-        const dropped = what.inbox ? await dropFollowerByInbox(what.inbox) : null;
+        const dropped = what.inbox ? await dropFollowersAt(what.inbox, what.actorIds) : [];
         console.error("giving up after", message.attempts, "attempts", what,
-          dropped ? `— dropped follower ${dropped}` : "");
+          dropped.length > 0 ? `— dropped ${dropped.join(", ")}` : "");
         message.ack();
       }
     }

@@ -34,15 +34,15 @@ test("node recovery entry points round-trip records using temporary directories"
   const source = mkdtempSync(join(tmpdir(), "blogu-57-source-"));
   const targetParent = mkdtempSync(join(tmpdir(), "blogu-57-target-parent-"));
   const target = join(targetParent, "target");
-  writeFileSync(join(source, "ap_followers.json"), JSON.stringify([{ id: "alice" }]));
+  writeFileSync(join(source, "ap_follow-intent.json"), JSON.stringify([{ id: "alice" }]));
   writeFileSync(join(source, "ap_following.json"), JSON.stringify([{ id: "bob" }]));
 
   const exported = run("export", ["--dry-run"], { AP_DATA_DIR: source });
   assert.equal(exported.status, 0, exported.stderr);
   const document = JSON.parse(exported.stdout);
   assert.equal(document.format, "blogu-recovery");
-  assert.deepEqual(document.entries.followers.records[0].records, [
-    { key: "ap:followers", value: [{ id: "alice" }] },
+  assert.deepEqual(document.entries["follow-ledger"].records[0].records, [
+    { key: "ap:follow-intent", value: [{ id: "alice" }] },
   ]);
 
   const input = join(source, "recovery.json");
@@ -53,14 +53,14 @@ test("node recovery entry points round-trip records using temporary directories"
   const roundTrip = run("export", ["--dry-run"], { AP_DATA_DIR: target });
   assert.equal(roundTrip.status, 0, roundTrip.stderr);
   assert.deepEqual(JSON.parse(roundTrip.stdout), document);
-  assert.equal(readFileSync(join(target, "ap_followers.json"), "utf8"), "[{\"id\":\"alice\"}]");
+  assert.equal(readFileSync(join(target, "ap_follow-intent.json"), "utf8"), "[{\"id\":\"alice\"}]");
 });
 
 test("node recovery import previews without changing an empty directory", () => {
   const source = mkdtempSync(join(tmpdir(), "blogu-57-source-preview-"));
   const targetParent = mkdtempSync(join(tmpdir(), "blogu-57-target-preview-parent-"));
   const target = join(targetParent, "target");
-  writeFileSync(join(source, "ap_followers.json"), JSON.stringify([{ id: "alice" }]));
+  writeFileSync(join(source, "ap_follow-intent.json"), JSON.stringify([{ id: "alice" }]));
   const exported = run("export", ["--dry-run"], { AP_DATA_DIR: source });
   const input = join(source, "recovery.json");
   writeFileSync(input, exported.stdout);
@@ -73,8 +73,8 @@ test("node recovery import previews without changing an empty directory", () => 
 test("node recovery import refuses a selected non-empty store without changing it", () => {
   const source = mkdtempSync(join(tmpdir(), "blogu-57-source-nonempty-"));
   const target = mkdtempSync(join(tmpdir(), "blogu-57-target-nonempty-"));
-  writeFileSync(join(source, "ap_followers.json"), JSON.stringify([{ id: "alice" }]));
-  writeFileSync(join(target, "ap_followers.json"), JSON.stringify([{ id: "existing" }]));
+  writeFileSync(join(source, "ap_follow-intent.json"), JSON.stringify([{ id: "alice" }]));
+  writeFileSync(join(target, "ap_follow-intent.json"), JSON.stringify([{ id: "existing" }]));
   const exported = run("export", ["--dry-run"], { AP_DATA_DIR: source });
   const input = join(source, "recovery.json");
   writeFileSync(input, exported.stdout);
@@ -83,7 +83,7 @@ test("node recovery import refuses a selected non-empty store without changing i
   assert.notEqual(imported.status, 0);
   assert.match(imported.stderr, /non-empty store/i);
   assert.ok(imported.stderr.includes(`destination contains entries: ${target}`), imported.stderr);
-  assert.equal(readFileSync(join(target, "ap_followers.json"), "utf8"), "[{\"id\":\"existing\"}]");
+  assert.equal(readFileSync(join(target, "ap_follow-intent.json"), "utf8"), "[{\"id\":\"existing\"}]");
 });
 
 test("#56 records preview validates the same plan as apply without creating files", (context) => {
@@ -96,12 +96,12 @@ test("#56 records preview validates the same plan as apply without creating file
     encoding: "utf8",
     env: { ...process.env, AP_DATA_DIR: target },
   });
-  const plan = { imported: ["followers"], writes: [{ action: "write", key: "ap:followers", value: [] }] };
+  const plan = { imported: ["follow-ledger"], writes: [{ action: "write", key: "ap:follow-intent", value: [] }] };
   const preview = invoke("--validate-plan", plan);
   assert.equal(preview.status, 0, preview.stderr);
   assert.deepEqual(JSON.parse(preview.stdout), plan);
   assert.deepEqual(readdirSync(directory), []);
-  const duplicate = { writes: [plan.writes[0], { ...plan.writes[0], key: "ap_followers" }] };
+  const duplicate = { writes: [plan.writes[0], { ...plan.writes[0], key: "ap_follow-intent" }] };
   for (const mode of ["--validate-plan", "--apply-plan"]) {
     const invalid = invoke(mode, duplicate);
     assert.equal(invalid.status, 1, invalid.stderr);
@@ -120,10 +120,10 @@ test("node recovery import validates the document before it stages any write", (
   const source = mkdtempSync(join(tmpdir(), "blogu-57-source-invalid-"));
   const targetParent = mkdtempSync(join(tmpdir(), "blogu-57-target-invalid-parent-"));
   const target = join(targetParent, "target");
-  writeFileSync(join(source, "ap_followers.json"), JSON.stringify([{ id: "alice" }]));
+  writeFileSync(join(source, "ap_follow-intent.json"), JSON.stringify([{ id: "alice" }]));
   const exported = run("export", ["--dry-run"], { AP_DATA_DIR: source });
   const document = JSON.parse(exported.stdout);
-  document.entries.followers.records[0].records[0] = { key: "ap:followers" };
+  document.entries["follow-ledger"].records[0].records[0] = { key: "ap:follow-intent" };
   const input = join(source, "recovery-invalid.json");
   writeFileSync(input, JSON.stringify(document));
 
@@ -138,7 +138,7 @@ test("a crash at the single directory rename leaves an absent or complete target
   const targetParent = mkdtempSync(join(tmpdir(), "blogu-57-target-crash-parent-"));
   const target = join(targetParent, "target");
   mkdirSync(target);
-  writeFileSync(join(source, "ap_followers.json"), JSON.stringify([{ id: "alice" }]));
+  writeFileSync(join(source, "ap_follow-intent.json"), JSON.stringify([{ id: "alice" }]));
   const exported = run("export", ["--dry-run"], { AP_DATA_DIR: source });
   const input = join(source, "recovery.json");
   writeFileSync(input, exported.stdout);

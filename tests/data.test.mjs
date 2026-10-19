@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import {
   actorDigest,
-  delivered,
+  deliveries,
   departures,
   deliveryFailures,
   followLedger,
@@ -123,8 +123,8 @@ test("the register resolves runtime keys, tables and patterns", () => {
   const keyedEntries = recordEntries.filter(([, entry]) =>
     typeof entry.layers.find((candidate) => Object.hasOwn(candidate, "records")).records === "string",
   );
-  assert.equal(recordEntries.length, 10);
-  assert.equal(keyedEntries.length, 9);
+  assert.equal(recordEntries.length, 8);
+  assert.equal(keyedEntries.length, 7);
   for (const [kind, entry] of keyedEntries) {
     const layer = entry.layers.find((candidate) => Object.hasOwn(candidate, "records"));
     assert.ok(layer.records, kind);
@@ -137,12 +137,16 @@ test("the register resolves runtime keys, tables and patterns", () => {
   assert.equal(sessionEntry[1].list, "never");
   assert.equal(register.migrations.layers[0].sql, "migrations");
   assert.equal(register.reactions.layers[0].sql, "reactions");
+  assert.equal(register.followers.layers[0].sql, "followers");
+  assert.equal(followers.table, '"followers"');
+  assert.equal(Object.hasOwn(followers, "key"), false);
+  assert.equal(register.deliveries.layers[0].sql, "deliveries");
+  assert.equal(deliveries.table, '"deliveries"');
+  assert.equal(Object.hasOwn(deliveries, "key"), false);
 
   const generatedKeys = [
-    followers,
     following,
     followLedger,
-    delivered,
     noteDigests,
     deliveryFailures,
     departures,
@@ -176,7 +180,7 @@ test("the register pins the ownership and recovery policy for every kind", () =>
       followers: ["others", "keep"],
       following: ["others", "keep"],
       "follow-ledger": ["owner", "keep"],
-      delivered: ["owner", "keep"],
+      deliveries: ["owner", "keep"],
       "note-digests": ["owner", "keep"],
       "delivery-failures": ["owner", "reset"],
       departures: ["others", "reset"],

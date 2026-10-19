@@ -1,7 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { Announce, Follow, Like, Undo } from "@fedify/fedify/vocab";
-import { followers } from "../src/data.config.generated.mjs";
 import { SOURCES, identityId, reactionId } from "../src/lib/interactions/key-scheme.ts";
 import { inboxHarness } from "./fixtures/inbox.mjs";
 
@@ -112,12 +111,15 @@ test("Like, Announce and Undo key reactions by signer and activity and count peo
     await fresh();
     await deliver(reaction(Like));
     const follow = new Follow({ id: new URL("https://remote.example/activities/follow"), actor: new URL(friend), object: new URL(ownActor) });
-    await inbox.platform.put(followers.key, [
-      { id: friend, inbox: `${friend}/inbox` },
-      { id: stranger, inbox: `${stranger}/inbox` },
-    ]);
+    await inbox.database.delete(inbox.followers);
+    for (const actorUrl of [friend, stranger]) {
+      await inbox.database.insert(inbox.followers).values({
+        id: identityId(SOURCES.activitypub, actorUrl), source: SOURCES.activitypub, identifier: actorUrl, inbox: `${actorUrl}/inbox`,
+        sharedInbox: null, followId: null, followedAt: "2026-10-19T00:00:00Z",
+      });
+    }
     const rows = await deliver(new Undo({ id: new URL("https://remote.example/activities/unfollow"), actor: new URL(friend), object: follow }));
-    assert.deepEqual((await inbox.platform.get(followers.key)).map(({ id }) => id), [stranger]);
+    assert.deepEqual((await inbox.database.select().from(inbox.followers)).map(({ identifier }) => identifier), [stranger]);
     assert.deepEqual(rows.filter((row) => row.undoneAt !== null), []);
   });
 });

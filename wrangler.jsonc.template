@@ -22,7 +22,7 @@
   // so the consumer is a separate Worker with its own configuration.
   "queues": { "producers": [{ "queue": "yaame-ap-delivery", "binding": "AP_QUEUE" }] },
 
-  // Comments and reactions. SQLite dialect, so the same statements run against
+  // Followers, comments and reactions. SQLite dialect, so the same statements run against
   // node:sqlite when DEPLOY_TARGET=node — see docs/interactions.md.
   //
   // The placeholders below are filled in by scripts/wrangler-config.mjs

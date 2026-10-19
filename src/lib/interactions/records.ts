@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { AP } from "../../integrations/activitypub/config.ts";
-import { SOURCES, type Source, commentId, identityId, normalizedIdentifier, normalizedUrl, reactionId, sameOrigin } from "./key-scheme.ts";
+import { CHANNELS, SOURCES, type Source, commentId, deliveryId, identityId, normalizedIdentifier, normalizedUrl, reactionId, sameOrigin } from "./key-scheme.ts";
 
 export const httpUrl = z.url({ protocol: /^https?$/ });
 export const internalId = z.uuid({ version: "v5" });
@@ -118,8 +118,41 @@ export const storedReactionSchema = z.object({
   }
 });
 
+/**
+ * A follower is keyed by the visitor identity id its source and identifier
+ * compute, so only that identity's own follow or unfollow reaches the row.
+ * The delivery addresses belong to the federated source alone.
+ */
+export const storedFollowerSchema = z.object({
+  id: internalId,
+  source,
+  identifier: z.string(),
+  inbox: httpUrl.nullable(),
+  sharedInbox: httpUrl.nullable(),
+  followId: httpUrl.nullable(),
+  followedAt: timestamp,
+}).superRefine(identityReference("id", "follower inputs do not compute its identity id", ["id"])).superRefine((follower, context) => {
+  if (follower.source === SOURCES.activitypub) {
+    if (follower.inbox === null) context.addIssue({ code: "custom", path: ["inbox"], message: "a federated follower requires its inbox" });
+  } else if (follower.inbox !== null || follower.sharedInbox !== null || follower.followId !== null) {
+    context.addIssue({ code: "custom", message: "only a federated follower has inbox, sharedInbox and followId" });
+  }
+});
+
+export const storedDeliverySchema = z.object({
+  id: internalId,
+  channel: z.enum([CHANNELS.activitypub]),
+  target: contentIdentifier,
+  enqueuedAt: timestamp,
+}).refine((delivery) => delivery.id === deliveryId(delivery.channel, delivery.target), {
+  path: ["id"],
+  message: "delivery inputs do not compute its id",
+});
+
 const recoverySchemas = new Map<string, z.ZodType>([
   ["comments", storedCommentSchema],
+  ["followers", storedFollowerSchema],
+  ["deliveries", storedDeliverySchema],
   ["visitor-identities", visitorIdentitySchema],
   ["reactions", storedReactionSchema],
   ["migrations", z.object({ version: z.number().int(), appliedAt: z.string() })],
@@ -127,8 +160,8 @@ const recoverySchemas = new Map<string, z.ZodType>([
 
 /**
  * Every reference between interaction rows must resolve inside the same set:
- * a comment's or reaction's author is a visitor identity in it, and a
- * comment's replyTo is a comment in it. The database enforces no foreign
+ * a comment's or reaction's author and a follower's id are visitor identities
+ * in it, and a comment's replyTo is a comment in it. The database enforces no foreign
  * keys, so a restore that skipped this would leave rows pointing at nothing.
  * Takes rows already accepted by validateInteractionRows.
  */
@@ -144,6 +177,11 @@ export function validateInteractionReferences(rowsByKind: ReadonlyMap<string, re
       if (kind === "comments" && row.replyTo !== null && !comments.has(row.replyTo)) {
         throw new Error(`comments ${String(row.id)} replies to ${String(row.replyTo)}, which is not among the comments`);
       }
+    }
+  }
+  for (const row of rows("followers")) {
+    if (!identities.has(row.id)) {
+      throw new Error(`followers ${String(row.id)} is not among the visitor identities`);
     }
   }
 }

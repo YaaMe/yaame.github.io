@@ -12,7 +12,7 @@ export type Kind = typeof REACTION_KINDS[number];
 
 // D1 permits at most 100 bound parameters per query; the undone filter binds none.
 // https://developers.cloudflare.com/d1/platform/limits/
-const D1_MAX_BOUND_PARAMETERS = 100;
+export const D1_MAX_BOUND_PARAMETERS = 100;
 
 /** False when refused, or when the computed id is already held. */
 export async function insertReaction(db: Database, value: unknown): Promise<boolean> {

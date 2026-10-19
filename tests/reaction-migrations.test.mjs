@@ -5,7 +5,7 @@ import { migrate, schemaBootstrapStatements } from "../src/integrations/activity
 import { insertReaction } from "../src/integrations/activitypub/store/reaction-rows.ts";
 import { insertComment } from "../src/integrations/activitypub/store/write-comment.ts";
 import { storedComment, storedReaction } from "./fixtures/interactions.mjs";
-import { testDatabase } from "./fixtures/databases.mjs";
+import { LATEST_MIGRATION, testDatabase } from "./fixtures/databases.mjs";
 
 const approved = [
   {
@@ -36,6 +36,8 @@ const unrelatedRow = legacyRow({
 
 // Every migration up to and including the comments one: the migrations table, five single statements, then nine.
 const BEFORE_REACTIONS = 1 + 5 + 9;
+// The legacy fixture records versions 0 to 5; everything from the reactions migration on is still to run.
+const REMAINING = LATEST_MIGRATION - 5;
 
 async function legacyDatabase(context, host) {
   const fixture = await testDatabase(context, host);
@@ -66,10 +68,10 @@ for (const host of ["node", "d1"]) {
       const { database, execute, rows } = await legacyDatabase(context, host);
       for (const statement of statements) await execute(statement);
       const comments = await rows("SELECT * FROM comments");
-      assert.equal(await migrate(database), 1);
+      assert.equal(await migrate(database), REMAINING);
       assert.deepEqual(await rows("SELECT * FROM reactions"), []);
       assert.ok(await hasNewKey(rows));
-      assert.equal(await version(rows), 6);
+      assert.equal(await version(rows), LATEST_MIGRATION);
       assert.deepEqual(await rows("SELECT * FROM comments"), comments);
       assert.equal((await rows("SELECT name FROM sqlite_schema WHERE name = 'reactions_drop_guard'")).length, 0);
       assert.equal(await insertReaction(database, storedReaction("after")), true);
@@ -107,7 +109,7 @@ for (const host of ["node", "d1"]) {
         await execute("DELETE FROM reactions");
       });
     }
-    assert.equal(await migrate(database), 1);
+    assert.equal(await migrate(database), REMAINING);
     assert.ok(await hasNewKey(rows));
   });
 
@@ -124,7 +126,7 @@ for (const host of ["node", "d1"]) {
     assert.equal(await version(rows), 5);
     assert.equal((await rows("SELECT name FROM sqlite_schema WHERE name = 'reactions_drop_guard'")).length, 0);
     database.atomic = atomic;
-    assert.equal(await migrate(database), 1);
+    assert.equal(await migrate(database), REMAINING);
   });
 
   test(`${host}: a stale concurrent migration cannot drop a newly received reaction`, async (context) => {
@@ -145,7 +147,7 @@ for (const host of ["node", "d1"]) {
     const second = migrate(concurrent);
     await bothReady.promise;
     firstGate.resolve();
-    assert.equal(await first, 1);
+    assert.equal(await first, REMAINING);
     const reaction = storedReaction("between-migrations");
     assert.equal(await insertReaction(database, reaction), true);
     secondGate.resolve();
@@ -167,7 +169,7 @@ for (const host of ["node", "d1"]) {
         }
         return original(statement);
       });
-      assert.equal(await migrate(database), 1);
+      assert.equal(await migrate(database), REMAINING);
       assert.equal(attempted, true);
     } else {
       const outcomes = await Promise.allSettled([migrate(database), execute(unrelatedRow)]);

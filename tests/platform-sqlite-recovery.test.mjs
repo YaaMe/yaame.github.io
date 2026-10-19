@@ -7,7 +7,7 @@ import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { DatabaseSync } from "node:sqlite";
 import { database as nodeDatabase } from "../src/platform/node/database.ts";
-import { seedComment, seedReaction, storedComment } from "./fixtures/interactions.mjs";
+import { seedComment, seedDelivery, seedFollower, seedReaction, storedComment } from "./fixtures/interactions.mjs";
 import { migrate } from "../src/integrations/activitypub/store/schema.ts";
 import { comments } from "../src/data.config.generated.mjs";
 import registerData from "../src/data.config.json" with { type: "json" };
@@ -38,6 +38,8 @@ async function fixture(context) {
     seedReaction(database, "reaction-z");
     seedReaction(database, "reaction-a", { kind: "Announce", target: "other", undoneAt: "2026-10-13T00:00:00Z" });
     seedComment(database, "one", { content: "你好 'quoted'" });
+    seedFollower(database, "follower-one");
+    seedDelivery(database, "delivered-post");
   } finally {
     database.close();
   }
@@ -51,7 +53,7 @@ test("SQLite entry points round-trip via the reference facility without changing
   assert.equal(exported.status, 0, exported.stderr);
   assert.equal(existsSync(input), false);
   const document = JSON.parse(exported.stdout);
-  assert.deepEqual(Object.keys(document.entries), ["reactions", "migrations", "comments", "visitor-identities"]);
+  assert.deepEqual(Object.keys(document.entries), ["followers", "deliveries", "reactions", "migrations", "comments", "visitor-identities"]);
   assert.equal(document.entries.comments.records[0].records[0].content, "你好 'quoted'");
   assert.equal(document.entries.comments.records[0].records[0].replyTo, null);
   const reference = new InMemoryRecoveryFacility();
@@ -63,7 +65,7 @@ test("SQLite entry points round-trip via the reference facility without changing
   const preview = run("import", ["--file", input], target);
   assert.equal(preview.status, 0, preview.stderr);
   assert.equal(existsSync(target), false);
-  assert.equal(JSON.parse(preview.stdout).writes.length, 4);
+  assert.equal(JSON.parse(preview.stdout).writes.length, 6);
   const sentinel = join(directory, "unrelated.json");
   writeFileSync(sentinel, "keep me");
   const imported = run("import", ["--apply", "--file", input], target);

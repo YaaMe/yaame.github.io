@@ -3,14 +3,8 @@
  * before its listeners call these normalized handlers; tests can therefore
  * exercise the state changes without network fetches or cryptographic keys.
  */
-/**
- * A follower, as much of it as delivery needs.
- *
- * The inbox is stored, not derived. `<actor>/inbox` is Mastodon's layout rather
- * than a rule, and deriving it posts to a 404 on anything that chose otherwise —
- * silently, because delivery is asynchronous and no one is waiting on the answer.
- */
-export type Follower = { id: string; inbox: string; sharedInbox?: string };
+/** A follower, as much of it as delivery needs, with the Follow that asked. */
+export type Follower = { actorUrl: string; inbox: string; sharedInbox: string | null; followId: string | null };
 
 export type FollowActivity = {
   id: string | null;
@@ -24,10 +18,14 @@ export type FollowAccept = {
   objectId: string;
 };
 
+/**
+ * Each call changes only the row its actor names, so two deliveries handled
+ * together cannot undo each other.
+ */
 export type FollowerStore = {
-  read(): Promise<Follower[]>;
-  write(followers: Follower[]): Promise<void>;
-  departure?(id: string): Promise<void>;
+  add(follower: Follower): Promise<boolean>;
+  remove(actorUrl: string): Promise<boolean>;
+  departure?(actorUrl: string): Promise<void>;
 };
 
 export async function handleFollow(
@@ -38,11 +36,9 @@ export async function handleFollow(
   sendAccept: (accept: FollowAccept) => Promise<void>,
 ): Promise<boolean> {
   if (activity.objectId !== ownActorId || follower === null) return false;
-
-  // Replaced rather than skipped when already present: a repeat Follow is how
-  // a moved inbox reaches us.
-  const list = await store.read();
-  await store.write([follower, ...list.filter((entry) => entry.id !== follower.id)]);
+  // Refreshed rather than skipped when already present: a repeat Follow is
+  // how a moved inbox reaches us.
+  if (!(await store.add(follower))) return false;
   await sendAccept({ id: activity.id, actorId: activity.actorId, objectId: ownActorId });
   return true;
 }
@@ -52,11 +48,9 @@ export async function handleUndoFollow(
   _followActorId: string | null,
   store: FollowerStore,
 ): Promise<boolean> {
-  const list = await store.read();
-  const found = list.some((entry) => entry.id === actorId);
-  if (found) await store.departure?.(actorId);
-  await store.write(list.filter((entry) => entry.id !== actorId));
-  return found;
+  const removed = await store.remove(actorId);
+  if (removed) await store.departure?.(actorId);
+  return removed;
 }
 
 export async function handleCommentDelete(

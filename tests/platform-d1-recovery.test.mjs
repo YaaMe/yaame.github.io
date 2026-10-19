@@ -7,8 +7,9 @@ import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { DatabaseSync } from "node:sqlite";
 import { database as nodeDatabase } from "../src/platform/node/database.ts";
-import { seedComment, seedReaction, storedComment } from "./fixtures/interactions.mjs";
+import { seedComment, seedDelivery, seedFollower, seedReaction, storedComment } from "./fixtures/interactions.mjs";
 import { migrate } from "../src/integrations/activitypub/store/schema.ts";
+import { LATEST_MIGRATION } from "./fixtures/databases.mjs";
 import { comments, reactions } from "../src/data.config.generated.mjs";
 import registerData from "../src/data.config.json" with { type: "json" };
 import { InMemoryRecoveryFacility, exportRecovery, importRecovery, registerForLayerKinds } from "../src/lib/recovery.ts";
@@ -33,6 +34,8 @@ async function fixture() {
         await migrate(nodeDatabase(database));
         seedReaction(database, "reaction-1");
         seedComment(database, "one", { content: "你好 'quoted'; -- ?" });
+        seedFollower(database, "follower-one");
+        seedDelivery(database, "delivered-post");
       }
     } finally {
       database.close();
@@ -70,7 +73,7 @@ test("D1 entry points round-trip through fake Wrangler and the reference facilit
   assert.equal(exported.status, 0, exported.stderr);
   assert.equal(existsSync(input), false);
   const document = JSON.parse(exported.stdout);
-  assert.deepEqual(Object.keys(document.entries), ["reactions", "migrations", "comments", "visitor-identities"]);
+  assert.deepEqual(Object.keys(document.entries), ["followers", "deliveries", "reactions", "migrations", "comments", "visitor-identities"]);
   assert.equal(document.entries.comments.records[0].records[0].content, "你好 'quoted'; -- ?");
   assert.doesNotMatch(exported.stdout, /fixture-token|_cf_KV|d1_migrations/);
   const reference = new InMemoryRecoveryFacility();
@@ -80,7 +83,7 @@ test("D1 entry points round-trip through fake Wrangler and the reference facilit
   writeFileSync(input, JSON.stringify(fromReference));
   const preview = run("import", ["--file", input]);
   assert.equal(preview.status, 0, preview.stderr);
-  assert.equal(JSON.parse(preview.stdout).writes.length, 4);
+  assert.equal(JSON.parse(preview.stdout).writes.length, 6);
   assert.deepEqual(readFileSync(target), targetBefore);
   const imported = run("import", ["--apply", "--file", input]);
   assert.equal(imported.status, 0, imported.stderr);
@@ -402,7 +405,7 @@ test("D1 imports empty selected layers and records the bootstrapped migrations",
   const after = run("export", [], target);
   assert.equal(after.status, 0, after.stderr);
   const restored = JSON.parse(after.stdout);
-  assert.deepEqual(restored.entries.migrations.records[0].records.map(({ version }) => version), [0, 1, 2, 3, 4, 5, 6]);
+  assert.deepEqual(restored.entries.migrations.records[0].records.map(({ version }) => version), Array.from({ length: LATEST_MIGRATION + 1 }, (_, version) => version));
   restored.entries.migrations = document.entries.migrations;
   assert.deepEqual(restored, document);
   const database = new DatabaseSync(target);
@@ -430,7 +433,7 @@ for (const ledger of ["empty", "incomplete"]) {
       assert.equal(before[0].content, "你好 'quoted'; -- ?");
       assert.equal(await migrate(nodeDatabase(database)), 0);
       assert.deepEqual(database.prepare("SELECT * FROM comments").all(), before);
-      assert.deepEqual(database.prepare("SELECT version FROM migrations ORDER BY version").all().map(({ version }) => version), [0, 1, 2, 3, 4, 5, 6]);
+      assert.deepEqual(database.prepare("SELECT version FROM migrations ORDER BY version").all().map(({ version }) => version), Array.from({ length: LATEST_MIGRATION + 1 }, (_, version) => version));
       for (const record of migrations.records) {
         assert.equal(database.prepare("SELECT applied_at FROM migrations WHERE version = ?").get(record.version).applied_at, record.appliedAt);
       }

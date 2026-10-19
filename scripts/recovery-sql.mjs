@@ -6,7 +6,7 @@ import { validateInteractionReferences, validateInteractionRows } from "../src/l
 
 // Rows that reference a visitor identity are written after it and cleared before it.
 // A kind missing here sorts last and is refused by validateInteractionRows.
-const WRITE_RANK = new Map([["visitor-identities", 0], ["comments", 1], ["reactions", 1], ["migrations", 1]]);
+const WRITE_RANK = new Map([["visitor-identities", 0], ["comments", 1], ["reactions", 1], ["followers", 1], ["deliveries", 1], ["migrations", 1]]);
 
 function kindRank(kind) {
   return WRITE_RANK.get(kind) ?? 2;

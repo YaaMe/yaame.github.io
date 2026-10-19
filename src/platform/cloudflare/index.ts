@@ -22,8 +22,8 @@ const platform = {} as Platform;
 
 // Fedify's own store. Three of the four things it holds are caches; the fourth
 // stops an activity being handled twice, which today differs from handling it
-// once in no way — a repeated Follow replaces the same entry, a repeated Undo
-// filters an absent one. THAT STOPS BEING TRUE the moment a handler accumulates
+// once in no way — a repeated Follow updates the same row, a repeated Undo
+// deletes a row already gone. THAT STOPS BEING TRUE the moment a handler accumulates
 // rather than replaces, and idempotence has to become durable before it does.
 platform.kv = new MemoryKvStore();
 

@@ -13,8 +13,10 @@ import { inboxHarness } from "./fixtures/inbox.mjs";
 
 const ownActor = "https://yaame.dev/users/yaame";
 const firstFollower = {
-  id: "https://remote.example/users/one",
+  actorUrl: "https://remote.example/users/one",
   inbox: "https://remote.example/users/one/inbox",
+  sharedInbox: null,
+  followId: "https://remote.example/activities/follow-1",
 };
 
 test("Create comments keep HTTP(S) identifiers and the signed actor", async (t) => {
@@ -223,23 +225,24 @@ test("Create comments keep HTTP(S) identifiers and the signed actor", async (t) 
 });
 
 function followerStore(initial) {
-  let followers = initial.map((entry) => ({ ...entry }));
+  const followers = new Map(initial.map((entry) => [entry.actorUrl, { ...entry }]));
   const departures = [];
   return {
     departures,
     store: {
-      async read() {
-        return followers.map((entry) => ({ ...entry }));
+      async add(follower) {
+        followers.set(follower.actorUrl, { ...follower });
+        return true;
       },
-      async write(next) {
-        followers = next.map((entry) => ({ ...entry }));
+      async remove(actorUrl) {
+        return followers.delete(actorUrl);
       },
-      async departure(id) {
-        departures.push(id);
+      async departure(actorUrl) {
+        departures.push(actorUrl);
       },
     },
     read() {
-      return followers;
+      return [...followers.values()];
     },
   };
 }
@@ -251,7 +254,7 @@ test("Follow records the follower and sends an Accept for the same activity", as
   await handleFollow(
     {
       id: "https://remote.example/activities/follow-1",
-      actorId: firstFollower.id,
+      actorId: firstFollower.actorUrl,
       objectId: ownActor,
     },
     firstFollower,
@@ -263,7 +266,7 @@ test("Follow records the follower and sends an Accept for the same activity", as
   assert.deepEqual(state.read(), [firstFollower]);
   assert.deepEqual(accepts, [{
     id: "https://remote.example/activities/follow-1",
-    actorId: firstFollower.id,
+    actorId: firstFollower.actorUrl,
     objectId: ownActor,
   }]);
 });
@@ -275,7 +278,7 @@ test("a Follow for another actor records nothing and sends no Accept", async () 
   await handleFollow(
     {
       id: "https://remote.example/activities/follow-2",
-      actorId: firstFollower.id,
+      actorId: firstFollower.actorUrl,
       objectId: "https://elsewhere.example/users/other",
     },
     firstFollower,
@@ -291,10 +294,33 @@ test("a Follow for another actor records nothing and sends no Accept", async () 
 test("Undo{Follow} removes the matching follower", async () => {
   const state = followerStore([firstFollower]);
 
-  await handleUndoFollow(firstFollower.id, firstFollower.id, state.store);
+  assert.equal(await handleUndoFollow(firstFollower.actorUrl, firstFollower.actorUrl, state.store), true);
 
   assert.deepEqual(state.read(), []);
-  assert.deepEqual(state.departures, [firstFollower.id]);
+  assert.deepEqual(state.departures, [firstFollower.actorUrl]);
+});
+
+test("an Undo{Follow} from someone not following records no departure", async () => {
+  const state = followerStore([firstFollower]);
+
+  assert.equal(await handleUndoFollow("https://remote.example/users/two", null, state.store), false);
+
+  assert.deepEqual(state.read(), [firstFollower]);
+  assert.deepEqual(state.departures, []);
+});
+
+test("a Follow the store refuses sends no Accept", async () => {
+  const accepts = [];
+  const refused = await handleFollow(
+    { id: "https://remote.example/activities/follow-3", actorId: firstFollower.actorUrl, objectId: ownActor },
+    firstFollower,
+    ownActor,
+    { add: async () => false, remove: async () => false },
+    async (accept) => accepts.push(accept),
+  );
+
+  assert.equal(refused, false);
+  assert.deepEqual(accepts, []);
 });
 
 test("Undo from a different actor than the Follow does not remove a follower", {
@@ -305,7 +331,7 @@ test("Delete marks a stored reply withdrawn and the comment view drops it", asyn
   const reply = {
     id: storedComment("reply").id,
     objectId: "https://remote.example/notes/reply",
-    actorId: firstFollower.id,
+    actorId: firstFollower.actorUrl,
     replyTo: null,
     content: "a reply",
     deletedAt: null,

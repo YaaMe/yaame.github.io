@@ -58,7 +58,7 @@ when invoked through a renamed file or a filesystem alias.
 
 ## The intermediate format
 
-The document is JSON and names both its format and its version. Version 3 has
+The document is JSON and names both its format and its version. Version 4 has
 one `entries` member for every register entry whose `recovery` is `keep`. Each
 entry has one record payload for every non-git layer it declares; `layer` is
 the zero-based layer position in the register entry. Git layers are part of the
@@ -66,7 +66,7 @@ repository base and are moved by the git SOP below, so they have no payload in
 this document. They are listed in `gitBase` so the selection is explicit.
 
 Version 2 added visitor identities and the new comment columns; version 3 adds
-the reaction ids. Imports reject older exports before writing; there is no
+the reaction ids; version 4 moves followers and delivery marks from JSON records to SQL rows. Imports reject older exports before writing; there is no
 converter. Until the first formal
 release, this beta format promises no compatibility between versions.
 
@@ -75,7 +75,7 @@ This example shows a register slice containing comments and visitor identities:
 ```json
 {
   "format": "blogu-recovery",
-  "version": 3,
+  "version": 4,
   "entries": {
     "comments": {
       "records": [
@@ -136,8 +136,12 @@ facility can be imported by another facility for the same store kind:
   payload; other host-neutral layer kinds use their declared facility contract.
 
 The contract validates these shapes on export and before the first import write.
-For comments, reactions and visitor identities, it also recomputes each id
-from the stored inputs. A federated comment's inputs are its source, signing actor URL
+For comments, reactions, followers, deliveries and visitor identities, it also
+recomputes each id from the stored inputs. A follower's id is the visitor identity id of
+its `source` and `identifier`. A federated follower requires an HTTP(S)
+`inbox`, and its shared inbox and follow activity id are HTTP(S) URLs or null;
+a follower from any other source has all three null. A delivery's id is
+computed from its `channel` and content identifier `target`. A federated comment's inputs are its source, signing actor URL
 and Note `objectId`; `activityId` remains a stored delivery attribute. The
 raw-SQL statement builder repeats that validation before returning any
 statements. A reaction's inputs are its source, signing actor URL and
@@ -146,12 +150,12 @@ inbox refuses: a reaction's `target`, and the `root` of a federated comment
 that replies to the site's content, must be the content identifier its URL
 names; a federated identifier must be stored normalised (a GitHub identifier
 keeps its raw form); and stored times must be ISO 8601 date-times. Every
-comment's and reaction's author must be a visitor identity in the same
-document, and every comment's `replyTo` a comment in it; a missing reference
-refuses the whole import before any write. Inserts place identities
-before their comments and reactions on both hosts. The application maintains
-`author_id` and `reply_to` as conceptual references; the database deliberately
-enforces no foreign keys.
+comment's and reaction's author, and every follower's id, must be a visitor
+identity in the same document, and every comment's `replyTo` a comment in it;
+a missing reference refuses the whole import before any write. Inserts place
+identities before their comments, reactions and followers on both hosts. The
+application maintains `author_id`, `reply_to` and the follower id as conceptual
+references; the database deliberately enforces no foreign keys.
 It is not a database dump and must not contain credentials. The register layer
 position keeps multiple layers of one entry distinct.
 
@@ -170,7 +174,7 @@ register it is given. It validates the whole document and all facility coverage
 before the first facility import call. An unknown version therefore fails
 without writing anything. A facility failure is reported as a
 `RecoveryError` with `code` `RECOVERY_EXPORT_FAILED` or
-`RECOVERY_IMPORT_FAILED`; an entry is never silently skipped. Version 3 ignores
+`RECOVERY_IMPORT_FAILED`; an entry is never silently skipped. Version 4 ignores
 unknown wrapper fields and entry ordering, while the format and version fields,
 the selected entry names, and every declared layer remain required.
 
@@ -341,8 +345,8 @@ when omitted, both runtime and recovery use `interactions.sqlite` under
 `AP_DATA_DIR` (default `.data`), through `src/platform/node/sqlite.ts`.
 
 The pair selects `registerForLayerKinds(register, ["sql"])` and retains only
-`recovery: keep` payloads. Currently these are reactions, migrations, and
-comments; owner-held entries travel as names only. Table and physical column
+`recovery: keep` payloads. Currently these are followers, deliveries,
+reactions, migrations, comments and visitor identities; owner-held entries travel as names only. Table and physical column
 names come from the register, while rows in the document use logical names.
 Rows are sorted by their canonical JSON representation for repeatable exports.
 Git, JSON records and owner-held values still need their own recovery steps.
@@ -555,7 +559,8 @@ the repository in an access-controlled directory.
    Inspect `format: "blogu-recovery"`, a `version` equal to
    `RECOVERY_FORMAT_VERSION` in `src/lib/recovery.ts`, the selected entries,
    logical columns and owner-held names. Currently the SQL entries are
-   reactions, migrations and comments. The document contains stored data;
+   followers, deliveries, reactions, migrations, comments and visitor
+   identities. The document contains stored data;
    protect it like the source. Wrangler's captured response is limited to
    64 MiB; exceeding it fails rather than emitting a partial document.
 4. Alternatively, let the command publish the export file atomically. It

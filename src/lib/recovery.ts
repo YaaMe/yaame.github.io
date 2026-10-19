@@ -6,7 +6,7 @@
 import { validateInteractionReferences, validateInteractionRows } from "./interactions/records.ts";
 
 export const RECOVERY_FORMAT = "blogu-recovery" as const;
-export const RECOVERY_FORMAT_VERSION = 3 as const;
+export const RECOVERY_FORMAT_VERSION = 4 as const;
 
 const EXCLUSION_REASONS = Object.freeze({
   rebuild: "rebuild on restore",
