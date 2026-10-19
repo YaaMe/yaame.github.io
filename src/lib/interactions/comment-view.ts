@@ -1,6 +1,6 @@
 export type CommentLike = {
-  objectId: string;
-  replyToId: string | null;
+  id: string;
+  replyTo: string | null;
   content?: unknown;
   deletedAt?: string;
 };
@@ -19,7 +19,7 @@ export function visibleComments<T extends CommentLike>(
   withdrawn: ReadonlyMap<string, string> = new Map(),
 ): T[] {
   let current = comments.map((comment) => {
-    const deletedAt = withdrawn.get(comment.objectId) ?? comment.deletedAt;
+    const deletedAt = withdrawn.get(comment.id) ?? comment.deletedAt;
     return deletedAt === undefined
       ? comment
       : ({ ...comment, content: undefined, deletedAt } as T);
@@ -27,10 +27,10 @@ export function visibleComments<T extends CommentLike>(
 
   for (;;) {
     const answered = new Set(
-      current.map((comment) => comment.replyToId).filter((id): id is string => Boolean(id)),
+      current.map((comment) => comment.replyTo).filter((id): id is string => Boolean(id)),
     );
     const next = current.filter(
-      (comment) => comment.content !== undefined || answered.has(comment.objectId),
+      (comment) => comment.content !== undefined || answered.has(comment.id),
     );
     if (next.length === current.length) return next;
     current = next;

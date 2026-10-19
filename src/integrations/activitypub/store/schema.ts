@@ -1,9 +1,8 @@
 /**
  * The tables, declared once for both hosts.
  *
- * Drizzle renders these into SQLite for D1 and for node:sqlite. Nothing else
- * under src/ writes SQL. Scripts outside src/ send raw SQL to the comments
- * table on D1, so a column change there must reach them too.
+ * Drizzle renders these into SQLite for D1 and for node:sqlite. Scripts also
+ * send raw SQL to these tables, so a column change must reach them too.
  *
  * Times are ISO 8601 strings. SQLite has no date type, every dialect reads an
  * ISO string the same way, and a numeric epoch would have to be decoded by hand
@@ -16,39 +15,35 @@ import {
   comments as commentsLocation,
   migrations as migrationsLocation,
   reactions as reactionsLocation,
+  visitorIdentities as identitiesLocation,
 } from "../../../data.config.generated.mjs";
 
 const commentsColumns = commentsLocation.columns;
 const reactionsColumns = reactionsLocation.columns;
 const migrationsColumns = migrationsLocation;
+const identityColumns = identitiesLocation.columns;
+
+export const visitorIdentities = sqliteTable(identitiesLocation.sql, {
+  id: text(identityColumns.id).primaryKey(),
+  source: text(identityColumns.source).notNull(),
+  identifier: text(identityColumns.identifier).notNull(),
+  name: text(identityColumns.name),
+});
 
 export const comments = sqliteTable(
   commentsLocation.sql,
   {
-    /**
-     * The activity's id, not the object's.
-     *
-     * ActivityPub §5.2 requires de-duplication by activity id, so this is the
-     * primary key: a redelivery is refused by the database rather than by
-     * whoever remembered to check.
-     */
-    activityId: text(commentsColumns.activityId).primaryKey(),
-
-    /** The Note itself — what a Delete names, and what a reply points at. */
-    objectId: text(commentsColumns.objectId).notNull().unique(),
-
-    /**
-     * The top of the thread, usually one of our own posts.
-     *
-     * Stored rather than walked, so "everything under this post" is one indexed
-     * range instead of a recursive climb on every render.
-     */
-    rootId: text(commentsColumns.rootId).notNull(),
-
-    /** The direct parent, null when the reply is to the root itself. */
-    replyToId: text(commentsColumns.replyToId),
-
-    actorId: text(commentsColumns.actorId).notNull(),
+    id: text(commentsColumns.id).primaryKey(),
+    source: text(commentsColumns.source).notNull(),
+    identifier: text(commentsColumns.identifier).notNull(),
+    // The application maintains authorId and replyTo references; the database intentionally does not enforce them.
+    authorId: text(commentsColumns.authorId).notNull(),
+    activityId: text(commentsColumns.activityId),
+    objectId: text(commentsColumns.objectId),
+    submissionId: text(commentsColumns.submissionId),
+    inReplyTo: text(commentsColumns.inReplyTo),
+    root: text(commentsColumns.root).notNull(),
+    replyTo: text(commentsColumns.replyTo),
     content: text(commentsColumns.content).notNull(),
     published: text(commentsColumns.published).notNull(),
     receivedAt: text(commentsColumns.receivedAt).notNull(),
@@ -64,8 +59,9 @@ export const comments = sqliteTable(
     promotedAt: text(commentsColumns.promotedAt),
   },
   (t) => [
-    index("comments_by_thread").on(t.rootId, t.published),
-    index("comments_by_actor").on(t.actorId, t.published),
+    index("comments_by_thread").on(t.root, t.published),
+    index("comments_by_actor").on(t.authorId, t.published),
+    index("comments_by_object").on(t.objectId),
   ],
 );
 
@@ -112,7 +108,7 @@ export const reactions = sqliteTable(
  * Hand-written rather than generated: drizzle-kit is not installed here, and
  * these are meant to be replaced by its output when it is.
  */
-const MIGRATIONS: string[] = [
+const MIGRATIONS: (string | string[])[] = [
   `CREATE TABLE IF NOT EXISTS comments (
      activity_id TEXT PRIMARY KEY,
      object_id   TEXT NOT NULL UNIQUE,
@@ -136,12 +132,62 @@ const MIGRATIONS: string[] = [
      undone_at   TEXT
    )`,
   `CREATE INDEX IF NOT EXISTS reactions_by_object ON reactions (object_id, kind)`,
+  [
+    `CREATE TABLE comments_drop_guard (approved INTEGER CONSTRAINT comments_drop_requires_approved_snapshot CHECK (approved = 1))`,
+    `INSERT INTO comments_drop_guard
+       SELECT CASE WHEN COUNT(*) = 0 OR (
+         COUNT(*) = 1 AND COUNT(CASE WHEN
+           activity_id = 'https://activitypub.academy/users/banules_kuraks/statuses/117290977176624180/activity'
+           AND object_id = 'https://activitypub.academy/users/banules_kuraks/statuses/117290977176624180'
+           AND actor_id = 'https://activitypub.academy/users/banules_kuraks'
+           AND published = '2026-09-18T07:57:59Z'
+           AND deleted_at = '2026-09-18T09:25:26.283Z'
+         THEN 1 END) = 1
+       ) THEN 1 ELSE 0 END FROM comments`,
+    `DROP TABLE comments`,
+    `CREATE TABLE visitor_identities (
+       id TEXT PRIMARY KEY NOT NULL,
+       source TEXT NOT NULL,
+       identifier TEXT NOT NULL,
+       name TEXT
+     )`,
+    `CREATE TABLE comments (
+       id TEXT PRIMARY KEY NOT NULL,
+       source TEXT NOT NULL,
+       identifier TEXT NOT NULL,
+       author_id TEXT NOT NULL,
+       activity_id TEXT,
+       object_id TEXT,
+       submission_id TEXT,
+       in_reply_to TEXT,
+       root TEXT NOT NULL,
+       reply_to TEXT,
+       content TEXT NOT NULL,
+       published TEXT NOT NULL,
+       received_at TEXT NOT NULL,
+       deleted_at TEXT,
+       promoted_at TEXT
+     )`,
+    `CREATE INDEX comments_by_thread ON comments (root, published)`,
+    `CREATE INDEX comments_by_actor ON comments (author_id, published)`,
+    `CREATE INDEX comments_by_object ON comments (object_id)`,
+    `DROP TABLE comments_drop_guard`,
+  ],
 ];
 
+/**
+ * Requires an empty application schema: every migration must accept empty tables.
+ * Record all versions so migrate() cannot replay non-idempotent migrations.
+ * Recovery may preload exported version rows to preserve their timestamps.
+ */
 export function schemaBootstrapStatements(): string[] {
+  const appliedAt = new Date().toISOString();
   return [
     `CREATE TABLE IF NOT EXISTS ${migrationsLocation.table} (${migrationsColumns.quotedColumns.version} INTEGER PRIMARY KEY, ${migrationsColumns.quotedColumns.appliedAt} TEXT NOT NULL)`,
-    ...MIGRATIONS,
+    ...MIGRATIONS.flat(),
+    ...MIGRATIONS.map((_migration, version) =>
+      `INSERT OR IGNORE INTO ${migrationsLocation.table} (${migrationsColumns.quotedColumns.version}, ${migrationsColumns.quotedColumns.appliedAt}) VALUES (${version}, '${appliedAt}')`,
+    ),
   ];
 }
 
@@ -166,16 +212,16 @@ export async function migrate(db: Database): Promise<number> {
 
   let count = 0;
   for (let version = applied + 1; version < MIGRATIONS.length; version++) {
-    // Sequential rather than batched: batching is driver-specific — D1 has
-    // `batch`, node:sqlite a transaction — and depending on either would make
-    // this file know which host it is on. Instead every statement is written to
-    // be safe to repeat, so a crash between the migration and its bookkeeping
-    // costs a re-run and nothing else.
-    await db.run(sql.raw(MIGRATIONS[version]));
-    await db.run(
-      sql`INSERT INTO ${sql.raw(migrationsLocation.table)} (${sql.raw(migrationsColumns.quotedColumns.version)}, ${sql.raw(migrationsColumns.quotedColumns.appliedAt)}) VALUES (${version}, ${new Date().toISOString()})`,
-    );
-    count++;
+    try {
+      await db.atomic([
+        `INSERT INTO ${migrationsLocation.table} (${migrationsColumns.quotedColumns.version}, ${migrationsColumns.quotedColumns.appliedAt}) VALUES (${version}, '${new Date().toISOString()}')`,
+        ...[MIGRATIONS[version]].flat(),
+      ]);
+      count++;
+    } catch (error) {
+      const completed = await db.all(sql`SELECT 1 FROM ${sql.raw(migrationsLocation.table)} WHERE ${sql.raw(migrationsColumns.quotedColumns.version)} = ${version}`);
+      if (completed.length === 0) throw error;
+    }
   }
   return count;
 }

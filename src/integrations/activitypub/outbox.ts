@@ -243,13 +243,13 @@ federation
     const ids = items.map((i) => ctx.getObjectUri(Note, { identifier: AP.user, slug: i.slug }).href);
     // Two grouped queries for the whole window, not two per post.
     const [replyTally, reactionTally] = await Promise.all([
-      replyCounts(ids),
+      replyCounts(items.map((item) => item.slug)),
       reactionCounts(ids),
     ]);
     const notes: Note[] = [];
     const all = items.map((item, i) => {
       const object = note(ctx, item, {
-        replies: replyTally.get(ids[i]) ?? 0,
+        replies: replyTally.get(item.slug) ?? 0,
         ...(reactionTally.get(ids[i]) ?? { likes: 0, shares: 0 }),
       });
       notes.push(object);
@@ -289,11 +289,11 @@ federation.setFeaturedDispatcher(`/users/{identifier}/featured`, async (ctx, ide
   if (identifier !== AP.user) return null;
   const pinned = (await allPosts()).filter((p) => p.data.pinned).map(fromPost);
   const ids = pinned.map((i) => ctx.getObjectUri(Note, { identifier, slug: i.slug }).href);
-  const [replyTally, reactionTally] = await Promise.all([replyCounts(ids), reactionCounts(ids)]);
+  const [replyTally, reactionTally] = await Promise.all([replyCounts(pinned.map((item) => item.slug)), reactionCounts(ids)]);
   return {
     items: pinned.map((item, i) =>
       note(ctx, item, {
-        replies: replyTally.get(ids[i]) ?? 0,
+        replies: replyTally.get(item.slug) ?? 0,
         ...(reactionTally.get(ids[i]) ?? { likes: 0, shares: 0 }),
       }),
     ),
@@ -323,11 +323,11 @@ federation.setObjectDispatcher(
     if (!item) return null;
     const id = ctx.getObjectUri(Note, { identifier, slug }).href;
     const [replyTally, reactionTally] = await Promise.all([
-      replyCounts([id]),
+      replyCounts([slug]),
       reactionCounts([id]),
     ]);
     return note(ctx, item, {
-      replies: replyTally.get(id) ?? 0,
+      replies: replyTally.get(slug) ?? 0,
       ...(reactionTally.get(id) ?? { likes: 0, shares: 0 }),
     });
   },
@@ -344,18 +344,16 @@ federation.setOrderedCollectionDispatcher(
   "replies",
   Note,
   `/users/{identifier}/notes/{slug}/replies`,
-  async (ctx, { identifier, slug }, cursor) => {
+  async (_ctx, { identifier, slug }, cursor) => {
     if (identifier !== AP.user) return null;
-    const id = ctx.getObjectUri(Note, { identifier, slug }).href;
     return page(
-      (await replies(id)).map((c) => new Note({ id: new URL(c.objectId) })),
+      (await replies(slug)).map((c) => new Note({ id: new URL(c.objectId) })),
       cursor,
     );
   },
-).setFirstCursor(FIRST).setCounter(async (ctx, { identifier, slug }) => {
+).setFirstCursor(FIRST).setCounter(async (_ctx, { identifier, slug }) => {
   if (identifier !== AP.user) return null;
-  const id = ctx.getObjectUri(Note, { identifier, slug }).href;
-  return (await replyCounts([id])).get(id) ?? 0;
+  return (await replyCounts([slug])).get(slug) ?? 0;
 });
 
 /**

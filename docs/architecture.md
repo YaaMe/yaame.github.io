@@ -50,10 +50,11 @@ What `src/lib/` exports:
 | | `noteHref(note)` | the note's URL |
 | | `noteHtml(note)` | the note's markup |
 | `interactions/comments.ts` | `commentsFor(slug)` | the promoted comments under one post or note |
-| | `handle(actorId)` | a stored actor id prepared for display |
-| `interactions/comment-view.ts` | `visibleComments()` | withdrawal and fixed-point tombstone visibility |
+| | `handle(author)` | the handle derived from an ActivityPub identity's actor URL |
+| `interactions/comment-view.ts` | `visibleComments()` | withdrawal and fixed-point tombstone visibility keyed by comment id |
 | `interactions/comment-runs.ts` | `runLabel()` / `renderedText()` | typed comment runs, prepared for display |
 | `interactions/comments-live.ts` | `liveCommentsFor(slug)` | the full profile's current withdrawal view |
+| `interactions/key-scheme.ts` | `identityId()` / `commentId()` | the authoritative namespace, source names and input normalisation; federated comment ids use the signing actor URL and Note object id |
 
 This list is everything the design layer can get. To add new data, add it
 here first.

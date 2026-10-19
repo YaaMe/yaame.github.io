@@ -23,6 +23,7 @@ import {
 import { toContent } from "./promote-text.mjs";
 import { commentHref, commentSchema } from "../src/lib/interactions/comment-schema.ts";
 import { promotedComments } from "../src/data.config.generated.mjs";
+import { SOURCES } from "../src/lib/interactions/key-scheme.ts";
 const promoteWriteBack = promotedComments.writeBack?.find((name) => name === "promote");
 if (!promoteWriteBack) {
   throw new Error("promoted-comments has no promote write-back in the data register");
@@ -70,21 +71,26 @@ export function validatePromotedComment(entry) {
 }
 
 export function promotionSql() {
-  return `SELECT ${column("activityId")}, ${column("objectId")}, ${column("rootId")},
-            ${column("replyToId")}, ${column("actorId")}, ${column("content")},
-            ${column("published")}
+  return `SELECT ${["id", "source", "identifier", "authorId", "activityId", "objectId", "inReplyTo", "root", "replyTo", "content", "published"].map(column).join(", ")}
      FROM ${table}
-     WHERE ${column("deletedAt")} IS NULL
+     WHERE ${column("deletedAt")} IS NULL AND ${column("source")} = '${SOURCES.activitypub}'
      ORDER BY ${column("published")} ASC`;
 }
 
 export function promotedComment(row) {
   return {
+    id: rowValue(row, "id"),
+    source: rowValue(row, "source"),
     activityId: rowValue(row, "activityId"),
     objectId: rowValue(row, "objectId"),
-    rootId: rowValue(row, "rootId"),
-    replyToId: rowValue(row, "replyToId"),
-    actorId: rowValue(row, "actorId"),
+    inReplyTo: rowValue(row, "inReplyTo"),
+    root: rowValue(row, "root"),
+    replyTo: rowValue(row, "replyTo"),
+    author: {
+      id: rowValue(row, "authorId"),
+      source: rowValue(row, "source"),
+      identifier: rowValue(row, "identifier"),
+    },
     content: toContent(rowValue(row, "content")),
     published: rowValue(row, "published"),
   };
@@ -113,8 +119,8 @@ export async function actorName(actorId) {
 /** Build the injected open-PR reader from a fetched branch or PR ref. */
 export function gitPullRequestState(ref) {
   const documents = new Map(readRefDocuments(ref).map(({ path, document }) => [path, document]));
-  const state = ({ path, activityId }) => {
-    return entryFor(documents.get(path), activityId) !== undefined;
+  const state = ({ path, id }) => {
+    return entryFor(documents.get(path), id) !== undefined;
   };
   state.documents = () => [...documents].map(([path, document]) => ({ path, document }));
   return state;
@@ -141,29 +147,29 @@ export function computeStates({
   }]));
   const states = [];
   const additions = [];
-  const selectedIds = new Set(selected.map(({ activityId }) => activityId));
+  const selectedIds = new Set(selected.map(({ id }) => id));
 
   for (const document of documents) {
     for (const entry of document.document.comments ?? []) {
-      mainById.set(entry.activityId, { path: document.path, entry });
+      mainById.set(entry.id, { path: document.path, entry });
     }
   }
 
   for (const entry of selected) {
-    const existing = mainById.get(entry.activityId);
+    const existing = mainById.get(entry.id);
     if (existing) {
-      states.push({ activityId: entry.activityId, state: PROMOTION_STATES.WRITTEN_BACK });
+      states.push({ id: entry.id, state: PROMOTION_STATES.WRITTEN_BACK });
       continue;
     }
 
-    const path = fileForComment(entry.rootId);
+    const path = fileForComment(entry.root);
     if (path === null) continue;
     const proposed = pullRequestState({
-      activityId: entry.activityId,
+      id: entry.id,
       path,
     });
     const state = proposed ? PROMOTION_STATES.PROPOSED : PROMOTION_STATES.PENDING;
-    states.push({ activityId: entry.activityId, state, path });
+    states.push({ id: entry.id, state, path });
     additions.push({ path, entry });
   }
 
@@ -178,18 +184,18 @@ export function computeStates({
   }
 
   const staleProposal = pullRequestDocuments.some(({ document }) =>
-    (document.comments ?? []).some(({ activityId }) =>
-      !selectedIds.has(activityId) && !mainById.has(activityId)));
+    (document.comments ?? []).some(({ id }) =>
+      !selectedIds.has(id) && !mainById.has(id)));
 
   const writes = [...plansByPath.values()].flatMap((plan) => {
     if (plan.additions.length === 0) return [];
     const commentsBefore = plan.before.comments ?? [];
     const commentsAfter = [...commentsBefore];
-    const seen = new Set(commentsAfter.map((entry) => entry.activityId));
+    const seen = new Set(commentsAfter.map((entry) => entry.id));
     for (const entry of plan.additions) {
-      if (!seen.has(entry.activityId)) {
+      if (!seen.has(entry.id)) {
         commentsAfter.push(entry);
-        seen.add(entry.activityId);
+        seen.add(entry.id);
       }
     }
     commentsAfter.sort((a, b) => a.published.localeCompare(b.published));
@@ -212,7 +218,7 @@ export function computeStates({
 }
 
 function printStates(states) {
-  for (const { activityId, state } of states) console.error(`  ${activityId}: ${state}`);
+  for (const { id, state } of states) console.error(`  ${id}: ${state}`);
 }
 
 export async function main({
@@ -234,33 +240,33 @@ export async function main({
   const threads = new Map();
   for (const row of inputRows) {
     const comment = promotedComment(row);
-    const thread = threads.get(comment.rootId) ?? [];
+    const thread = threads.get(comment.root) ?? [];
     thread.push(comment);
-    threads.set(comment.rootId, thread);
+    threads.set(comment.root, thread);
   }
 
   const documents = suppliedDocuments ?? readDocuments(dir);
   const existingIds = new Set(documents.flatMap(({ document }) =>
-    (document.comments ?? []).map(({ activityId }) => activityId)));
+    (document.comments ?? []).map(({ id }) => id)));
   const selected = [];
   const invalid = [];
   for (const thread of threads.values()) {
     for (const candidate of selectedBy(thread) ?? []) {
-      if (selected.some(({ activityId }) => activityId === candidate.activityId)) continue;
-      if (fileForComment(candidate.rootId) === null) {
-        invalid.push({ activityId: candidate.activityId, reason: "unrecognised root" });
-        console.warn(`  ✗ ${candidate.activityId}: unrecognised root`);
+      if (selected.some(({ id }) => id === candidate.id)) continue;
+      if (fileForComment(candidate.root) === null) {
+        invalid.push({ id: candidate.id, reason: "unrecognised root" });
+        console.warn(`  ✗ ${candidate.id}: unrecognised root`);
         continue;
       }
       let entry = candidate;
-      if (!existingIds.has(candidate.activityId)) {
-        const name = await nameOf(candidate.actorId);
-        if (name) entry = { ...candidate, name };
+      if (!existingIds.has(candidate.id)) {
+        const name = await nameOf(candidate.author.identifier);
+        if (name) entry = { ...candidate, author: { ...candidate.author, name } };
       }
       const checked = validatePromotedComment(entry);
       if (!checked.ok) {
-        invalid.push({ activityId: candidate.activityId, reason: checked.reason });
-        console.warn(`  ✗ ${candidate.activityId}: ${checked.reason}`);
+        invalid.push({ id: candidate.id, reason: checked.reason });
+        console.warn(`  ✗ ${candidate.id}: ${checked.reason}`);
         continue;
       }
       selected.push(checked.value);

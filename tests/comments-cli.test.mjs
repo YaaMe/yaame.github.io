@@ -1,33 +1,34 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { main as promoteMain } from "../scripts/promote.mjs";
 import { main as tombstoneMain } from "../scripts/tombstone.mjs";
 import { main as unpromoteMain } from "../scripts/unpromote.mjs";
+import { byFollowing } from "../scripts/promote-filter.mjs";
+import { storedComment } from "./fixtures/interactions.mjs";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
-const row = (name, extra = {}) => ({
+const row = (name, extra = {}) => storedComment(name, {
   activityId: `https://social.test/activities/${name}`,
   objectId: `https://social.test/objects/${name}`,
-  rootId: "https://blog.test/users/owner/notes/2026-10",
-  actorId: `https://social.test/users/${name}`,
-  replyToId: null,
-  content: `<p>${name}</p>`,
-  published: "2026-10-10T00:00:00Z",
+  root: "2026-10",
+  inReplyTo: "https://blog.test/users/owner/notes/2026-10",
+  identifier: `https://social.test/users/${name}`,
   ...extra,
 });
 
 function fixture(t) {
-  const cwd = mkdtempSync(join(tmpdir(), "blogu-52-comments-cli-"));
+  const cwd = mkdtempSync(join(root, ".tmp-comments-cli-"));
+  t.after(() => rmSync(cwd, { recursive: true, force: true }));
   for (const path of [
     "scripts/promote.mjs", "scripts/promote-filter.mjs", "scripts/promote-text.mjs",
     "scripts/tombstone.mjs", "scripts/unpromote.mjs", "scripts/comments-store.mjs",
     "scripts/comments-rows.mjs",
     "scripts/comments-cli.mjs", "src/lib/interactions/comment-schema.ts", "src/data.config.generated.mjs",
+    "src/lib/interactions/records.ts", "src/lib/interactions/key-scheme.ts",
   ]) {
     const target = join(cwd, path);
     mkdirSync(dirname(target), { recursive: true });
@@ -41,8 +42,7 @@ function fixture(t) {
   const archive = join(cwd, "src/content/comments/posts/2026-10.json");
   const fileForComment = () => archive;
   const filter = (thread) => {
-    const followed = JSON.parse(readFileSync(following, "utf8")).follow;
-    return thread.filter((comment) => followed.includes(`${comment.actorId.split("/").at(-1)}@social.test`));
+    return byFollowing(JSON.parse(readFileSync(following, "utf8")))(thread);
   };
   const run = (name, input, args = [], env = {}) => spawnSync(process.execPath, [
     "--experimental-strip-types", `scripts/${name}.mjs`,
@@ -69,12 +69,12 @@ function fixture(t) {
 // following changes revisit stored rows, and unfollowing cannot remove git data.
 test("JSON promotion previews, backfills a new follow, and remains add-only", async (t) => {
   const { archive, follow, result } = fixture(t);
-  const input = { rows: [row("alice"), row("bob")], actorNames: { [row("alice").actorId]: "Alice" } };
+  const input = { rows: [row("alice"), row("bob")], actorNames: { [row("alice").identifier]: "Alice" } };
   const preview = await result("promote", input);
-  assert.deepEqual(preview.states.map(({ activityId, state }) => [activityId, state]), [[row("alice").activityId, "pending"]]);
+  assert.deepEqual(preview.states.map(({ id, state }) => [id, state]), [[row("alice").id, "pending"]]);
   assert.equal(existsSync(archive), false);
   await result("promote", { ...input, apply: true });
-  assert.equal(JSON.parse(readFileSync(archive, "utf8")).comments[0].name, "Alice");
+  assert.equal(JSON.parse(readFileSync(archive, "utf8")).comments[0].author.name, "Alice");
   follow(["alice", "bob"]);
   const backfill = await result("promote", { ...input, apply: true });
   assert.deepEqual(backfill.states.map(({ state }) => state), ["written back", "pending"]);
@@ -88,12 +88,13 @@ test("JSON promotion previews, backfills a new follow, and remains add-only", as
 test("JSON promotion reports invalid content and writes the valid selection", async (t) => {
   const { archive, result } = fixture(t);
   const output = await result("promote", {
-    rows: [row("bad", { actorId: row("alice").actorId, content: `<p>${"x".repeat(10001)}</p>` }), row("alice")],
+    rows: [row("bad", { identifier: row("alice").identifier, content: `<p>${"x".repeat(10001)}</p>` }), row("alice")],
     actorNames: {},
     apply: true,
   });
   assert.equal(output.invalid.length, 1);
-  assert.deepEqual(JSON.parse(readFileSync(archive, "utf8")).comments.map(({ activityId }) => activityId), [row("alice").activityId]);
+  assert.match(output.invalid[0].reason, /content exceeds 10000 characters/);
+  assert.deepEqual(JSON.parse(readFileSync(archive, "utf8")).comments.map(({ id }) => id), [row("alice").id]);
 });
 
 // Interface/order: a preview yields no SQL deletion request; applying edits git
@@ -101,7 +102,7 @@ test("JSON promotion reports invalid content and writes the valid selection", as
 test("JSON unpromote only hands back a deletion after editing the archive", async (t) => {
   const { archive, result } = fixture(t);
   await result("promote", { rows: [row("alice")], actorNames: {}, apply: true });
-  const input = { id: row("alice").activityId, rows: [row("alice")] };
+  const input = { id: row("alice").id, rows: [row("alice")] };
   assert.equal((await result("unpromote", input)).deleteId, undefined);
   assert.equal(existsSync(archive), true);
   assert.equal((await result("unpromote", { ...input, apply: true })).deleteId, input.id);
@@ -112,7 +113,7 @@ test("JSON unpromote only hands back a deletion after editing the archive", asyn
 test("JSON tombstones converge after removing the last comment file", async (t) => {
   const { archive, result } = fixture(t);
   await result("promote", { rows: [row("alice")], actorNames: {}, apply: true });
-  const input = { rows: [{ activityId: row("alice").activityId, deletedAt: "2026-10-12T00:00:00Z" }] };
+  const input = { rows: [{ id: row("alice").id, deletedAt: "2026-10-12T00:00:00Z" }] };
   assert.equal((await result("tombstone", input)).states[0].state, "pending");
   assert.equal(existsSync(archive), true);
   await result("tombstone", { ...input, apply: true });
@@ -124,9 +125,30 @@ test("JSON tombstones converge after removing the last comment file", async (t) 
 test("JSON commands reject missing rows", (t) => {
   const { archive, run } = fixture(t);
   for (const operation of ["promote", "tombstone", "unpromote"]) {
-    const output = run(operation, { id: row("alice").activityId });
+    const output = run(operation, { id: row("alice").id });
     assert.equal(output.status, 1, `${operation}: ${output.stderr}`);
+    assert.match(output.stderr, /Expected an object with rows on stdin/);
     assert.equal(output.stdout, "");
     assert.equal(existsSync(archive), false);
   }
+});
+
+test("JSON commands load their schema dependencies and accept valid input", (t) => {
+  const { archive, run } = fixture(t);
+  for (const operation of ["promote", "tombstone"]) {
+    const output = run(operation, { rows: [] });
+    assert.equal(output.status, 0, `${operation}: ${output.stderr}`);
+    const result = JSON.parse(output.stdout);
+    assert.deepEqual(result.states, []);
+    assert.deepEqual(result.writes, []);
+    assert.equal(result.shouldWrite, false);
+  }
+  const target = row("alice");
+  const output = run("unpromote", { rows: [target] }, ["--id", target.id]);
+  assert.equal(output.status, 0, output.stderr);
+  const result = JSON.parse(output.stdout);
+  assert.deepEqual(result.d1, { present: true, id: target.id });
+  assert.equal(result.archive.present, false);
+  assert.equal(result.deleteId, undefined);
+  assert.equal(existsSync(archive), false);
 });

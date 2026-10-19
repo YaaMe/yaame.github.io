@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Remove one promoted comment from the archive at the owner's explicit request.
- * The platform entry point supplies rows and deletes the returned activity id
+ * The platform entry point supplies rows and deletes the returned comment id
  * after the file write, so a failed database command leaves a retryable source.
  */
 import { column, rowValue, table } from "./comments-rows.mjs";
@@ -13,13 +13,13 @@ function sqlLiteral(value) {
 }
 
 export function selectSql(id) {
-  return `SELECT ${column("activityId")}, ${column("rootId")}, ${column("actorId")},
+  return `SELECT ${column("id")}, ${column("root")}, ${column("identifier")},
             ${column("content")} FROM ${table}
-   WHERE ${column("activityId")} = ${sqlLiteral(id)}`;
+   WHERE ${column("id")} = ${sqlLiteral(id)}`;
 }
 
 export function deleteSql(id) {
-  return `DELETE FROM ${table} WHERE ${column("activityId")} = ${sqlLiteral(id)}`;
+  return `DELETE FROM ${table} WHERE ${column("id")} = ${sqlLiteral(id)}`;
 }
 
 function textOf(value) {
@@ -36,7 +36,7 @@ function textOf(value) {
 }
 
 function commentSummary(entry, row) {
-  const author = entry?.name ?? entry?.actorId ?? rowValue(row, "actorId") ?? "unknown author";
+  const author = entry?.author?.name ?? entry?.author?.identifier ?? rowValue(row, "identifier") ?? "unknown author";
   const firstLine = textOf(entry?.content ?? rowValue(row, "content"))
     .replace(/\r/g, "")
     .split("\n", 1)[0]
@@ -47,9 +47,9 @@ function commentSummary(entry, row) {
 }
 
 export function main({ id, dir = DIR, apply = false, rows } = {}) {
-  if (!id) throw new Error("unpromote requires an activity id");
+  if (!id) throw new Error("unpromote requires a comment id");
   if (!Array.isArray(rows)) throw new Error("unpromote requires rows on stdin");
-  const row = rows.find((candidate) => rowValue(candidate, "activityId") === id);
+  const row = rows.find((candidate) => rowValue(candidate, "id") === id);
   const located = locate(readDocuments(dir), id);
   const entry = located?.document.comments[located.index];
 

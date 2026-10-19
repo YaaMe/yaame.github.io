@@ -6,7 +6,8 @@ import { join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { DatabaseSync } from "node:sqlite";
-import { drizzle } from "drizzle-orm/node-sqlite";
+import { database as nodeDatabase } from "../src/platform/node/database.ts";
+import { seedComment, storedComment } from "./fixtures/interactions.mjs";
 import { migrate } from "../src/integrations/activitypub/store/schema.ts";
 import { comments, reactions } from "../src/data.config.generated.mjs";
 import registerData from "../src/data.config.json" with { type: "json" };
@@ -29,13 +30,11 @@ async function fixture() {
     try {
       database.exec("CREATE TABLE _cf_KV (key TEXT PRIMARY KEY, value TEXT); INSERT INTO _cf_KV VALUES ('internal', 'preserve'); CREATE TABLE d1_migrations (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT); INSERT INTO d1_migrations (name) VALUES ('internal')");
       if (path === source) {
-        await migrate(drizzle({ client: database }));
+        await migrate(nodeDatabase(database));
         database.prepare(`INSERT INTO ${reactions.table} (${Object.values(reactions.quotedColumns).join(", ")}) VALUES (?, ?, ?, ?, ?, ?)`).run(
           "reaction-1", "object-1", "actor-1", "Like", "2026-10-13", null,
         );
-        database.prepare(`INSERT INTO ${comments.table} (${Object.values(comments.quotedColumns).join(", ")}) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
-          "comment-1", "note-1", "root-1", null, "actor-1", "你好 'quoted'; -- ?", "2026-10-12", "2026-10-13", null, null,
-        );
+        seedComment(database, "one", { content: "你好 'quoted'; -- ?" });
       }
     } finally {
       database.close();
@@ -73,7 +72,7 @@ test("D1 entry points round-trip through fake Wrangler and the reference facilit
   assert.equal(exported.status, 0, exported.stderr);
   assert.equal(existsSync(input), false);
   const document = JSON.parse(exported.stdout);
-  assert.deepEqual(Object.keys(document.entries), ["reactions", "migrations", "comments"]);
+  assert.deepEqual(Object.keys(document.entries), ["reactions", "migrations", "comments", "visitor-identities"]);
   assert.equal(document.entries.comments.records[0].records[0].content, "你好 'quoted'; -- ?");
   assert.doesNotMatch(exported.stdout, /fixture-token|_cf_KV|d1_migrations/);
   const reference = new InMemoryRecoveryFacility();
@@ -83,7 +82,7 @@ test("D1 entry points round-trip through fake Wrangler and the reference facilit
   writeFileSync(input, JSON.stringify(fromReference));
   const preview = run("import", ["--file", input]);
   assert.equal(preview.status, 0, preview.stderr);
-  assert.equal(JSON.parse(preview.stdout).writes.length, 3);
+  assert.equal(JSON.parse(preview.stdout).writes.length, 4);
   assert.deepEqual(readFileSync(target), targetBefore);
   const imported = run("import", ["--apply", "--file", input]);
   assert.equal(imported.status, 0, imported.stderr);
@@ -136,6 +135,10 @@ test("D1 validates malformed late payloads before sending any write", async () =
     [(document) => { document.entries.comments.records[0].layer = 2; }, /invalid layer records/],
     [(document) => { delete document.entries.comments.records[0].records[0].content; }, /logical SQL column names/],
     [(document) => { document.entries.comments.records[0].records[0].content = {}; }, /JSON scalar/],
+    [(document) => { document.version = 1; }, /Older exports cannot be imported/],
+    [(document) => { document.entries.comments.records[0].records[0].content = null; }, /expected string/],
+    [(document) => { document.entries.comments.records[0].records[0].objectId += "changed"; }, /inputs do not compute/],
+    [(document) => { document.entries["visitor-identities"].records[0].records[0].identifier += "changed"; }, /inputs do not compute/],
   ];
   for (const [change, expected] of cases) {
     const document = structuredClone(original);
@@ -164,8 +167,7 @@ test("D1 constraint failures roll back the whole fake import; preview does not c
   const original = JSON.parse(exported.stdout);
   const before = readFileSync(target);
   for (const mutate of [
-    (rows) => { rows[0].content = null; },
-    (rows) => { rows.push({ ...rows[0], activityId: "another-activity" }); },
+    (rows) => { rows.push({ ...rows[0] }); },
   ]) {
     const document = structuredClone(original);
     mutate(document.entries.comments.records[0].records);
@@ -179,7 +181,7 @@ test("D1 constraint failures roll back the whole fake import; preview does not c
     assert.equal(rejected.stdout, "");
     assert.deepEqual(readFileSync(target), before);
   }
-  assert.equal(recordedCalls(calls).filter((call) => call.importing).length, 2);
+  assert.equal(recordedCalls(calls).filter((call) => call.importing).length, 1);
 });
 
 test("D1 refuses unrelated user schema even when it contains no rows", async () => {
@@ -223,18 +225,19 @@ test("D1 export writes a protected file only on apply and preserves it on failur
 });
 
 test("D1's CLI encoding preserves bindings without interpreting values or quoted identifiers", () => {
+  const comment = storedComment("d1-bindings");
   const selected = {
-    data: { recovery: "keep", layers: [{ sql: 'odd ? "table', columns: { id: "row?", text: 'a "column?' } }] },
+    "visitor-identities": { recovery: "keep", layers: [{ sql: 'odd ? "table', columns: { id: "row?", source: "source", identifier: "identifier", name: 'a "column?' } }] },
   };
   const database = new DatabaseSync(":memory:");
   try {
-    database.exec('CREATE TABLE "odd ? ""table" ("row?" INTEGER, "a ""column?" TEXT); CREATE TABLE untouched (id INTEGER); INSERT INTO untouched VALUES (9)');
+    database.exec('CREATE TABLE "odd ? ""table" ("row?" TEXT, source TEXT, identifier TEXT, "a ""column?" TEXT); CREATE TABLE untouched (id INTEGER); INSERT INTO untouched VALUES (9)');
     const text = "'); DROP TABLE untouched; -- ? 你好\n\u0000after";
-    const statements = sqlInsertStatements(selected, { writes: [{ action: "insert", kind: "data", layer: 0, rows: [{ id: 1, text }] }] });
+    const statements = sqlInsertStatements(selected, { writes: [{ action: "insert", kind: "visitor-identities", layer: 0, rows: [{ id: comment.authorId, source: comment.source, identifier: comment.identifier, name: text }] }] });
     database.exec(statements.map(d1StatementText).join(";\n"));
     assert.equal(database.prepare('SELECT hex("a ""column?") AS text FROM "odd ? ""table"').get().text, Buffer.from(text).toString("hex").toUpperCase());
     assert.equal(database.prepare("SELECT id FROM untouched").get().id, 9);
-    assert.equal(database.prepare(d1StatementText(sqlSnapshotStatements(selected)[0])).get().id, 1);
+    assert.equal(database.prepare(d1StatementText(sqlSnapshotStatements(selected)[0])).get().id, comment.authorId);
     assert.equal(database.prepare(d1StatementText({ sql: "SELECT '?' AS literal, ? AS value", parameters: [7] })).get().value, 7);
     assert.throws(() => d1StatementText({ sql: "SELECT ?", parameters: [] }), /unsupported parameter/);
     assert.throws(() => d1StatementText({ sql: "SELECT 1", parameters: [2] }), /invalid bindings/);
@@ -392,7 +395,7 @@ test("#58 a completed D1 import reports its result and leftover recovery data wh
   assert.equal(restored.stdout, exported.stdout);
 });
 
-test("D1 imports empty selected layers without introducing a generated migration ledger", async () => {
+test("D1 imports empty selected layers and records the bootstrapped migrations", async () => {
   const { input, target, run } = await fixture();
   const document = await exportRecovery({ register, facilities: { sql: new InMemoryRecoveryFacility() } });
   writeFileSync(input, JSON.stringify(document));
@@ -400,5 +403,41 @@ test("D1 imports empty selected layers without introducing a generated migration
   assert.equal(imported.status, 0, imported.stderr);
   const after = run("export", [], target);
   assert.equal(after.status, 0, after.stderr);
-  assert.deepEqual(JSON.parse(after.stdout), document);
+  const restored = JSON.parse(after.stdout);
+  assert.deepEqual(restored.entries.migrations.records[0].records.map(({ version }) => version), [0, 1, 2, 3, 4, 5]);
+  restored.entries.migrations = document.entries.migrations;
+  assert.deepEqual(restored, document);
+  const database = new DatabaseSync(target);
+  try {
+    assert.equal(await migrate(nodeDatabase(database)), 0);
+  } finally {
+    database.close();
+  }
 });
+
+for (const ledger of ["empty", "incomplete"]) {
+  test(`D1 restores populated data with an ${ledger} migration ledger and can migrate again`, async () => {
+    const { source, target, input, run } = await fixture();
+    const exported = run("export", [], source);
+    assert.equal(exported.status, 0, exported.stderr);
+    const document = JSON.parse(exported.stdout);
+    const migrations = document.entries.migrations.records[0];
+    migrations.records = ledger === "empty" ? [] : migrations.records.slice(0, -1);
+    writeFileSync(input, JSON.stringify(document));
+    const imported = run("import", ["--apply", "--file", input]);
+    assert.equal(imported.status, 0, imported.stderr);
+    const database = new DatabaseSync(target);
+    try {
+      const before = database.prepare("SELECT * FROM comments").all();
+      assert.equal(before[0].content, "你好 'quoted'; -- ?");
+      assert.equal(await migrate(nodeDatabase(database)), 0);
+      assert.deepEqual(database.prepare("SELECT * FROM comments").all(), before);
+      assert.deepEqual(database.prepare("SELECT version FROM migrations ORDER BY version").all().map(({ version }) => version), [0, 1, 2, 3, 4, 5]);
+      for (const record of migrations.records) {
+        assert.equal(database.prepare("SELECT applied_at FROM migrations WHERE version = ?").get(record.version).applied_at, record.appliedAt);
+      }
+    } finally {
+      database.close();
+    }
+  });
+}

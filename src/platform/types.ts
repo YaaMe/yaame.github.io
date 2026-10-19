@@ -59,4 +59,6 @@ export interface Platform {
  * See docs/decisions/0007-interactions-live-in-a-database-the-host-provides.md.
  */
 // biome-ignore lint/suspicious/noExplicitAny: the two drivers differ only here
-export type Database = SQLiteAsyncDatabase<any, any>;
+export type Database = SQLiteAsyncDatabase<any, any> & {
+  atomic(statements: string[]): Promise<void>;
+};

@@ -1,7 +1,7 @@
 import { env } from "cloudflare:workers";
 import { MemoryKvStore } from "@fedify/fedify";
 import { WorkersMessageQueue } from "@fedify/cfworkers";
-import { drizzle } from "drizzle-orm/d1";
+import { database } from "./database";
 import type { Platform } from "../types";
 
 /**
@@ -46,7 +46,7 @@ Object.defineProperty(platform, "db", {
   enumerable: true,
   get(): Platform["db"] {
     const d1 = (env as { AP_DB?: D1Database }).AP_DB;
-    return d1 ? drizzle(d1) : false;
+    return d1 ? database(d1) : false;
   },
 });
 

@@ -36,10 +36,10 @@ const safeHref = (value: string) => {
           {comments.map((c) => (
             <li>
               <p class="who">
-                <a href={safeHref(c.actorId)} rel="nofollow ugc">
-                  {c.name ?? handle(c.actorId)}
+                <a href={safeHref(c.author.identifier)} rel="nofollow ugc">
+                  {c.author.name ?? handle(c.author)}
                 </a>
-                {c.name && <span class="at">{handle(c.actorId)}</span>}
+                {c.author.name && <span class="at">{handle(c.author)}</span>}
                 <a class="when" href={safeHref(c.objectId)} rel="nofollow ugc">
                   <time datetime={c.published}>{stamp(c.published)}</time>
                 </a>

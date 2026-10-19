@@ -19,7 +19,7 @@ option followed by another option is a usage error.
 
 The commands run from the repository root. Promotion and tombstone also read
 `PROMOTION_PR_REF` or `TOMBSTONE_PR_REF`; unpromotion requires
-`ID=<activity-id>`. Unpromotion removes the archive entry when present and the
+`ID=<comment-id>`. This is the comment's internal UUID v5. Unpromotion removes the archive entry when present and the
 D1 row when present; an id absent from both stores fails. Its preview reports
 each location, the entry's author and first line, and the D1 action. Make
 wrappers pass `APPLY=1` as `--apply` and otherwise pass `--dry-run`.

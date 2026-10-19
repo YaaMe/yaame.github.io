@@ -58,28 +58,39 @@ when invoked through a renamed file or a filesystem alias.
 
 ## The intermediate format
 
-The document is JSON and names both its format and its version. Version 1 has
+The document is JSON and names both its format and its version. Version 2 has
 one `entries` member for every register entry whose `recovery` is `keep`. Each
 entry has one record payload for every non-git layer it declares; `layer` is
 the zero-based layer position in the register entry. Git layers are part of the
 repository base and are moved by the git SOP below, so they have no payload in
 this document. They are listed in `gitBase` so the selection is explicit.
 
+Version 2 adds visitor identities and the new comment columns. Imports reject
+older exports before writing; there is no converter. Until the first formal
+release, this beta format promises no compatibility between versions.
+
+This example shows a register slice containing comments and visitor identities:
+
 ```json
 {
   "format": "blogu-recovery",
-  "version": 1,
+  "version": 2,
   "entries": {
     "comments": {
       "records": [
         {
           "layer": 0,
           "records": [{
+            "id": "59b0de38-6b8a-5980-8041-4dd444e0f77b",
+            "source": "activitypub",
+            "identifier": "https://remote.example/users/alice",
+            "authorId": "41f8ae2c-2259-5c87-ae1e-a30790fca407",
             "activityId": "https://remote.example/activities/1",
             "objectId": "https://remote.example/notes/1",
-            "rootId": null,
-            "replyToId": null,
-            "actorId": "https://remote.example/users/alice",
+            "submissionId": null,
+            "inReplyTo": "https://yaame.dev/users/yaame/notes/2026-10",
+            "root": "2026-10",
+            "replyTo": null,
             "content": "Hello",
             "published": "2026-10-12T00:00:00.000Z",
             "receivedAt": "2026-10-12T00:00:01.000Z",
@@ -89,22 +100,23 @@ this document. They are listed in `gitBase` so the selection is explicit.
         }
       ]
     },
-    "promoted-comments": {
+    "visitor-identities": {
       "records": [
         {
-          "layer": 1,
-          "records": { "deletedAt": null, "promotedAt": "2026-10-12T00:00:02.000Z" }
+          "layer": 0,
+          "records": [{
+            "id": "41f8ae2c-2259-5c87-ae1e-a30790fca407",
+            "source": "activitypub",
+            "identifier": "https://remote.example/users/alice",
+            "name": "Alice"
+          }]
         }
       ]
     }
   },
-  "gitBase": [
-    { "kind": "promoted-comments", "layer": 0 }
-  ],
-  "leftOut": [
-    { "kind": "sessions", "recovery": "ephemeral", "reason": "ephemeral on restore" }
-  ],
-  "ownerHeld": ["AP_KEY_JWK"]
+  "gitBase": [],
+  "leftOut": [],
+  "ownerHeld": []
 }
 ```
 
@@ -123,6 +135,14 @@ facility can be imported by another facility for the same store kind:
   payload; other host-neutral layer kinds use their declared facility contract.
 
 The contract validates these shapes on export and before the first import write.
+For comments and visitor identities, it also recomputes each id from the
+stored inputs. A federated comment's inputs are its source, signing actor URL
+and Note `objectId`; `activityId` remains a stored delivery attribute. The
+raw-SQL statement builder repeats that validation before returning any
+statements. Inserts place identities before their comments on both hosts.
+The application maintains `author_id` and `reply_to` as conceptual references;
+the database deliberately enforces no foreign keys. Reactions retain their
+existing columns and `activity_id` keys until issue #71.
 It is not a database dump and must not contain credentials. The register layer
 position keeps multiple layers of one entry distinct.
 
@@ -141,7 +161,7 @@ register it is given. It validates the whole document and all facility coverage
 before the first facility import call. An unknown version therefore fails
 without writing anything. A facility failure is reported as a
 `RecoveryError` with `code` `RECOVERY_EXPORT_FAILED` or
-`RECOVERY_IMPORT_FAILED`; an entry is never silently skipped. Version 1 ignores
+`RECOVERY_IMPORT_FAILED`; an entry is never silently skipped. Version 2 ignores
 unknown wrapper fields and entry ordering, while the format and version fields,
 the selected entry names, and every declared layer remain required.
 
@@ -464,11 +484,12 @@ peer range. `npm ci` keeps that locked version. Older Wrangler 2.x split large
 files into separate batches, so the guarantee depends on the version and
 must be rechecked when updating the lockfile.
 
-The file first checks that user schema is still absent, then bootstraps the runtime's
-append-only schema history and inserts every selected payload, including the
-exported migration ledger. `schemaBootstrapStatements()` in
-`src/integrations/activitypub/store/schema.ts` supplies the same schema history
-as the runtime; recovery does not invent migrations or timestamps. There are
+The file first checks that user schema is still absent, then creates the migration
+table and restores the exported migration ledger. `schemaBootstrapStatements()` in
+`src/integrations/activitypub/store/schema.ts` applies the runtime's full schema
+history and records any missing versions with the bootstrap timestamp. Exported
+version rows keep their timestamps. The file then inserts the remaining selected
+payloads, so the next runtime migration leaves restored data intact. There are
 no per-row remote writes, merge, table clearing or partial-batch retries. The
 generated SQL contains no `BEGIN`, `COMMIT` or `SAVEPOINT`; D1 rejects them.
 

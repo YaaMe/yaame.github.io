@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { storedComment } from "./fixtures/interactions.mjs";
 
 import {
   RECOVERY_FORMAT,
@@ -221,9 +222,11 @@ test("missing import coverage is rejected before another facility writes", async
 });
 
 test("SQL payloads use logical columns across facilities with different physical names", async () => {
+  const comment = storedComment("recovery-columns");
+  const identity = { id: comment.authorId, source: comment.source, identifier: comment.identifier, name: "hello" };
   const sourceRegister = {
-    events: {
-      layers: [{ sql: "events", columns: { id: "source_id", body: "source_body" } }],
+    "visitor-identities": {
+      layers: [{ sql: "events", columns: { id: "source_id", source: "source_source", identifier: "source_identifier", name: "source_body" } }],
       writeBack: [],
       origin: "owner",
       recovery: "keep",
@@ -232,18 +235,18 @@ test("SQL payloads use logical columns across facilities with different physical
     },
   };
   const targetRegister = {
-    events: {
-      ...sourceRegister.events,
-      layers: [{ sql: "events", columns: { id: "target_id", body: "target_body" } }],
+    "visitor-identities": {
+      ...sourceRegister["visitor-identities"],
+      layers: [{ sql: "events", columns: { id: "target_id", source: "target_source", identifier: "target_identifier", name: "target_body" } }],
     },
   };
   const sourceFacility = new InMemoryRecoveryFacility({
-    events: [{ source_id: "one", source_body: "hello" }],
+    "visitor-identities": [{ source_id: identity.id, source_source: identity.source, source_identifier: identity.identifier, source_body: identity.name }],
   });
   const document = await exportRecovery({ register: sourceRegister, facilities: { sql: sourceFacility } });
 
-  assert.deepEqual(document.entries.events.records, [
-    { layer: 0, records: [{ id: "one", body: "hello" }] },
+  assert.deepEqual(document.entries["visitor-identities"].records, [
+    { layer: 0, records: [identity] },
   ]);
 
   const targetFacility = new InMemoryRecoveryFacility();
@@ -252,15 +255,16 @@ test("SQL payloads use logical columns across facilities with different physical
     await exportRecovery({ register: targetRegister, facilities: { sql: targetFacility } }),
     document,
   );
-  assert.deepEqual(targetFacility.snapshot()["events\u00000"], [
-    { target_id: "one", target_body: "hello" },
+  assert.deepEqual(targetFacility.snapshot()["visitor-identities\u00000"], [
+    { target_id: identity.id, target_source: identity.source, target_identifier: identity.identifier, target_body: identity.name },
   ]);
 });
 
 test("invalid typed payloads are rejected before any facility writes", async () => {
+  const comment = storedComment("invalid-sql-type");
   const sqlRegister = {
-    events: {
-      layers: [{ sql: "events", columns: { id: "event_id" } }],
+    "visitor-identities": {
+      layers: [{ sql: "events", columns: { id: "event_id", source: "source", identifier: "identifier", name: "name" } }],
       writeBack: [],
       origin: "owner",
       recovery: "keep",
@@ -273,7 +277,7 @@ test("invalid typed payloads are rejected before any facility writes", async () 
     format: RECOVERY_FORMAT,
     version: RECOVERY_FORMAT_VERSION,
     entries: {
-      events: { records: [{ layer: 0, records: [{ id: { nested: true } }] }] },
+      "visitor-identities": { records: [{ layer: 0, records: [{ id: { nested: true }, source: comment.source, identifier: comment.identifier, name: null }] }] },
     },
     gitBase: [],
     leftOut: [],
@@ -286,7 +290,7 @@ test("invalid typed payloads are rejected before any facility writes", async () 
       register: sqlRegister,
       facilities: { sql: { export: () => [], import: () => calls.push("import") } },
     }),
-    (error) => error.code === "INVALID_RECOVERY_RECORDS",
+    (error) => error.code === "INVALID_RECOVERY_RECORDS" && /must be a JSON scalar/.test(error.message),
   );
   assert.deepEqual(calls, []);
 });

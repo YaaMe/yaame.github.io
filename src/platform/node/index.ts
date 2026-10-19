@@ -2,7 +2,7 @@ import { MemoryKvStore } from "@fedify/fedify";
 import { DatabaseSync } from "node:sqlite";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
-import { drizzle } from "drizzle-orm/node-sqlite";
+import { database } from "./database";
 import type { Platform } from "../types";
 import { recordFile } from "./records";
 import { databaseFile } from "./sqlite";
@@ -31,9 +31,7 @@ platform.queue = false;
 // One file beside the JSON records. node:sqlite is built in, so the second
 // driver costs no dependency. AP_DB_URL moves the file; a different dialect
 // would be a different platform, which is the line this seam draws.
-platform.db = drizzle({
-  client: new DatabaseSync(databaseFile(DIR, process.env.AP_DB_URL)),
-});
+platform.db = database(new DatabaseSync(databaseFile(DIR, process.env.AP_DB_URL)));
 
 platform.secret = (name) => process.env[name];
 

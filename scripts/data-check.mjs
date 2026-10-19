@@ -39,6 +39,7 @@ const {
   postsPinned,
   promotedComments,
   reactions,
+  visitorIdentities,
   fedifyState,
   queueOrdering,
   followIntentLocation,
@@ -53,6 +54,7 @@ const sqlLocations = [
   ["comments", comments],
   ["reactions", reactions],
   ["migrations", migrations],
+  ["visitor-identities", visitorIdentities],
 ];
 if (fedifyState.memory !== "fedify" || Object.hasOwn(fedifyState, "records")) {
   console.error("  data register consumer: fedify-state must be the non-durable fedify memory store");
@@ -108,6 +110,11 @@ const schema = requires("src/integrations/activitypub/store/schema.ts", 'from ".
 requires("src/integrations/activitypub/store/schema.ts", "commentsLocation.columns");
 requires("src/integrations/activitypub/store/schema.ts", "reactionsLocation.columns");
 requires("src/integrations/activitypub/store/schema.ts", "migrationsLocation.table");
+requires("src/integrations/activitypub/store/schema.ts", "identitiesLocation.columns");
+requiresPattern("src/integrations/activitypub/store/schema.ts", /sqliteTable\s*\(\s*identitiesLocation\.sql/, "sqliteTable(identitiesLocation.sql)");
+for (const field of Object.keys(visitorIdentities.columns)) {
+  requires("src/integrations/activitypub/store/schema.ts", `identityColumns.${field}`);
+}
 requiresPattern("src/integrations/activitypub/store/schema.ts", /sqliteTable\s*\(\s*commentsLocation\.sql/, "sqliteTable(commentsLocation.sql)");
 requiresPattern("src/integrations/activitypub/store/schema.ts", /sqliteTable\s*\(\s*reactionsLocation\.sql/, "sqliteTable(reactionsLocation.sql)");
 for (const field of Object.keys(commentsSql.columns)) {

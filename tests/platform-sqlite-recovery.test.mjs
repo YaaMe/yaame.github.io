@@ -6,7 +6,8 @@ import { join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { DatabaseSync } from "node:sqlite";
-import { drizzle } from "drizzle-orm/node-sqlite";
+import { database as nodeDatabase } from "../src/platform/node/database.ts";
+import { seedComment, storedComment } from "./fixtures/interactions.mjs";
 import { migrate } from "../src/integrations/activitypub/store/schema.ts";
 import { comments, reactions } from "../src/data.config.generated.mjs";
 import registerData from "../src/data.config.json" with { type: "json" };
@@ -33,13 +34,11 @@ async function fixture(context) {
   const input = join(directory, "recovery.json");
   const database = new DatabaseSync(source);
   try {
-    await migrate(drizzle({ client: database }));
+    await migrate(nodeDatabase(database));
     const insertReaction = database.prepare(`INSERT INTO ${reactions.table} (${Object.values(reactions.quotedColumns).join(", ")}) VALUES (?, ?, ?, ?, ?, ?)`);
     insertReaction.run("reaction-z", "object-1", "actor-1", "Like", "2026-10-13", null);
     insertReaction.run("reaction-a", "object-2", "actor-2", "Announce", "2026-10-12", "2026-10-13");
-    database.prepare(`INSERT INTO ${comments.table} (${Object.values(comments.quotedColumns).join(", ")}) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
-      "comment-1", "note-1", "root-1", null, "actor-1", "你好 'quoted'", "2026-10-12", "2026-10-13", null, null,
-    );
+    seedComment(database, "one", { content: "你好 'quoted'" });
   } finally {
     database.close();
   }
@@ -53,9 +52,9 @@ test("SQLite entry points round-trip via the reference facility without changing
   assert.equal(exported.status, 0, exported.stderr);
   assert.equal(existsSync(input), false);
   const document = JSON.parse(exported.stdout);
-  assert.deepEqual(Object.keys(document.entries), ["reactions", "migrations", "comments"]);
+  assert.deepEqual(Object.keys(document.entries), ["reactions", "migrations", "comments", "visitor-identities"]);
   assert.equal(document.entries.comments.records[0].records[0].content, "你好 'quoted'");
-  assert.equal(document.entries.comments.records[0].records[0].replyToId, null);
+  assert.equal(document.entries.comments.records[0].records[0].replyTo, null);
   const reference = new InMemoryRecoveryFacility();
   await importRecovery({ register, document, facilities: { sql: reference } });
   const fromReference = await exportRecovery({ register, facilities: { sql: reference } });
@@ -65,7 +64,7 @@ test("SQLite entry points round-trip via the reference facility without changing
   const preview = run("import", ["--file", input], target);
   assert.equal(preview.status, 0, preview.stderr);
   assert.equal(existsSync(target), false);
-  assert.equal(JSON.parse(preview.stdout).writes.length, 3);
+  assert.equal(JSON.parse(preview.stdout).writes.length, 4);
   const sentinel = join(directory, "unrelated.json");
   writeFileSync(sentinel, "keep me");
   const imported = run("import", ["--apply", "--file", input], target);
@@ -78,7 +77,7 @@ test("SQLite entry points round-trip via the reference facility without changing
   assert.equal(readFileSync(sentinel, "utf8"), "keep me");
   const database = new DatabaseSync(target);
   try {
-    assert.equal(await migrate(drizzle({ client: database })), 0);
+    assert.equal(await migrate(nodeDatabase(database)), 0);
     assert.equal(database.prepare("PRAGMA integrity_check").get().integrity_check, "ok");
     assert.throws(() => database.exec(`INSERT INTO ${comments.table} SELECT * FROM ${comments.table}`), /UNIQUE constraint failed/);
   } finally {
@@ -113,15 +112,18 @@ test("SQLite import rejects malformed later payloads and constraint failures wit
   const original = JSON.parse(exported.stdout);
   const cases = [
     [(document) => { document.version = 99; }, /unsupported recovery format version/],
+    [(document) => { document.version = 1; }, /Older exports cannot be imported/],
     [(document) => { delete document.entries.comments; }, /do not match the register selection/],
     [(document) => { delete document.entries.comments.records[0].records[0].content; }, /logical SQL column names/],
     [(document) => { document.entries.comments.records[0].records[0].content = {}; }, /JSON scalar/],
-    [(document) => { document.entries.comments.records[0].records[0].content = null; }, /NOT NULL constraint failed/],
-    [(document) => { document.entries.comments.records[0].records[0].activityId = 42; }, /SQLite type conversion/],
-    [(document) => { document.entries.comments.records[0].records[0].content = false; }, /SQLite type conversion/],
+    [(document) => { document.entries.comments.records[0].records[0].content = null; }, /expected string/],
+    [(document) => { document.entries.comments.records[0].records[0].activityId = 42; }, /expected string/],
+    [(document) => { document.entries.comments.records[0].records[0].content = false; }, /expected string/],
+    [(document) => { document.entries.comments.records[0].records[0].objectId += "changed"; }, /inputs do not compute/],
+    [(document) => { document.entries["visitor-identities"].records[0].records[0].identifier += "changed"; }, /inputs do not compute/],
     [(document) => {
       const rows = document.entries.comments.records[0].records;
-      rows.push({ ...rows[0], activityId: "different-activity" });
+      rows.push({ ...rows[0] });
     }, /UNIQUE constraint failed/],
   ];
   for (const [change, expected] of cases) {
@@ -230,22 +232,24 @@ test("SQLite crash tests observe only the old empty file or the complete restore
 
 test("SQLite readers and writers take physical identifiers from a relocated register", async (context) => {
   const { directory } = await fixture(context);
+  const comment = storedComment("sqlite-columns");
+  const identity = { id: comment.authorId, source: comment.source, identifier: comment.identifier, name: "'); DROP TABLE example; --" };
   const selected = {
-    example: { recovery: "keep", layers: [{ sql: 'renamed "table', columns: { id: 'changed "key', value: "changed_value" } }] },
+    "visitor-identities": { recovery: "keep", layers: [{ sql: 'renamed "table', columns: { id: 'changed "key', source: "source", identifier: "identifier", name: "changed_value" } }] },
   };
   const source = new DatabaseSync(join(directory, "renamed-source.sqlite"));
   const target = new DatabaseSync(join(directory, "renamed-target.sqlite"));
   try {
-    const schema = 'CREATE TABLE "renamed ""table" ("changed ""key" INTEGER PRIMARY KEY, changed_value TEXT)';
+    const schema = 'CREATE TABLE "renamed ""table" ("changed ""key" TEXT PRIMARY KEY, source TEXT, identifier TEXT, changed_value TEXT)';
     source.exec(schema);
     target.exec(schema);
-    source.prepare('INSERT INTO "renamed ""table" VALUES (?, ?)').run(7, "'); DROP TABLE example; --");
+    source.prepare('INSERT INTO "renamed ""table" VALUES (?, ?, ?, ?)').run(identity.id, identity.source, identity.identifier, identity.name);
     const document = await exportSqlRecovery({ register: selected, snapshot: readSqlSnapshot(source, selected) });
-    assert.deepEqual(document.entries.example.records[0].records, [{ id: 7, value: "'); DROP TABLE example; --" }]);
+    assert.deepEqual(document.entries["visitor-identities"].records[0].records, [identity]);
     const plan = await importSqlRecovery({ register: selected, document, existing: false });
     writeSqlPlan(target, plan, selected);
     assert.deepEqual(target.prepare('SELECT * FROM "renamed ""table"').all().map((row) => ({ ...row })), [
-      { 'changed "key': 7, changed_value: "'); DROP TABLE example; --" },
+      { 'changed "key': identity.id, source: identity.source, identifier: identity.identifier, changed_value: identity.name },
     ]);
   } finally {
     source.close();

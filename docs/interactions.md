@@ -33,6 +33,9 @@ note to the database.
 | Above it | Drizzle, one set of table definitions for both drivers | same |
 
 The table definitions are in `src/integrations/activitypub/store/schema.ts`.
+`author_id` and `reply_to` are conceptual references maintained by the application.
+The database deliberately enforces no foreign keys. Comment insertion creates
+the visitor identity before inserting the comment.
 Why Drizzle, and why not KV, a document store or hand-written SQL: see
 [0007](decisions/0007-interactions-live-in-a-database-the-host-provides.md).
 In the bundle Drizzle is 167 KiB (3.2%). Fedify is 72%.
@@ -71,9 +74,9 @@ digest, the delivery record and login sessions.
 
 ### Keeping a move to another database cheap
 
-The database does little on purpose. It appends a row, reads rows back by one
-or two keys, counts rows, and marks a row deleted or undone. There are no
-joins, no full-text search and no vendor functions. To move to Postgres,
+The database appends rows, references visitor identities, reads threads,
+counts rows, and marks a row deleted or undone. It has no full-text search.
+To move to Postgres,
 switch to Drizzle's postgres driver and keep most of the table definitions.
 
 Safeguards:
@@ -146,6 +149,8 @@ conversion, not a sanitiser: the archive contains no HTML and the template
 escapes and renders each run. See
 [0015](decisions/0015-promoted-comments-keep-structured-runs.md). Promotion
 also fetches the author's display name and stores it as `name`.
+The name lives in the promoted entry's `author` object. The SQL ledger keeps
+the incoming markup so the structured runs can be recomputed.
 
 Before a selected entry is written, the shared Zod schema checks its shape;
 link runs must use `http` or `https`, content is capped at 10,000 characters,
@@ -154,14 +159,23 @@ other selected replies can still be proposed.
 
 ### What the specification requires
 
-**De-duplication is a MUST.** ActivityPub §5.2 requires a server to
-de-duplicate by activity `id`. The activity id is the primary key of the
-comments table, so the database refuses a redelivery.
+**De-duplication is a MUST.** ActivityPub §5.2 requires de-duplication by
+activity id. A comment's primary key is a UUID v5 computed from its source,
+signing actor URL and Note object id: `v5(activitypub, signing actor URL, object_id)`.
+The comment is the Note; the Create delivers it. The Create's `activity_id`
+remains a stored federated attribute. Rewrapping the same Note in a new Create
+keeps the same comment id. Insertion relies on that key, without reading for
+a duplicate first, and preserves the first stored delivery. Another signer
+using the same Note id gets a different comment id. Both the activity and
+object URL must share the signing actor's origin. Reactions keep their
+`activity_id` keys until issue #71.
 
 **On `Delete`, the server SHOULD remove the object.** §7.4 is a SHOULD, and
 the specification says the protocol cannot force a remote server to delete
 anything. A server MAY replace the object with a `Tombstone`. The inbox
-accepts a `Delete` only for an object whose author sent it.
+accepts a `Delete` only for an object whose author sent it. It computes the
+comment id from the signing actor URL and the named Note, then matches that
+primary key directly.
 
 **Retention has no constraint.** §7.2 says only that a server is likely to want
 a local copy. That is an expectation, not a requirement. So expiry is a
@@ -174,8 +188,10 @@ in two places, at two times.
 
 When a `Delete` arrives for a comment:
 
-1. The inbox sets `deleted_at` and empties `content` in the database. The row
-   stays.
+1. The inbox computes the comment id from the signer and the `objectId` the
+   `Delete` names, matches that id, then sets `deletedAt` and clears `content` in
+   the same update.
+   Withdrawal readers return only the comment id and timestamp.
 2. From that moment the post's `replies` collection and every reply count leave
    the comment out. This meets §7.4 for what we serve over ActivityPub.
 3. If the comment was not promoted, nothing else shows it, so nothing else
@@ -222,9 +238,56 @@ stranger is a deletion obligation we can only partly meet.
 
 ### A hard requirement on the stored format
 
-Every promoted entry must carry its activity id. Without it, the workflow
-cannot tell which entry to change. The `activityId` field is required in
-`src/content.config.ts`.
+Every promoted entry carries its comment `id`, source, activity and object
+URLs, original `inReplyTo`, and an `author` object. The author carries its
+visitor identity id, source, actor URL and optional display name. The shared
+schema checks that the source, signing actor URL and Note `objectId` compute
+the comment id, and that the source and actor URL compute the author id.
+`activityId` stays required as a federated attribute. Reconciliation joins
+git and SQL by comment `id`.
+
+`root` is the content identifier: a post's written slug, otherwise its file
+name, or a note's id. `replyTo` is the parent comment's internal id, or null
+for a reply to the root. Before renaming a post file, writing its current
+identifier as `slug` preserves its identity. Changing a written slug or a
+note id changes that published identity.
+
+The namespace and input normalisation have one owner:
+`src/lib/interactions/key-scheme.ts`. Raw inputs remain stored so a migration
+can recompute ids. These ids appear in storage, recovery exports and local
+commands; public pages and ActivityPub use the existing external URLs.
+
+The `visitor-identities` register entry holds source-specific authorship,
+separate from login and permissions. SQL also accepts GitHub comments with a
+numeric user id and a form UUID. The GitHub posting and display flow remains
+undecided. Promotion, reply counts and the `replies` collection cover
+ActivityPub comments.
+
+### The appended comments migration
+
+The comments migration claims its version, checks the rows, recreates the
+table and records completion in one atomic operation. D1 uses a batch;
+`node:sqlite` uses a transaction. A concurrent attempt cannot repeat the
+drop after another attempt commits. Failure rolls back the marker and DDL.
+The reactions table keeps its existing schema for issue #71.
+
+On October 19, 2026, the owner approved dropping one withdrawn comment read
+from D1 `yaame-ap-interactions`. The migration accepts an empty comments table
+or exactly one row matching all five approved values:
+
+| Column | Approved value |
+| --- | --- |
+| `activity_id` | `https://activitypub.academy/users/banules_kuraks/statuses/117290977176624180/activity` |
+| `object_id` | `https://activitypub.academy/users/banules_kuraks/statuses/117290977176624180` |
+| `actor_id` | `https://activitypub.academy/users/banules_kuraks` |
+| `published` | `2026-09-18T07:57:59Z` |
+| `deleted_at` | `2026-09-18T09:25:26.283Z` |
+
+D1 and node share this atomic SQL guard. Any additional row or mismatch
+fails with `comments_drop_requires_approved_snapshot` and rolls back.
+The pre-deploy checks still require the approved D1 state, empty deployed
+node stores, and no entries in `src/content/comments/`. Deployment waits for
+the owner.
 
 ### The pull-request job
 
@@ -293,6 +356,10 @@ Likes and boosts share one table, because they differ only in the verb. They
 have the same sender, the same target and the same undo. An undo **marks the
 row and keeps it**. Deleting the row would let the same boost be counted again,
 and the primary key exists to stop that.
+
+Their key remains the activity URL, and their target remains the federated
+object URL. Issue #71 applies ADR 0017 to reactions. The comments migration
+does not alter their rows, receipt rules or Undo behavior.
 
 We publish **counts only, never who**:
 
@@ -423,8 +490,8 @@ here.
 
 - [x] Storage seam with two implementations, D1 and `node:sqlite`, through
       Drizzle
-- [x] Schema: a comments table and a reactions table, keyed by activity id, so
-      the database enforces the de-duplication the specification requires
+- [x] Comments and visitor identities have computed UUID v5 keys; reactions
+      retain activity URL keys pending #71
 - [x] `.on(Create)`: replies are stored
 - [x] `.on(Delete)` tells an account deletion from an object deletion
 - [x] `.on(Announce)` and `.on(Like)`, with their `Undo`

@@ -1,6 +1,8 @@
 import { z } from "zod";
+import { SOURCES } from "./key-scheme.ts";
+import { contentIdentifier, httpUrl, internalId, storedCommentSchema, visitorIdentitySchema } from "./records.ts";
 
-export const commentHref = z.url({ protocol: /^https?$/ });
+export const commentHref = httpUrl;
 export const commentRun = z.discriminatedUnion("type", [
   z.object({ type: z.literal("text"), text: z.string() }),
   z.object({ type: z.literal("link"), href: commentHref, label: z.string() }),
@@ -8,36 +10,44 @@ export const commentRun = z.discriminatedUnion("type", [
   z.object({ type: z.literal("hashtag"), href: commentHref, name: z.string() }),
 ]);
 
-/**
- * Promoted comments — the ones chosen to keep.
- *
- * Promoted records live in git. The static profile reads them alone; the full
- * profile also reads current withdrawal ids from its database.
- *
- *   posts/<slug>.json   one file per long post
- *   notes/<YYYY>.json   one file per note archive year
- *
- * Every entry carries `rootId`, because a yearly file cannot infer it from its
- * name. Both kinds of file share this one schema.
- *
- * When a comment is withdrawn, its entry is removed. The exception is an entry
- * that another entry replies to: it stays as a tombstone, without `content`
- * and with `deletedAt`.
- */
-export const commentSchema = z.object({
-  // Required, not decorative: reconciliation identifies an entry by this id.
-  activityId: commentHref,
-  objectId: commentHref,
-  rootId: commentHref,
-  actorId: commentHref,
-  // A copy of the actor's name; it will not follow future profile changes.
-  name: z.string().optional(),
-  // Structured runs, never HTML: promotion is not a sanitiser.
-  content: z.array(z.array(commentRun)).optional(),
-  published: z.string(),
-  replyToId: commentHref.nullable().default(null),
-  deletedAt: z.string().optional(),
-}).refine((entry) => entry.deletedAt === undefined || entry.content === undefined, {
-  message: "A withdrawn comment must have no content",
-  path: ["content"],
+export const commentSchema = z.discriminatedUnion("source", [
+  z.object({
+    id: internalId,
+    source: z.literal(SOURCES.activitypub),
+    activityId: commentHref,
+    objectId: commentHref,
+    inReplyTo: commentHref,
+    root: contentIdentifier,
+    replyTo: internalId.nullable().default(null),
+    author: z.object({
+      id: internalId,
+      source: z.literal(SOURCES.activitypub),
+      identifier: commentHref,
+      name: z.string().optional(),
+    }),
+    content: z.array(z.array(commentRun)).optional(),
+    published: z.string(),
+    deletedAt: z.string().optional(),
+  }).strict(),
+]).superRefine((entry, context) => {
+  if (entry.deletedAt !== undefined && entry.content !== undefined) {
+    context.addIssue({ code: "custom", path: ["content"], message: "A withdrawn comment must have no content" });
+  }
+  const author = visitorIdentitySchema.safeParse({ ...entry.author, name: entry.author.name ?? null });
+  if (!author.success) {
+    for (const issue of author.error.issues) context.addIssue({ ...issue, path: ["author", ...issue.path] });
+  }
+  const record = storedCommentSchema.safeParse({
+    ...entry,
+    identifier: entry.author.identifier,
+    authorId: entry.author.id,
+    submissionId: null,
+    content: "",
+    receivedAt: entry.published,
+    deletedAt: entry.deletedAt ?? null,
+    promotedAt: null,
+  });
+  if (!record.success) {
+    for (const issue of record.error.issues) context.addIssue({ code: "custom", path: issue.path, message: issue.message });
+  }
 });

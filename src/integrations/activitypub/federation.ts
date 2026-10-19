@@ -4,7 +4,7 @@ import { Person, Follow, Undo, Accept, Announce, Create, Delete, Like, Note, Rej
 import { configure, getConsoleSink } from "@logtape/logtape";
 import { platform } from "../../platform";
 import { AP } from "./config";
-import { commentHref } from "../../lib/interactions/comment-schema";
+import { contentIdentifier } from "../../lib/interactions/records";
 import {
   actorDigest,
   departures,
@@ -106,6 +106,12 @@ async function announceIfChanged(ctx: RequestContext<void>, person: Person): Pro
  */
 const OURS = `https://${AP.actorHost}/users/${AP.user}/notes/`;
 const ours = (id: string) => id.startsWith(OURS);
+const commentRoot = (id: string) => {
+  if (!ours(id)) return null;
+  let identifier: string;
+  try { identifier = decodeURIComponent(id.slice(OURS.length)); } catch { return null; }
+  return contentIdentifier.safeParse(identifier).success ? identifier : null;
+};
 
 /**
  * Why a follower is no longer on the list.
@@ -426,26 +432,22 @@ federation
     if (!(object instanceof Note)) return;
     if (!create.id || !object.id || !object.replyTargetId) return;
 
-    const author = create.actorId;
-    if (!author) return;
-    if (object.attributionIds.some((id) => id.href !== author.href)) return;
-    if (![create.id, object.id, object.replyTargetId, author].every(
-      (id) => commentHref.safeParse(id.href).success,
-    )) return;
-
+    const signingActor = create.actorId;
+    if (!signingActor) return;
+    if (object.attributionIds.some((id) => id.href !== signingActor.href)) return;
     await record(
       {
         activityId: create.id.href,
         objectId: object.id.href,
-        replyToId: object.replyTargetId.href,
-        actorId: author.href,
+        inReplyTo: object.replyTargetId.href,
+        actorId: signingActor.href,
         content: object.content?.toString() ?? "",
         // `Date` for the fallback: constructing a Temporal.Instant would
         // require Temporal in the runtime, which is a different question from
         // the type existing.
         published: object.published?.toString() ?? new Date().toISOString(),
       },
-      ours,
+      commentRoot,
     );
   })
   .on(Announce, async (_ctx, announce) => {

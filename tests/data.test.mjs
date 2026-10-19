@@ -22,6 +22,7 @@ import {
   promotedComments,
   queueOrdering,
   reactions,
+  visitorIdentities,
 } from "../src/data.config.generated.mjs";
 import { dataConfigSchema } from "../src/data.config.ts";
 
@@ -34,11 +35,16 @@ test("the register declares the comments stores and their layers", () => {
     sql: "comments",
     table: '"comments"',
     columns: {
+      id: "id",
+      source: "source",
+      identifier: "identifier",
+      authorId: "author_id",
       activityId: "activity_id",
       objectId: "object_id",
-      rootId: "root_id",
-      replyToId: "reply_to_id",
-      actorId: "actor_id",
+      submissionId: "submission_id",
+      inReplyTo: "in_reply_to",
+      root: "root",
+      replyTo: "reply_to",
       content: "content",
       published: "published",
       receivedAt: "received_at",
@@ -46,11 +52,16 @@ test("the register declares the comments stores and their layers", () => {
       promotedAt: "promoted_at",
     },
     quotedColumns: {
+      id: '"id"',
+      source: '"source"',
+      identifier: '"identifier"',
+      authorId: '"author_id"',
       activityId: '"activity_id"',
       objectId: '"object_id"',
-      rootId: '"root_id"',
-      replyToId: '"reply_to_id"',
-      actorId: '"actor_id"',
+      submissionId: '"submission_id"',
+      inReplyTo: '"in_reply_to"',
+      root: '"root"',
+      replyTo: '"reply_to"',
       content: '"content"',
       published: '"published"',
       receivedAt: '"received_at"',
@@ -67,6 +78,18 @@ test("the register declares the comments stores and their layers", () => {
   assert.deepEqual(promotedComments.writeBack, ["promote", "tombstone"]);
   assert.equal(copyRegister()["promoted-comments"].writeBack[0], "promote");
   assert.equal(copyRegister()["promoted-comments"].writeBack[1], "tombstone");
+});
+
+test("visitor identity storage comes from a recoverable others-owned register entry", () => {
+  const register = copyRegister();
+  assert.equal(register["visitor-identities"].origin, "others");
+  assert.equal(register["visitor-identities"].recovery, "keep");
+  assert.equal(visitorIdentities.sql, register["visitor-identities"].layers[0].sql);
+  for (const field of ["id", "source", "identifier", "name"]) {
+    const invalid = structuredClone(register);
+    delete invalid["visitor-identities"].layers[0].columns[field];
+    assert.equal(dataConfigSchema.safeParse(invalid).success, false, field);
+  }
 });
 
 test("the register resolves every git content location", () => {
@@ -164,6 +187,7 @@ test("the register pins the ownership and recovery policy for every kind", () =>
       reactions: ["others", "keep"],
       migrations: ["system", "keep"],
       comments: ["others", "keep"],
+      "visitor-identities": ["others", "keep"],
       "promoted-comments": ["others", "keep"],
       "site-config": ["owner", "keep"],
       tags: ["owner", "keep"],

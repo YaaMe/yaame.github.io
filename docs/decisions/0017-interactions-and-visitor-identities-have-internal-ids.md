@@ -22,8 +22,13 @@ ids from stored inputs under one fixed site namespace.** UUID is the default
 for keys; an exception needs a stated reason and an owner decision.
 
 An identity's inputs are its source and identifier: the actor URL for
-ActivityPub, or the numeric user id for GitHub. A federated interaction's
-inputs are its source, the signing actor URL and the activity id. A GitHub
+ActivityPub, or the numeric user id for GitHub. A federated comment's
+inputs are its source, the signing actor URL and the Note object id. The Note
+is the comment; a Create only delivers it. The same Note in a new Create
+therefore keeps the same comment id. A federated reaction's inputs remain
+its source, the signing actor URL and the activity id. Issue #70 implements
+the comment keys; reactions keep their existing `activity_id` primary keys
+until issue #71. A GitHub
 comment's inputs are its source, the numeric user id and a UUID generated when
 the browser opens the comment form. A retry keeps those inputs. A new comment
 gets a new form UUID.
@@ -48,8 +53,9 @@ retain the activity and object URLs; reactions retain the activity URL.
 These attributes support protocol matching and reference resolution. They
 and ActivityPub actor URLs must be HTTP(S). On receipt, each activity URL and
 a comment's object URL must share the signing actor's origin. A `Delete`
-matches the comment's object URL and author; an `Undo` requires the reaction's
-author as signer.
+computes the comment id from the signing actor URL and the named Note, then
+matches that primary key directly. An `Undo` requires the reaction's author
+as signer.
 
 A comment's `root` and a reaction's `target` hold the site's content identifier.
 For posts, this is the written `slug`, or the file name when no slug is written.
@@ -58,6 +64,10 @@ internal id, or null for a reply to the root. Receipt accepts a comment only
 when its parent is the site's content or a stored comment. Reactions target
 only the site's content. Internal ids and content references follow their own
 formats rather than URL validation.
+
+`author_id` and `reply_to` are conceptual references maintained by the
+application. The database deliberately enforces no foreign keys. The
+application inserts the visitor identity before the comment.
 
 ## Rejected
 

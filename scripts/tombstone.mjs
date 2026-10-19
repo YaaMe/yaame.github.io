@@ -32,7 +32,7 @@ export const WITHDRAWAL_STATES = Object.freeze({
 });
 
 export function tombstoneSql() {
-  return `SELECT ${column("activityId")}, ${column("deletedAt")} FROM ${table}
+  return `SELECT ${column("id")}, ${column("deletedAt")} FROM ${table}
    WHERE ${column("deletedAt")} IS NOT NULL`;
 }
 
@@ -44,16 +44,16 @@ export function tombstoneSql() {
 export function rewrite(entries, when) {
   let list = entries;
   for (;;) {
-    const answered = new Set(list.map((entry) => entry.replyToId).filter(Boolean));
+    const answered = new Set(list.map((entry) => entry.replyTo).filter(Boolean));
     const next = [];
     let moved = false;
     for (const entry of list) {
-      const at = when.get(entry.activityId);
+      const at = when.get(entry.id);
       if (at === undefined && entry.deletedAt === undefined) {
         next.push(entry);
         continue;
       }
-      if (!answered.has(entry.objectId)) {
+      if (!answered.has(entry.id)) {
         moved = true;
         continue;
       }
@@ -84,7 +84,7 @@ function sameWithdrawalShape(actual, expected) {
  * supplies a git ref, while tests can describe a proposal without GitHub.
  */
 export function computeStates({ withdrawn, documents, pullRequestState = () => false }) {
-  const when = new Map(withdrawn.map(({ activityId, deletedAt }) => [activityId, deletedAt]));
+  const when = new Map(withdrawn.map(({ id, deletedAt }) => [id, deletedAt]));
   const plans = documents.map(({ path, document }) => {
     const commentsAfter = rewrite(document.comments, when);
     return {
@@ -95,18 +95,18 @@ export function computeStates({ withdrawn, documents, pullRequestState = () => f
     };
   });
 
-  const states = withdrawn.map(({ activityId, deletedAt }) => {
+  const states = withdrawn.map(({ id, deletedAt }) => {
     const main = plans
-      .map((plan) => ({ plan, entry: entryFor(plan.before, activityId) }))
+      .map((plan) => ({ plan, entry: entryFor(plan.before, id) }))
       .find(({ entry }) => entry !== undefined);
 
     if (!main || main.entry.content === undefined) {
-      return { activityId, deletedAt, state: WITHDRAWAL_STATES.WRITTEN_BACK };
+      return { id, deletedAt, state: WITHDRAWAL_STATES.WRITTEN_BACK };
     }
 
-    const expected = entryFor(main.plan.after, activityId);
+    const expected = entryFor(main.plan.after, id);
     const proposed = pullRequestState({
-      activityId,
+      id,
       deletedAt,
       path: main.plan.path,
       main: main.entry,
@@ -115,7 +115,7 @@ export function computeStates({ withdrawn, documents, pullRequestState = () => f
       after: main.plan.after,
     });
     return {
-      activityId,
+      id,
       deletedAt,
       state: proposed ? WITHDRAWAL_STATES.PROPOSED : WITHDRAWAL_STATES.PENDING,
     };
@@ -125,15 +125,15 @@ export function computeStates({ withdrawn, documents, pullRequestState = () => f
   const unwritten = new Set(
     states
       .filter(({ state }) => state !== WITHDRAWAL_STATES.WRITTEN_BACK)
-      .map(({ activityId }) => activityId),
+      .map(({ id }) => id),
   );
   // Rebuild the branch from main with every withdrawal that main does not
   // contain yet. `shouldWrite` remains about pending work only; proposed
   // withdrawals are included here so a new pending withdrawal cannot erase
   // an older proposal when the branch is regenerated.
   const writes = plans.filter(({ before, after, changed }) => changed && (
-    before.comments.some(({ activityId }) => unwritten.has(activityId))
-    || after.comments.some(({ activityId }) => unwritten.has(activityId))
+    before.comments.some(({ id }) => unwritten.has(id))
+    || after.comments.some(({ id }) => unwritten.has(id))
   ));
   return {
     states,
@@ -147,15 +147,15 @@ export function computeStates({ withdrawn, documents, pullRequestState = () => f
 /** Build the injected PR-state reader from a fetched branch or PR ref. */
 export function gitPullRequestState(ref) {
   const documents = new Map();
-  return ({ path, activityId, expected }) => {
+  return ({ path, id, expected }) => {
     if (!documents.has(path)) documents.set(path, readRefDocument(ref, path));
-    const proposed = entryFor(documents.get(path), activityId);
+    const proposed = entryFor(documents.get(path), id);
     return sameWithdrawalShape(proposed, expected);
   };
 }
 
 function printStates(states) {
-  for (const { activityId, state } of states) console.error(`  ${activityId}: ${state}`);
+  for (const { id, state } of states) console.error(`  ${id}: ${state}`);
 }
 
 function changeSummary(plan) {
@@ -174,7 +174,7 @@ export function main({
   const inputRows = rows;
   if (!Array.isArray(inputRows)) throw new Error("tombstone requires rows on stdin");
   const withdrawn = inputRows.map((row) => ({
-    activityId: rowValue(row, "activityId"),
+    id: rowValue(row, "id"),
     deletedAt: rowValue(row, "deletedAt"),
   }));
   if (withdrawn.length === 0) {

@@ -6,7 +6,7 @@ if [[ $COMMAND_HELP == 1 ]]; then
   cat <<'USAGE'
 Usage: scripts/platform/cloudflare/unpromote.sh [--dry-run|--apply|--help]
 
-ID=<activity-id> is required in the environment. Preview is the default;
+ID=<comment-id> is required in the environment. Preview is the default;
 --apply deletes the selected archive entry and its production database row.
 --help prints this usage without reading the database or changing files.
 USAGE
@@ -14,7 +14,7 @@ USAGE
 fi
 require_d1
 
-id=${ID:?usage: ID=<activity-id>}
+id=${ID:?usage: ID=<comment-id>}
 select_sql=$(node --experimental-strip-types scripts/unpromote.mjs --sql --id "$id")
 args=(--id "$id")
 if (( COMMAND_APPLY )); then args+=(--apply); fi

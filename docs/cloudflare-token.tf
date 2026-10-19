@@ -96,7 +96,7 @@ resource "cloudflare_api_token" "ci" {
 /**
  * What is deliberately absent, and why:
  *
- * - **D1 Write** — only the local `make unpromote ID=<activity-id> APPLY=1` deletes a comment
+ * - **D1 Write** — only the local `make unpromote ID=<comment-id> APPLY=1` deletes a comment
  *   row, under your own login rather than this token. CI reads.
  * - **User Details Read** — wrangler warns without it; the effect is that it
  *   cannot print your email address.

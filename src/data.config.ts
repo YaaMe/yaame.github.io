@@ -7,7 +7,8 @@ export const PURPOSES = ["content", "identity", "federation", "auth", "bookkeepi
 export const WRITE_BACK_NAMES = ["promote", "tombstone"] as const;
 export const LIST_NAMES = ["never"] as const;
 export const COMMENT_COLUMN_NAMES = [
-  "activityId", "objectId", "rootId", "replyToId", "actorId",
+  "id", "source", "identifier", "authorId", "activityId", "objectId",
+  "submissionId", "inReplyTo", "root", "replyTo",
   "content", "published", "receivedAt", "deletedAt", "promotedAt",
 ] as const;
 
@@ -89,28 +90,31 @@ export const dataConfigSchema = z.record(z.string(), dataEntrySchema).superRefin
     }
   }
 
-  const comments = config.comments;
-  if (!comments) return;
-
-  const sqlIndex = comments.layers.findIndex((candidate) => "sql" in candidate);
-  if (sqlIndex < 0) {
-    context.addIssue({
-      code: "custom",
-      path: ["comments", "layers"],
-      message: "comments must declare an sql layer",
-    });
-    return;
-  }
-
-  const sql = comments.layers[sqlIndex];
-  if (!("sql" in sql)) return;
-  for (const name of COMMENT_COLUMN_NAMES) {
-    if (!(name in sql.columns)) {
+  for (const [kind, columns] of [
+    ["comments", COMMENT_COLUMN_NAMES],
+    ["visitor-identities", ["id", "source", "identifier", "name"]],
+  ] as const) {
+    const entry = config[kind];
+    if (!entry) continue;
+    const sqlIndex = entry.layers.findIndex((candidate) => "sql" in candidate);
+    if (sqlIndex < 0) {
       context.addIssue({
         code: "custom",
-        path: ["comments", "layers", sqlIndex, "columns", name],
-        message: "required comments column",
+        path: [kind, "layers"],
+        message: `${kind} must declare an sql layer`,
       });
+      continue;
+    }
+    const sql = entry.layers[sqlIndex];
+    if (!("sql" in sql)) continue;
+    for (const name of columns) {
+      if (!(name in sql.columns)) {
+        context.addIssue({
+          code: "custom",
+          path: [kind, "layers", sqlIndex, "columns", name],
+          message: `required ${kind} column`,
+        });
+      }
     }
   }
 });

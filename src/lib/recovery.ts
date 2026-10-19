@@ -3,8 +3,10 @@
  * module owns the document shape and the register's selection rule.
  */
 
+import { validateInteractionRows } from "./interactions/records.ts";
+
 export const RECOVERY_FORMAT = "blogu-recovery" as const;
-export const RECOVERY_FORMAT_VERSION = 1 as const;
+export const RECOVERY_FORMAT_VERSION = 2 as const;
 
 const EXCLUSION_REASONS = Object.freeze({
   rebuild: "rebuild on restore",
@@ -212,10 +214,17 @@ export function registerForLayerKinds(
   }));
 }
 
-function validateLayerRecords(layer: RecoveryLayer, records: unknown, label: string): unknown {
+function validateLayerRecords(layer: RecoveryLayer, records: unknown, label: string, kind: string): unknown {
   switch (layerKind(layer)) {
-    case "sql":
-      return validateSqlRecords(layer, records, label);
+    case "sql": {
+      const rows = validateSqlRecords(layer, records, label);
+      try {
+        validateInteractionRows(kind, rows);
+      } catch (error) {
+        throw new RecoveryError("INVALID_RECOVERY_RECORDS", `${label}: ${error instanceof Error ? error.message : String(error)}`);
+      }
+      return rows;
+    }
     case "records":
       return validateRecordStoreRecords(layer, records, label);
     default:
@@ -286,7 +295,7 @@ export async function exportRecovery({
         const value = await facility.export({ kind, entry, layer, layerIndex });
         records.push({
           layer: layerIndex,
-          records: validateLayerRecords(layer, value, `${kind}[${layerIndex}]`),
+          records: validateLayerRecords(layer, value, `${kind}[${layerIndex}]`, kind),
         });
       } catch (error) {
         failures.push(failure(kind, layerIndex, error instanceof Error ? error.message : String(error)));
@@ -322,7 +331,7 @@ function assertDocumentShape(document: unknown): asserts document is RecoveryDoc
     throw new RecoveryError("UNKNOWN_RECOVERY_FORMAT", `unsupported recovery format: ${String(value.format)}`);
   }
   if (value.version !== RECOVERY_FORMAT_VERSION) {
-    throw new RecoveryError("UNKNOWN_RECOVERY_VERSION", `unsupported recovery format version: ${String(value.version)}`);
+    throw new RecoveryError("UNKNOWN_RECOVERY_VERSION", `unsupported recovery format version: ${String(value.version)}; expected ${RECOVERY_FORMAT_VERSION}. Older exports cannot be imported; no converter is provided.`);
   }
   if (!value.entries || typeof value.entries !== "object" || Array.isArray(value.entries)) {
     throw new RecoveryError("INVALID_RECOVERY_DOCUMENT", "recovery entries must be an object");
@@ -423,7 +432,7 @@ export async function importRecovery({
           : "layer has no recognised facility kind"));
         continue;
       }
-      const records = validateLayerRecords(layer, item.records, `${kind}[${item.layer}]`);
+      const records = validateLayerRecords(layer, item.records, `${kind}[${item.layer}]`, kind);
       work.push({
         request: { kind, entry, layer, layerIndex: item.layer, records },
         facility,
@@ -491,11 +500,11 @@ export class InMemoryRecoveryFacility implements RecoveryFacility {
       }));
       return logical;
     });
-    return validateLayerRecords(layer, logicalRows, `${kind}[${layerIndex}]`);
+    return validateLayerRecords(layer, logicalRows, `${kind}[${layerIndex}]`, kind);
   }
 
   import({ kind, layer, layerIndex, records }: RecoveryImportRequest): void {
-    const portable = validateLayerRecords(layer, records, `${kind}[${layerIndex}]`);
+    const portable = validateLayerRecords(layer, records, `${kind}[${layerIndex}]`, kind);
     if (layerKind(layer) === "sql") {
       const columnsMap = layer.columns;
       if (!isObjectRecord(columnsMap)) {

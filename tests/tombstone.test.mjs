@@ -3,28 +3,15 @@ import assert from "node:assert/strict";
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { computeStates, main, rewrite } from "../scripts/tombstone.mjs";
-
-const id = (name) => `https://example.test/${name}`;
-
-function comment(name, extra = {}) {
-  return {
-    activityId: id(`activity/${name}`),
-    objectId: id(`object/${name}`),
-    rootId: id("root"),
-    actorId: id("actor"),
-    content: [[{ type: "text", text: name }]],
-    published: "2026-10-10T00:00:00Z",
-    replyToId: null,
-    ...extra,
-  };
-}
+import { writeDocument } from "../scripts/comments-store.mjs";
+import { archivedComment as comment } from "./fixtures/interactions.mjs";
 
 test("withdrawals are computed from main and an injected open-PR state", () => {
   const withdrawn = [
-    { activityId: id("activity/pending"), deletedAt: "2026-10-10T00:01:00Z" },
-    { activityId: id("activity/proposed"), deletedAt: "2026-10-10T00:02:00Z" },
-    { activityId: id("activity/tombstone"), deletedAt: "2026-10-10T00:03:00Z" },
-    { activityId: id("activity/missing"), deletedAt: "2026-10-10T00:04:00Z" },
+    { id: comment("pending").id, deletedAt: "2026-10-10T00:01:00Z" },
+    { id: comment("proposed").id, deletedAt: "2026-10-10T00:02:00Z" },
+    { id: comment("tombstone").id, deletedAt: "2026-10-10T00:03:00Z" },
+    { id: comment("missing").id, deletedAt: "2026-10-10T00:04:00Z" },
   ];
   const documents = [
     {
@@ -44,30 +31,30 @@ test("withdrawals are computed from main and an injected open-PR state", () => {
     withdrawn,
     documents,
     pullRequestState: (change) => {
-      checked.push(change.activityId);
-      return change.activityId === id("activity/proposed");
+      checked.push(change.id);
+      return change.id === comment("proposed").id;
     },
   });
 
   assert.deepEqual(
-    result.states.map(({ activityId, state }) => [activityId, state]),
+    result.states.map(({ id, state }) => [id, state]),
     [
-      [id("activity/pending"), "pending"],
-      [id("activity/proposed"), "proposed"],
-      [id("activity/tombstone"), "written back"],
-      [id("activity/missing"), "written back"],
+      [comment("pending").id, "pending"],
+      [comment("proposed").id, "proposed"],
+      [comment("tombstone").id, "written back"],
+      [comment("missing").id, "written back"],
     ],
   );
-  assert.deepEqual(checked, [id("activity/pending"), id("activity/proposed")]);
+  assert.deepEqual(checked, [comment("pending").id, comment("proposed").id]);
   assert.equal(result.pending.length, 1);
   assert.deepEqual(result.writes.map(({ path }) => path), ["src/content/comments/posts/root.json"]);
   assert.equal(JSON.stringify(documents), before, "state computation does not store acknowledgement");
 });
 
 test("an injected open PR can make a withdrawal proposed without any stored acknowledgement", () => {
-  const activityId = id("activity/proposed-only");
+  const id = comment("proposed-only").id;
   const result = computeStates({
-    withdrawn: [{ activityId, deletedAt: "2026-10-10T00:01:00Z" }],
+    withdrawn: [{ id, deletedAt: "2026-10-10T00:01:00Z" }],
     documents: [{ path: "comments.json", document: { comments: [comment("proposed-only")] } }],
     pullRequestState: () => true,
   });
@@ -80,26 +67,26 @@ test("an injected open PR can make a withdrawal proposed without any stored ackn
 test("a pending withdrawal keeps proposed withdrawals in the regenerated write set", (t) => {
   const dir = mkdtempSync(join(process.cwd(), ".tmp-tombstone-regeneration-"));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
-  const proposedId = id("activity/proposed-regeneration");
-  const pendingId = id("activity/pending-regeneration");
+  const proposedId = comment("proposed-regeneration").id;
+  const pendingId = comment("pending-regeneration").id;
   const path = join(dir, "root.json");
   writeFileSync(path, `${JSON.stringify({
     comments: [comment("proposed-regeneration"), comment("pending-regeneration")],
   })}\n`);
   const rows = [
-    { activity_id: proposedId, deleted_at: "2026-10-10T00:01:00Z" },
-    { activity_id: pendingId, deleted_at: "2026-10-10T00:02:00Z" },
+    { id: proposedId, deleted_at: "2026-10-10T00:01:00Z" },
+    { id: pendingId, deleted_at: "2026-10-10T00:02:00Z" },
   ];
 
   const result = main({
     dir,
     rows,
     apply: true,
-    pullRequestState: ({ activityId }) => activityId === proposedId,
+    pullRequestState: ({ id }) => id === proposedId,
   });
 
   assert.deepEqual(
-    result.states.map(({ activityId, state }) => [activityId, state]),
+    result.states.map(({ id, state }) => [id, state]),
     [[proposedId, "proposed"], [pendingId, "pending"]],
   );
   assert.equal(result.writes.length, 1);
@@ -108,19 +95,21 @@ test("a pending withdrawal keeps proposed withdrawals in the regenerated write s
 
 test("rewrite reaches the tombstone fixed point after a withdrawn reply", () => {
   const parent = comment("parent");
-  const reply = comment("reply", { replyToId: parent.objectId });
-  const when = new Map([[reply.activityId, "2026-10-10T00:01:00Z"]]);
+  const reply = comment("reply", { replyTo: parent.id, inReplyTo: parent.objectId });
+  const when = new Map([[reply.id, "2026-10-10T00:01:00Z"]]);
 
   assert.deepEqual(rewrite([parent, reply], when), [parent]);
+  when.set(parent.id, "2026-10-10T00:00:00Z");
+  assert.deepEqual(rewrite([parent, reply], when), []);
 });
 
 test("main writes a pending change, then converges to written back", (t) => {
   const dir = mkdtempSync(join(process.cwd(), ".tmp-tombstone-state-"));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
-  const activityId = id("activity/main");
+  const id = comment("main").id;
   const path = join(dir, "root.json");
   writeFileSync(path, `${JSON.stringify({ comments: [comment("main")] })}\n`);
-  const rows = [{ activity_id: activityId, deleted_at: "2026-10-10T00:01:00Z" }];
+  const rows = [{ id, deleted_at: "2026-10-10T00:01:00Z" }];
 
   const proposed = main({ dir, rows, apply: true, pullRequestState: () => true });
   assert.equal(proposed.states[0].state, "proposed");
@@ -133,4 +122,54 @@ test("main writes a pending change, then converges to written back", (t) => {
   const written = main({ dir, rows, apply: true, pullRequestState: () => false });
   assert.equal(written.states[0].state, "written back");
   assert.equal(existsSync(path), false);
+});
+
+test("a withdrawn parent keeps its identity and loses its structured content", () => {
+  const parent = comment("parent");
+  const reply = comment("reply", { replyTo: parent.id, inReplyTo: parent.objectId });
+  const deletedAt = "2026-10-10T00:01:00Z";
+  const result = rewrite([parent, reply], new Map([[parent.id, deletedAt]]));
+  assert.equal(result.length, 2);
+  assert.equal(result[0].id, parent.id);
+  assert.deepEqual(result[0].author, parent.author);
+  assert.equal(result[0].deletedAt, deletedAt);
+  assert.equal("content" in result[0], false);
+  assert.deepEqual(result[1], reply);
+  assert.deepEqual(parent, comment("parent"));
+});
+
+test("archive writes refuse mismatched derived IDs before changing a file", (t) => {
+  const dir = mkdtempSync(join(process.cwd(), ".tmp-archive-derived-id-"));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const path = join(dir, "comments.json");
+  const valid = comment("valid", { activityId: "https://example.test/activity/rewrapped" });
+  writeDocument(path, { comments: [valid] });
+  const saved = readFileSync(path, "utf8");
+  for (const invalid of [
+    comment("invalid", { id: comment("other").id }),
+    comment("invalid", { objectId: "https://example.test/object/changed" }),
+    comment("invalid", { author: { ...comment("invalid").author, id: comment("other").author.id } }),
+  ]) {
+    assert.throws(() => writeDocument(path, { comments: [valid, invalid] }), /inputs do not compute/);
+    assert.equal(readFileSync(path, "utf8"), saved);
+    const missing = join(dir, "missing.json");
+    assert.throws(() => writeDocument(missing, { comments: [invalid] }), /inputs do not compute/);
+    assert.equal(existsSync(missing), false);
+  }
+});
+
+test("tombstone writes refuse an invalid parent ID and preserve the archive", (t) => {
+  const dir = mkdtempSync(join(process.cwd(), ".tmp-tombstone-derived-id-"));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const path = join(dir, "comments.json");
+  const parent = comment("parent", { id: comment("other").id });
+  const reply = comment("reply", { replyTo: parent.id, inReplyTo: parent.objectId });
+  const saved = `${JSON.stringify({ comments: [parent, reply] })}\n`;
+  writeFileSync(path, saved);
+  assert.throws(() => main({
+    dir,
+    apply: true,
+    rows: [{ id: parent.id, deletedAt: "2026-10-10T00:01:00Z" }],
+  }), /inputs do not compute/);
+  assert.equal(readFileSync(path, "utf8"), saved);
 });

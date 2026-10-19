@@ -15,6 +15,8 @@ import {
 } from "node:fs";
 import { dirname, join } from "node:path";
 import { notes, promotedComments } from "../src/data.config.generated.mjs";
+import { commentSchema } from "../src/lib/interactions/comment-schema.ts";
+import { contentIdentifier } from "../src/lib/interactions/records.ts";
 
 export const DIR = promotedComments.gitRoot;
 const NOTES = notes.gitRoot;
@@ -61,13 +63,13 @@ export function readRefDocuments(ref, dir = DIR) {
     .filter(({ document }) => document !== undefined);
 }
 
-export function entryFor(document, activityId) {
-  return document?.comments?.find((entry) => entry.activityId === activityId);
+export function entryFor(document, id) {
+  return document?.comments?.find((entry) => entry.id === id);
 }
 
-export function locate(documents, activityId) {
+export function locate(documents, id) {
   for (const { path, document } of documents) {
-    const index = document?.comments?.findIndex((entry) => entry.activityId === activityId) ?? -1;
+    const index = document?.comments?.findIndex((entry) => entry.id === id) ?? -1;
     if (index >= 0) return { path, document, index };
   }
   return undefined;
@@ -88,20 +90,21 @@ function noteYear(id) {
   return null;
 }
 
-export function fileFor(rootId) {
-  const match = /\/users\/[^/]+\/notes\/([^/?#]+)$/.exec(rootId);
-  if (!match) return null;
-  const year = noteYear(match[1]);
+export function fileFor(root) {
+  if (!contentIdentifier.safeParse(root).success) return null;
+  const year = noteYear(root);
   return year === null
-    ? postArchivePath(match[1])
+    ? postArchivePath(root)
     : join(DIR, "notes", `${year}.json`);
 }
 
 export function postArchivePath(slug) {
+  contentIdentifier.parse(slug);
   return join(DIR, "posts", `${slug}.json`);
 }
 
 export function writeDocument(path, document) {
+  for (const entry of document.comments ?? []) commentSchema.parse(entry);
   if ((document.comments ?? []).length === 0) {
     // An empty file describes a conversation that is not there.
     rmSync(path, { force: true });

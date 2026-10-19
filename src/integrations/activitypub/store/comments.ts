@@ -1,15 +1,15 @@
 /**
  * Replies, as they arrive and as they are read back.
  *
- * The only code under src/ that queries the comments table. Everything goes
- * through Drizzle, so a deployment that brings its own database changes the
- * driver and nothing here.
+ * Reads use Drizzle so host-specific database access stays in the platform.
  */
 import { and, asc, count, eq, inArray, isNotNull, isNull } from "drizzle-orm";
 import { platform } from "../../../platform";
 import { commentHref } from "../../../lib/interactions/comment-schema";
+import { SOURCES, commentId, identityId } from "../../../lib/interactions/key-scheme";
 import type { Database } from "../../../platform/types";
 import { comments, migrate } from "./schema";
+import { insertComment } from "./write-comment";
 
 export type Comment = typeof comments.$inferSelect;
 
@@ -56,59 +56,63 @@ export function store(): Promise<Database> {
 async function rootOf(
   db: Database,
   parent: string,
-  ours: (id: string) => boolean,
-): Promise<string | null> {
-  if (ours(parent)) return parent;
+  ours: (id: string) => string | null,
+): Promise<{ root: string; replyTo: string | null } | null> {
+  const root = ours(parent);
+  if (root !== null) return { root, replyTo: null };
   const [row] = await db
-    .select({ rootId: comments.rootId })
+    .select({ root: comments.root, replyTo: comments.id })
     .from(comments)
-    .where(eq(comments.objectId, parent))
+    .where(and(eq(comments.objectId, parent), eq(comments.source, SOURCES.activitypub)))
+    .orderBy(asc(comments.receivedAt), asc(comments.id))
     .limit(1);
-  return row?.rootId ?? null;
+  return row ?? null;
 }
 
 /**
  * Record a reply.
  *
  * False when it was not stored — a reply to something that is not ours, or one
- * already held. Both are ordinary: §5.2 requires de-duplication by activity id,
- * and a redelivery is how that requirement gets exercised. The primary key
- * enforces it; this only has to not treat the refusal as an error.
+ * already held. The primary key identifies the Note and its signing actor,
+ * so redelivery in a new Create also leaves the stored comment unchanged.
  */
 export async function record(
   reply: {
     activityId: string;
     objectId: string;
-    replyToId: string;
+    inReplyTo: string;
     actorId: string;
     content: string;
     published: string;
   },
-  ours: (id: string) => boolean,
+  ours: (id: string) => string | null,
 ): Promise<boolean> {
   const db = await store();
-  const root = await rootOf(db, reply.replyToId, ours);
-  if (root === null || !commentHref.safeParse(root).success) return false;
-
-  // RETURNING rather than a changed-row count. The two drivers name that count
-  // differently — D1 `rowsAffected`, node:sqlite `changes` — and reading the
-  // wrong one makes every successful insert look like a duplicate. Returned
-  // rows look the same on both.
-  const written = await db
-    .insert(comments)
-    .values({
-      ...reply,
-      rootId: root,
-      // The root is not its own parent: a reply directly to our post has no
-      // comment above it, and storing the root here would make the tree claim a
-      // parent that is not in the table.
-      replyToId: reply.replyToId === root ? null : reply.replyToId,
-      receivedAt: new Date().toISOString(),
-    })
-    .onConflictDoNothing()
-    .returning({ id: comments.activityId });
-
-  return written.length > 0;
+  const thread = await rootOf(db, reply.inReplyTo, ours);
+  if (thread === null) return false;
+  const inputs = { source: SOURCES.activitypub, identifier: reply.actorId, objectId: reply.objectId };
+  let id: string;
+  let authorId: string;
+  try {
+    id = commentId(inputs);
+    authorId = identityId(inputs.source, inputs.identifier);
+  } catch {
+    return false;
+  }
+  return insertComment(db, {
+    ...inputs,
+    id,
+    authorId,
+    activityId: reply.activityId,
+    inReplyTo: reply.inReplyTo,
+    submissionId: null,
+    ...thread,
+    content: reply.content,
+    published: reply.published,
+    receivedAt: new Date().toISOString(),
+    deletedAt: null,
+    promotedAt: null,
+  });
 }
 
 /**
@@ -118,54 +122,53 @@ export async function record(
  * carried into git, the removal there is raised against this row.
  */
 export async function remove(objectId: string, actorId: string): Promise<boolean> {
+  if (!commentHref.safeParse(objectId).success || !commentHref.safeParse(actorId).success) return false;
   const db = await store();
   const changed = await db
     .update(comments)
     .set({ deletedAt: new Date().toISOString(), content: "" })
-    // Scoped to the actor: a Delete speaks only for its sender's own objects,
-    // and without this anyone could erase anyone's comment by naming its id.
-    .where(and(eq(comments.objectId, objectId), eq(comments.actorId, actorId)))
-    .returning({ id: comments.activityId });
+    .where(eq(comments.id, commentId({ source: SOURCES.activitypub, identifier: actorId, objectId })))
+    .returning({ id: comments.id });
   return changed.length > 0;
 }
 
 /** Everything under one of our posts, oldest first, deleted ones included. */
-export async function thread(rootId: string): Promise<Comment[]> {
+export async function thread(root: string): Promise<Comment[]> {
   const db = await store();
-  return db.select().from(comments).where(eq(comments.rootId, rootId)).orderBy(asc(comments.published));
+  return db.select().from(comments).where(eq(comments.root, root)).orderBy(asc(comments.published));
 }
 
 /** Deletions for one thread, without returning the withdrawn text to a page. */
-export async function withdrawn(rootId: string): Promise<Map<string, string>> {
-  return (await withdrawnMany([rootId])).get(rootId) ?? new Map();
+export async function withdrawn(root: string): Promise<Map<string, string>> {
+  return (await withdrawnMany([root])).get(root) ?? new Map();
 }
 
 /** Deletions for several threads, grouped by root without returning text. */
 export async function withdrawnMany(
-  rootIds: string[],
+  roots: string[],
 ): Promise<Map<string, Map<string, string>>> {
-  if (rootIds.length === 0) return new Map();
+  if (roots.length === 0) return new Map();
   const db = await store();
   const result = new Map<string, Map<string, string>>();
-  for (let i = 0; i < rootIds.length; i += D1_MAX_BOUND_PARAMETERS) {
+  for (let offset = 0; offset < roots.length; offset += D1_MAX_BOUND_PARAMETERS) {
     const rows = await db
       .select({
-        rootId: comments.rootId,
-        objectId: comments.objectId,
+        root: comments.root,
+        id: comments.id,
         deletedAt: comments.deletedAt,
       })
       .from(comments)
       .where(
         and(
-          inArray(comments.rootId, rootIds.slice(i, i + D1_MAX_BOUND_PARAMETERS)),
+          inArray(comments.root, roots.slice(offset, offset + D1_MAX_BOUND_PARAMETERS)),
           isNotNull(comments.deletedAt),
         ),
       );
     for (const row of rows) {
       if (row.deletedAt === null) continue;
-      const byObject = result.get(row.rootId) ?? new Map<string, string>();
-      byObject.set(row.objectId, row.deletedAt);
-      result.set(row.rootId, byObject);
+      const byId = result.get(row.root) ?? new Map<string, string>();
+      byId.set(row.id, row.deletedAt);
+      result.set(row.root, byId);
     }
   }
   return result;
@@ -181,32 +184,34 @@ export async function withdrawnMany(
  * Deleted replies are excluded. The row survives as a record, but a count is a
  * claim about what a reader can find, and they cannot find that one.
  */
-export async function replyCounts(rootIds: string[]): Promise<Map<string, number>> {
-  if (rootIds.length === 0) return new Map();
+export async function replyCounts(roots: string[]): Promise<Map<string, number>> {
+  if (roots.length === 0) return new Map();
   const db = await store();
   const countsByRoot = new Map<string, number>();
-  for (let i = 0; i < rootIds.length; i += D1_MAX_BOUND_PARAMETERS) {
+  for (let offset = 0; offset < roots.length; offset += D1_MAX_BOUND_PARAMETERS - 1) {
     const rows = await db
-      .select({ rootId: comments.rootId, n: count() })
+      .select({ root: comments.root, n: count() })
       .from(comments)
       .where(
         and(
-          inArray(comments.rootId, rootIds.slice(i, i + D1_MAX_BOUND_PARAMETERS)),
+          inArray(comments.root, roots.slice(offset, offset + D1_MAX_BOUND_PARAMETERS - 1)),
+          eq(comments.source, SOURCES.activitypub),
           isNull(comments.deletedAt),
         ),
       )
-      .groupBy(comments.rootId);
-    for (const row of rows) countsByRoot.set(row.rootId, Number(row.n));
+      .groupBy(comments.root);
+    for (const row of rows) countsByRoot.set(row.root, Number(row.n));
   }
   return countsByRoot;
 }
 
 /** The replies under a post, oldest first, deleted ones left out. */
-export async function replies(rootId: string): Promise<Comment[]> {
+export async function replies(root: string): Promise<Array<Comment & { objectId: string }>> {
   const db = await store();
-  return db
+  const rows = await db
     .select()
     .from(comments)
-    .where(and(eq(comments.rootId, rootId), isNull(comments.deletedAt)))
+    .where(and(eq(comments.root, root), eq(comments.source, SOURCES.activitypub), isNull(comments.deletedAt)))
     .orderBy(asc(comments.published));
+  return rows.filter((row): row is Comment & { objectId: string } => row.objectId !== null);
 }

@@ -9,6 +9,7 @@
  * chain" cannot be expressed from a single row. It returns what to keep.
  */
 import { followIntent } from "../src/data.config.generated.mjs";
+import { SOURCES } from "../src/lib/interactions/key-scheme.ts";
 
 function handleFor(actorId) {
   try {
@@ -38,14 +39,15 @@ function normaliseFollowed(value) {
 export const byFollowing = (following = followIntent) => {
   const followed = normaliseFollowed(following);
   return (thread) => thread.filter((comment) => {
-    const actorId = comment.actorId;
+    if (comment.author.source !== SOURCES.activitypub) return false;
+    const actorId = comment.author.identifier;
     return followed.has(actorId) || (handleFor(actorId) !== null && followed.has(handleFor(actorId)));
   });
 };
 
 /** Keep everything these actors wrote. */
 export const byAuthor = (actors) => (thread) =>
-  thread.filter((c) => actors.includes(c.actorId));
+  thread.filter((comment) => comment.author.source === SOURCES.activitypub && actors.includes(comment.author.identifier));
 
 /** Keep the whole thread when any one comment matches. */
 export const wholeThread = (match) => (thread) =>

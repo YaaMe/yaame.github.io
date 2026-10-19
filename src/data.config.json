@@ -249,11 +249,16 @@
       {
         "sql": "comments",
         "columns": {
+          "id": "id",
+          "source": "source",
+          "identifier": "identifier",
+          "authorId": "author_id",
           "activityId": "activity_id",
           "objectId": "object_id",
-          "rootId": "root_id",
-          "replyToId": "reply_to_id",
-          "actorId": "actor_id",
+          "submissionId": "submission_id",
+          "inReplyTo": "in_reply_to",
+          "root": "root",
+          "replyTo": "reply_to",
           "content": "content",
           "published": "published",
           "receivedAt": "received_at",
@@ -267,6 +272,24 @@
     "recovery": "keep",
     "purposes": ["federation", "content"],
     "description": "Every reply the inbox stored, promoted or not; the ledger promotion and withdrawal work from."
+  },
+  "visitor-identities": {
+    "layers": [
+      {
+        "sql": "visitor_identities",
+        "columns": {
+          "id": "id",
+          "source": "source",
+          "identifier": "identifier",
+          "name": "name"
+        }
+      }
+    ],
+    "writeBack": [],
+    "origin": "others",
+    "recovery": "keep",
+    "purposes": ["identity", "federation", "content"],
+    "description": "Visitor authorship within a source, keyed by the computed id. Raw identifiers are retained; display names are cached."
   },
   "promoted-comments": {
     "layers": [
@@ -283,7 +306,7 @@
     "origin": "others",
     "recovery": "keep",
     "purposes": ["content"],
-    "description": "Base: chosen comments in git, joined to SQL by activityId. Delta, applied on read: withdrawals (deletedAt). Promotion is read from the git base."
+    "description": "Base: chosen comments in git, joined to SQL by comment id, with the author's visitor identity and stored id inputs. Delta, applied on read: withdrawals (deletedAt). Promotion is read from the git base."
   },
   "site-config": {
     "layers": [

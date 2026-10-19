@@ -1,7 +1,7 @@
 import { chmodSync, existsSync, lstatSync, mkdtempSync, renameSync, rmSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import { drizzle } from "drizzle-orm/node-sqlite";
+import { database as nodeDatabase } from "../../../src/platform/node/database.ts";
 import registerData from "../../../src/data.config.json" with { type: "json" };
 import { registerForLayerKinds } from "../../../src/lib/recovery.ts";
 import { databaseFile } from "../../../src/platform/node/sqlite.ts";
@@ -58,7 +58,7 @@ function destinationExists(path) {
 async function populate(database, plan) {
   database.exec("BEGIN IMMEDIATE");
   try {
-    await migrate(drizzle({ client: database }));
+    await migrate(nodeDatabase(database));
     for (const { sql, parameters } of sqlClearStatements(register)) database.prepare(sql).run(...parameters);
     writeSqlPlan(database, plan);
     database.exec("COMMIT");

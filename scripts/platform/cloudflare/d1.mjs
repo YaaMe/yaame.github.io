@@ -119,13 +119,17 @@ function readSnapshot(database) {
 
 function importStatements(plan) {
   const userSchema = sqlUserSchemaStatement(internalSchema);
+  const [migrationTable, ...bootstrap] = schemaBootstrapStatements();
+  const inserts = sqlInsertStatements(register, plan);
   return [
     {
       sql: `SELECT CASE WHEN EXISTS (${userSchema.sql}) THEN json('recovery destination is not empty') ELSE 1 END`,
       parameters: userSchema.parameters,
     },
-    ...schemaBootstrapStatements().map((sql) => ({ sql, parameters: [] })),
-    ...sqlInsertStatements(register, plan),
+    { sql: migrationTable, parameters: [] },
+    ...inserts.filter(({ kind }) => kind === "migrations"),
+    ...bootstrap.map((sql) => ({ sql, parameters: [] })),
+    ...inserts.filter(({ kind }) => kind !== "migrations"),
   ];
 }
 

@@ -4,13 +4,15 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { build } from "esbuild";
-import { Create, Note } from "@fedify/fedify/vocab";
+import { Create, Delete, Note } from "@fedify/fedify/vocab";
 import {
   handleCommentDelete,
   handleFollow,
   handleUndoFollow,
 } from "../src/integrations/activitypub/inbox-handlers.ts";
 import { visibleComments } from "../src/lib/interactions/comment-view.ts";
+import { storedComment } from "./fixtures/interactions.mjs";
+import { SOURCES, commentId, identityId } from "../src/lib/interactions/key-scheme.ts";
 
 const ownActor = "https://yaame.dev/users/yaame";
 const firstFollower = {
@@ -26,8 +28,9 @@ async function commentInbox(context) {
     stdin: {
       contents: `
         export { federation } from "./src/integrations/activitypub/federation.ts";
-        export { store } from "./src/integrations/activitypub/store/comments.ts";
-        export { comments } from "./src/integrations/activitypub/store/schema.ts";
+        export { store, record, replies, replyCounts, withdrawnMany } from "./src/integrations/activitypub/store/comments.ts";
+        export { comments, visitorIdentities } from "./src/integrations/activitypub/store/schema.ts";
+        export { insertComment } from "./src/integrations/activitypub/store/write-comment.ts";
       `,
       resolveDir: process.cwd(),
     },
@@ -50,7 +53,7 @@ async function commentInbox(context) {
     database,
     async receive(activity, stored = []) {
       await database.delete(inbox.comments);
-      if (stored.length > 0) await database.insert(inbox.comments).values(stored);
+      for (const row of stored) await inbox.insertComment(database, row);
       const dispatched = inbox.federation.inboxListeners.dispatchWithClass(activity);
       assert.ok(dispatched);
       await dispatched.listener({}, activity);
@@ -61,7 +64,7 @@ async function commentInbox(context) {
 
 test("Create comments keep HTTP(S) identifiers and the signed actor", async (t) => {
   const inbox = await commentInbox(t);
-  const friend = "https://mastodon.social/users/friend";
+  const friend = "https://remote.example/users/friend";
   const root = `${ownActor}/notes/example`;
   const createComment = (extra = {}) => {
     const fields = {
@@ -87,15 +90,18 @@ test("Create comments keep HTTP(S) identifiers and the signed actor", async (t) 
   await t.test("a matching attribution is stored", async () => {
     const rows = await inbox.receive(createComment());
     assert.equal(rows.length, 1);
-    assert.equal(rows[0].actorId, friend);
-    assert.equal(rows[0].rootId, root);
-    assert.equal(rows[0].replyToId, null);
+    assert.equal(rows[0].identifier, friend);
+    assert.equal(rows[0].id, commentId({ source: SOURCES.activitypub, identifier: friend, objectId: rows[0].objectId }));
+    assert.equal(rows[0].authorId, identityId(SOURCES.activitypub, friend));
+    assert.equal(rows[0].root, "example");
+    assert.equal(rows[0].replyTo, null);
+    assert.equal(rows[0].inReplyTo, root);
   });
 
   await t.test("an absent attribution uses the signed actor", async () => {
     const rows = await inbox.receive(createComment({ attributionId: null }));
     assert.equal(rows.length, 1);
-    assert.equal(rows[0].actorId, friend);
+    assert.equal(rows[0].identifier, friend);
   });
 
   for (const attributionId of [
@@ -137,40 +143,127 @@ test("Create comments keep HTTP(S) identifiers and the signed actor", async (t) 
       attributionId: "http://remote.example/users/friend",
     }));
     assert.equal(rows.length, 1);
-    assert.equal(rows[0].actorId, "http://remote.example/users/friend");
+    assert.equal(rows[0].identifier, "http://remote.example/users/friend");
   });
 
-  for (const field of ["replyToId", "rootId"]) {
-    await t.test(`${field} requires HTTP(S) when continuing a stored thread`, async () => {
-      const parent = {
-        activityId: "https://remote.example/activities/parent",
-        objectId: field === "replyToId" ? "ftp://example.test/reference" : "https://remote.example/notes/parent",
-        rootId: field === "rootId" ? "ftp://example.test/reference" : root,
-        actorId: friend,
-        content: "Parent",
-        published: "2026-10-10T00:00:00Z",
-        receivedAt: "2026-10-10T00:00:00Z",
-      };
-      const rows = await inbox.receive(createComment({ replyToId: parent.objectId }), [parent]);
-      assert.deepEqual(rows.map(({ objectId }) => objectId), [parent.objectId]);
+  for (const replyToId of ["ftp://example.test/reference", "https://elsewhere.example/not-stored", `${root}/nested`, `${root}?query`, `${root}#fragment`]) {
+    await t.test(`unknown or malformed parent is refused: ${replyToId}`, async () => {
+      assert.deepEqual(await inbox.receive(createComment({ replyToId })), []);
     });
   }
 
-  await t.test("an HTTP(S) reply target keeps its stored root", async () => {
-    const parent = {
-      activityId: "https://remote.example/activities/parent",
-      objectId: "http://remote.example/notes/parent",
-      rootId: root,
+  for (const field of ["activityId", "objectId"]) {
+    await t.test(`${field} must share the signing actor's origin`, async () => {
+      for (const value of ["https://elsewhere.example/reference", "http://remote.example/reference", "https://remote.example:8443/reference"]) {
+        assert.deepEqual(await inbox.receive(createComment({ [field]: value })), []);
+      }
+    });
+  }
+
+  await t.test("record refuses invalid input without throwing or writing", async () => {
+    await inbox.database.delete(inbox.comments);
+    await inbox.database.delete(inbox.visitorIdentities);
+    const reply = {
+      activityId: "https://remote.example/activities/comment",
+      objectId: "https://remote.example/notes/comment",
+      inReplyTo: root,
       actorId: friend,
+      content: "A reply",
+      published: "2026-10-10T00:00:00Z",
+    };
+    for (const field of ["activityId", "objectId", "inReplyTo", "actorId"]) {
+      for (const value of ["not a URL", "ftp://remote.example/reference"]) {
+        assert.equal(await inbox.record({ ...reply, [field]: value }, () => "example"), false, field);
+      }
+    }
+    assert.equal(await inbox.record(reply, () => "bad/root"), false);
+    assert.deepEqual(await inbox.database.select().from(inbox.comments), []);
+    assert.deepEqual(await inbox.database.select().from(inbox.visitorIdentities), []);
+  });
+
+  await t.test("an HTTP(S) reply target keeps its stored root", async () => {
+    const parent = storedComment("parent", {
+      activityId: "https://remote.example/activities/parent",
+      objectId: "https://remote.example/notes/parent",
+      root: "example",
+      identifier: friend,
       content: "Parent",
       published: "2026-10-10T00:00:00Z",
       receivedAt: "2026-10-10T00:00:00Z",
-    };
+    });
     const rows = await inbox.receive(createComment({ replyToId: parent.objectId }), [parent]);
     const reply = rows.find(({ objectId }) => objectId !== parent.objectId);
     assert.equal(rows.length, 2);
-    assert.equal(reply.replyToId, parent.objectId);
-    assert.equal(reply.rootId, root);
+    assert.equal(reply.replyTo, parent.id);
+    assert.equal(reply.root, "example");
+    assert.equal(reply.inReplyTo, parent.objectId);
+  });
+
+  await t.test("redelivery inserts once and another signer has a separate id", async () => {
+    await inbox.database.delete(inbox.comments);
+    const activity = createComment();
+    const listener = inbox.federation.inboxListeners.dispatchWithClass(activity).listener;
+    await listener({}, activity);
+    await listener({}, activity);
+    const other = createComment({ actorId: "https://remote.example/users/other", attributionId: "https://remote.example/users/other" });
+    await listener({}, other);
+    const rows = await inbox.database.select().from(inbox.comments);
+    assert.equal(rows.length, 2);
+    assert.notEqual(rows[0].id, rows[1].id);
+  });
+
+  await t.test("the same Note in two Creates with different activity ids is stored once", async () => {
+    const [first] = await inbox.receive(createComment());
+    const rewrapped = createComment({ activityId: "https://remote.example/activities/rewrapped" });
+    await inbox.federation.inboxListeners.dispatchWithClass(rewrapped).listener({}, rewrapped);
+    assert.deepEqual(await inbox.database.select().from(inbox.comments), [first]);
+  });
+
+  await t.test("Delete clears stored text only for the matching object and signing author", async () => {
+    const [comment] = await inbox.receive(createComment());
+    assert.equal(comment.content, "A reply");
+    const receiveDelete = async (actor, object) => {
+      const activity = new Delete({ actor: new URL(actor), object: new URL(object) });
+      await inbox.federation.inboxListeners.dispatchWithClass(activity).listener({}, activity);
+      return (await inbox.database.select().from(inbox.comments))[0];
+    };
+    assert.deepEqual(await receiveDelete("https://remote.example/users/other", comment.objectId), comment);
+    assert.deepEqual(await receiveDelete(friend, comment.activityId), comment);
+    const deleted = await receiveDelete(friend, comment.objectId);
+    assert.ok(deleted.deletedAt);
+    assert.equal(deleted.content, "");
+    assert.equal(deleted.identifier, friend);
+    assert.equal(deleted.id, comment.id);
+  });
+
+  await t.test("Delete matches the computed Note id after URL normalization", async () => {
+    const rawObjectId = "https://REMOTE.example:443/notes/comment";
+    const comment = storedComment("normalized-delete", {
+      identifier: friend,
+      activityId: "https://remote.example/activities/comment",
+      objectId: rawObjectId,
+    });
+    const activity = new Delete({ actor: new URL(friend), object: new URL(rawObjectId) });
+    const [deleted] = await inbox.receive(activity, [comment]);
+    assert.ok(deleted.deletedAt);
+    assert.equal(deleted.content, "");
+    assert.equal(deleted.objectId, rawObjectId);
+    assert.equal(deleted.id, comment.id);
+  });
+
+  await t.test("reply readers use content identifiers, return federated object URLs and key withdrawals by internal id", async () => {
+    await inbox.database.delete(inbox.comments);
+    const live = storedComment("live", { root: "written-slug" });
+    const withdrawn = storedComment("withdrawn", { root: "written-slug", deletedAt: "2026-10-19T00:00:00Z" });
+    const github = storedComment("github", {
+      source: SOURCES.github, identifier: "123", activityId: null, objectId: null, inReplyTo: null,
+      submissionId: "93dd7f06-26c1-4c35-9a73-79df6ec41607", root: "written-slug",
+    });
+    for (const row of [live, withdrawn, github]) await inbox.insertComment(inbox.database, row);
+    assert.deepEqual(await inbox.replyCounts(["written-slug", "8nicubmr"]), new Map([["written-slug", 1]]));
+    assert.deepEqual((await inbox.replies("written-slug")).map((row) => row.objectId), [live.objectId]);
+    assert.deepEqual(await inbox.withdrawnMany(["written-slug"]), new Map([["written-slug", new Map([[withdrawn.id, withdrawn.deletedAt]])]]));
+    assert.deepEqual(await inbox.replies(`${ownActor}/notes/written-slug`), []);
   });
 });
 
@@ -255,9 +348,10 @@ test("Undo from a different actor than the Follow does not remove a follower", {
 
 test("Delete marks a stored reply withdrawn and the comment view drops it", async () => {
   const reply = {
+    id: storedComment("reply").id,
     objectId: "https://remote.example/notes/reply",
     actorId: firstFollower.id,
-    replyToId: ownActor,
+    replyTo: null,
     content: "a reply",
     deletedAt: null,
   };
