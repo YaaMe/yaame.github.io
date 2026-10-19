@@ -85,8 +85,10 @@ test("Like, Announce and Undo key reactions by signer and activity and count peo
     assert.deepEqual((await inbox.reactionCounts(["written-slug"])).get("written-slug"), { likes: 1, shares: 1 });
 
     // No reaction matches, so the handler goes on to ask whether a Follow was
-    // meant; that dereferences the URL, which this offline harness refuses.
-    await assert.rejects(deliver(new Undo({ id: new URL("https://remote.example/activities/undo-boost-forged"), actor: new URL(stranger), object: new URL(boost.id.href) })), /private address|offline/);
+    // meant; that dereferences an unreachable URL. How the fetch fails depends
+    // on the host's network (refused offline, DNS failure in CI), so only the
+    // rejection is asserted; what matters is that nothing is withdrawn.
+    await assert.rejects(deliver(new Undo({ id: new URL("https://remote.example/activities/undo-boost-forged"), actor: new URL(stranger), object: new URL(boost.id.href) })));
     rows = await inbox.database.select().from(inbox.reactions);
     assert.equal(rows.find((row) => row.kind === "Announce").undoneAt, null);
     rows = await deliver(new Undo({ id: new URL("https://remote.example/activities/undo-boost"), actor: new URL(friend), object: new URL(boost.id.href) }));
