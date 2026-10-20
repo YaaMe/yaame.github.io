@@ -16,7 +16,7 @@ import {
   DIR,
   entryFor,
   readDocuments,
-  readRefDocument,
+  refEntries,
   writeDocument,
 } from "./comments-store.mjs";
 
@@ -146,12 +146,8 @@ export function computeStates({ withdrawn, documents, pullRequestState = () => f
 
 /** Build the injected PR-state reader from a fetched branch or PR ref. */
 export function gitPullRequestState(ref) {
-  const documents = new Map();
-  return ({ path, id, expected }) => {
-    if (!documents.has(path)) documents.set(path, readRefDocument(ref, path));
-    const proposed = entryFor(documents.get(path), id);
-    return sameWithdrawalShape(proposed, expected);
-  };
+  const proposed = refEntries(ref);
+  return ({ path, id, expected }) => sameWithdrawalShape(proposed({ path, id }), expected);
 }
 
 function printStates(states) {

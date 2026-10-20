@@ -67,6 +67,21 @@ export function entryFor(document, id) {
   return document?.comments?.find((entry) => entry.id === id);
 }
 
+/**
+ * Archive entries as a git ref holds them; each document is read from git once.
+ * With `preload`, every archive document is read now, so `documents()` lists
+ * them all; without it, a document is read the first time it is asked about.
+ */
+export function refEntries(ref, { preload = false } = {}) {
+  const documents = new Map(preload ? readRefDocuments(ref).map(({ path, document }) => [path, document]) : []);
+  const entry = ({ path, id }) => {
+    if (!preload && !documents.has(path)) documents.set(path, readRefDocument(ref, path));
+    return entryFor(documents.get(path), id);
+  };
+  entry.documents = () => [...documents].map(([path, document]) => ({ path, document }));
+  return entry;
+}
+
 export function locate(documents, id) {
   for (const { path, document } of documents) {
     const index = document?.comments?.findIndex((entry) => entry.id === id) ?? -1;

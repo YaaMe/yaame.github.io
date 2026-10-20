@@ -14,10 +14,9 @@ import { runCommand } from "./comments-cli.mjs";
 import { column, rowValue, table } from "./comments-rows.mjs";
 import {
   DIR,
-  entryFor,
   fileFor,
   readDocuments,
-  readRefDocuments,
+  refEntries,
   writeDocument,
 } from "./comments-store.mjs";
 import { toContent } from "./promote-text.mjs";
@@ -118,11 +117,9 @@ export async function actorName(actorId) {
 
 /** Build the injected open-PR reader from a fetched branch or PR ref. */
 export function gitPullRequestState(ref) {
-  const documents = new Map(readRefDocuments(ref).map(({ path, document }) => [path, document]));
-  const state = ({ path, id }) => {
-    return entryFor(documents.get(path), id) !== undefined;
-  };
-  state.documents = () => [...documents].map(([path, document]) => ({ path, document }));
+  const proposed = refEntries(ref, { preload: true });
+  const state = (change) => proposed(change) !== undefined;
+  state.documents = proposed.documents;
   return state;
 }
 
