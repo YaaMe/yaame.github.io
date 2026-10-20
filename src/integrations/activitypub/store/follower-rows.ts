@@ -8,8 +8,9 @@
 import { and, desc, eq, inArray } from "drizzle-orm";
 import type { Database } from "../../../platform/types";
 import { type Source, identityId } from "../../../lib/interactions/key-scheme.ts";
-import { storedFollowerSchema, visitorIdentitySchema } from "../../../lib/interactions/records.ts";
+import { storedFollowerSchema } from "../../../lib/interactions/records.ts";
 import { followers as followersLocation, visitorIdentities as identitiesLocation } from "../../../data.config.generated.mjs";
+import { storedIdentity } from "./identity-write.ts";
 import { followers } from "./schema.ts";
 import { sqlValue } from "./sql-text.ts";
 import { parseStoredRow } from "./stored-row.ts";
@@ -30,12 +31,7 @@ export type Follower = { identifier: string; inbox: string | null; sharedInbox: 
 export async function upsertFollower(db: Database, value: unknown): Promise<boolean> {
   const follower = parseStoredRow(storedFollowerSchema, value);
   if (follower === null) return false;
-  const identity = parseStoredRow(visitorIdentitySchema, {
-    id: follower.id,
-    source: follower.source,
-    identifier: follower.identifier,
-    name: null,
-  });
+  const identity = storedIdentity(follower.id, follower);
   if (identity === null) return false;
   const insert = (location: { table: string; columns: Record<string, string>; quotedColumns: Record<string, string> }, row: Record<string, string | null>) =>
     `INSERT INTO ${location.table} (${Object.values(location.quotedColumns).join(", ")}) VALUES (${

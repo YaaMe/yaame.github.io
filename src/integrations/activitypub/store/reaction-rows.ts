@@ -5,9 +5,10 @@
 import { and, countDistinct, eq, inArray, isNull } from "drizzle-orm";
 import type { Database } from "../../../platform/types";
 import { type Source, reactionId } from "../../../lib/interactions/key-scheme.ts";
-import { storedReactionSchema, visitorIdentitySchema, type REACTION_KINDS } from "../../../lib/interactions/records.ts";
+import { storedReactionSchema, type REACTION_KINDS } from "../../../lib/interactions/records.ts";
+import { insertWithIdentity } from "./identity-write.ts";
 import { queryBatches } from "./query-batches.ts";
-import { reactions, visitorIdentities } from "./schema.ts";
+import { reactions } from "./schema.ts";
 import { parseStoredRow } from "./stored-row.ts";
 
 export type Kind = typeof REACTION_KINDS[number];
@@ -16,17 +17,7 @@ export type Kind = typeof REACTION_KINDS[number];
 export async function insertReaction(db: Database, value: unknown): Promise<boolean> {
   const reaction = parseStoredRow(storedReactionSchema, value);
   if (reaction === null) return false;
-  const author = parseStoredRow(visitorIdentitySchema, {
-    id: reaction.authorId,
-    source: reaction.source,
-    identifier: reaction.identifier,
-    name: null,
-  });
-  if (author === null) return false;
-  await db.insert(visitorIdentities).values(author).onConflictDoNothing({ target: visitorIdentities.id });
-  const written = await db.insert(reactions).values(reaction)
-    .onConflictDoNothing({ target: reactions.id }).returning({ id: reactions.id });
-  return written.length > 0;
+  return insertWithIdentity(db, reactions, reaction);
 }
 
 /**
