@@ -7,19 +7,16 @@
 import { column, rowValue, table } from "./comments-rows.mjs";
 import { DIR, locate, readDocuments, writeDocument } from "./comments-store.mjs";
 import { runCommand } from "./comments-cli.mjs";
-
-function sqlLiteral(value) {
-  return `'${String(value).replaceAll("'", "''")}'`;
-}
+import { sqlValue } from "../src/integrations/activitypub/store/sql-text.ts";
 
 export function selectSql(id) {
   return `SELECT ${column("id")}, ${column("root")}, ${column("identifier")},
             ${column("content")} FROM ${table}
-   WHERE ${column("id")} = ${sqlLiteral(id)}`;
+   WHERE ${column("id")} = ${sqlValue(String(id))}`;
 }
 
 export function deleteSql(id) {
-  return `DELETE FROM ${table} WHERE ${column("id")} = ${sqlLiteral(id)}`;
+  return `DELETE FROM ${table} WHERE ${column("id")} = ${sqlValue(String(id))}`;
 }
 
 function textOf(value) {

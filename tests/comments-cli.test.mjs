@@ -29,6 +29,7 @@ function fixture(t) {
     "scripts/comments-rows.mjs",
     "scripts/comments-cli.mjs", "src/lib/interactions/comment-schema.ts", "src/data.config.generated.mjs",
     "src/lib/interactions/records.ts", "src/lib/interactions/key-scheme.ts", "src/integrations/activitypub/config.ts",
+    "src/integrations/activitypub/store/sql-text.ts",
   ]) {
     const target = join(cwd, path);
     mkdirSync(dirname(target), { recursive: true });
