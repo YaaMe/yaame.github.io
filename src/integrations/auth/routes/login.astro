@@ -1,7 +1,7 @@
 ---
 import Base from "../../../layouts/Base.astro";
 import { site } from "../../../site.config";
-import { current } from "../../../services/session";
+import { current, type Role } from "../../../services/session";
 
 export const prerender = false;
 
@@ -17,7 +17,7 @@ const WHY: Record<string, string> = {
   config: "这一侧还没配置好，不是你的问题。",
 };
 
-const ROLE: Record<string, string> = {
+const ROLE: Record<Role, string> = {
   owner: "站长",
   allowed: "名单内",
   guest: "访客",

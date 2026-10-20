@@ -314,8 +314,8 @@ deletes the row from D1, follow the contract in
 
 ## The write entry point
 
-A write through a route needs an authenticated identity. The site has its own
-GitHub OAuth login, in `src/integrations/auth/`. It exists only in the `full`
+A write through a route needs an authenticated identity. GitHub OAuth routes
+and settings live in `src/integrations/auth/`. Login exists only in the `full`
 profile. It serves `/login`, `/auth/github`, `/auth/github/callback` and
 `/auth/logout`. Logout is `POST` only.
 
@@ -327,9 +327,9 @@ profile. It serves `/login`, `/auth/github`, `/auth/github/callback` and
   allowed and guest. The login page shows them as "站长", "名单内" and "访客".
   A GitHub login proves only that the visitor is some GitHub user, not that it
   is you. So no path may treat "has a session" as "is the owner". Every
-  privileged path asks `roleOf()`. Identities are compared by numeric GitHub
-  id, never by username. A username can be changed, and the old one is then
-  free for anyone to take. See
+  privileged path asks `roleOf()` in `src/services/auth/roles.ts`.
+  Identities are compared by numeric GitHub id, never by username. A username
+  can be changed, and the old one is then free for anyone to take. See
   [0010](decisions/0010-a-session-is-not-a-privilege.md).
 - **A session is an opaque id with a record in KV.** It is not a signed
   cookie. So there is one less secret to place by hand, and a session can be
