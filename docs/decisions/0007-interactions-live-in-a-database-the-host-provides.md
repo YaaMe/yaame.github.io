@@ -2,6 +2,7 @@
 
 Status: accepted
 Date: 2026-09-19
+Revised: 2026-10-21
 
 ## Context
 
@@ -39,6 +40,10 @@ conflict clauses per dialect is solved work. The reason a dependency was
 acceptable here is specific and should be re-checked before it is upgraded:
 Drizzle ships with **no dependencies of its own** and a provenance attestation.
 
+**Running migrations once per isolate, on first access.** Dropped by
+[0018](0018-src-is-layered-by-role.md): migration is its own operation,
+separate from serving requests, and no request triggers it.
+
 ## Consequences
 
 - Moving to Postgres means Drizzle's postgres driver and the same table
@@ -49,7 +54,8 @@ Drizzle ships with **no dependencies of its own** and a provenance attestation.
   count: D1 reports `rowsAffected` and `node:sqlite` reports `changes`, so
   reading the count makes every insert on node look like a duplicate while it
   quietly succeeds.
-- Migrations run once per isolate rather than at deploy time — a deploy holds no
-  database credentials, deliberately.
+- A deploy holds no database credentials, deliberately. This holds until the
+  change that takes migration out of the request path
+  ([0018](0018-src-is-layered-by-role.md)) settles who runs it.
 - `D1 Read` is the only database permission CI holds. Writing `promoted_at` is
   local, under your own login.
