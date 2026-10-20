@@ -8,14 +8,11 @@ import { commentHref } from "../../../lib/interactions/comment-schema";
 import { SOURCES, commentId, identityId } from "../../../lib/interactions/key-scheme";
 import type { Database } from "../../../platform/types";
 import { store } from "./database";
+import { queryBatches } from "./query-batches";
 import { comments } from "./schema";
 import { insertComment } from "./write-comment";
 
 export type Comment = typeof comments.$inferSelect;
-
-// D1 permits at most 100 bound parameters per query.
-// https://developers.cloudflare.com/d1/platform/limits/
-const D1_MAX_BOUND_PARAMETERS = 100;
 
 /**
  * Where a reply belongs.
@@ -123,7 +120,8 @@ export async function withdrawnMany(
   if (roots.length === 0) return new Map();
   const db = await store();
   const result = new Map<string, Map<string, string>>();
-  for (let offset = 0; offset < roots.length; offset += D1_MAX_BOUND_PARAMETERS) {
+  // The deleted filter binds nothing.
+  for (const batch of queryBatches(roots, 0)) {
     const rows = await db
       .select({
         root: comments.root,
@@ -133,7 +131,7 @@ export async function withdrawnMany(
       .from(comments)
       .where(
         and(
-          inArray(comments.root, roots.slice(offset, offset + D1_MAX_BOUND_PARAMETERS)),
+          inArray(comments.root, batch),
           isNotNull(comments.deletedAt),
         ),
       );
@@ -161,13 +159,14 @@ export async function replyCounts(roots: string[]): Promise<Map<string, number>>
   if (roots.length === 0) return new Map();
   const db = await store();
   const countsByRoot = new Map<string, number>();
-  for (let offset = 0; offset < roots.length; offset += D1_MAX_BOUND_PARAMETERS - 1) {
+  // The source is bound beside the roots.
+  for (const batch of queryBatches(roots, 1)) {
     const rows = await db
       .select({ root: comments.root, n: count() })
       .from(comments)
       .where(
         and(
-          inArray(comments.root, roots.slice(offset, offset + D1_MAX_BOUND_PARAMETERS - 1)),
+          inArray(comments.root, batch),
           eq(comments.source, SOURCES.activitypub),
           isNull(comments.deletedAt),
         ),

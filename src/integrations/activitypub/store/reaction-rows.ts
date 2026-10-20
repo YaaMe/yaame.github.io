@@ -6,13 +6,10 @@ import { and, countDistinct, eq, inArray, isNull } from "drizzle-orm";
 import type { Database } from "../../../platform/types";
 import { type Source, reactionId } from "../../../lib/interactions/key-scheme.ts";
 import { storedReactionSchema, visitorIdentitySchema, type REACTION_KINDS } from "../../../lib/interactions/records.ts";
+import { queryBatches } from "./query-batches.ts";
 import { reactions, visitorIdentities } from "./schema.ts";
 
 export type Kind = typeof REACTION_KINDS[number];
-
-// D1 permits at most 100 bound parameters per query; the undone filter binds none.
-// https://developers.cloudflare.com/d1/platform/limits/
-export const D1_MAX_BOUND_PARAMETERS = 100;
 
 /** False when refused, or when the computed id is already held. */
 export async function insertReaction(db: Database, value: unknown): Promise<boolean> {
@@ -69,11 +66,12 @@ export async function countReactions(
   targets: string[],
 ): Promise<Map<string, { likes: number; shares: number }>> {
   const tally = new Map<string, { likes: number; shares: number }>();
-  for (let i = 0; i < targets.length; i += D1_MAX_BOUND_PARAMETERS) {
+  // The undone filter binds nothing.
+  for (const batch of queryBatches(targets, 0)) {
     const rows = await db
       .select({ target: reactions.target, kind: reactions.kind, n: countDistinct(reactions.authorId) })
       .from(reactions)
-      .where(and(inArray(reactions.target, targets.slice(i, i + D1_MAX_BOUND_PARAMETERS)), isNull(reactions.undoneAt)))
+      .where(and(inArray(reactions.target, batch), isNull(reactions.undoneAt)))
       .groupBy(reactions.target, reactions.kind);
     for (const row of rows) {
       const entry = tally.get(row.target) ?? { likes: 0, shares: 0 };

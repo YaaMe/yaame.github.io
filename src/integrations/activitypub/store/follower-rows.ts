@@ -12,10 +12,7 @@ import { storedFollowerSchema, visitorIdentitySchema } from "../../../lib/intera
 import { followers as followersLocation, visitorIdentities as identitiesLocation } from "../../../data.config.generated.mjs";
 import { followers } from "./schema.ts";
 import { sqlValue } from "./sql-text.ts";
-import { D1_MAX_BOUND_PARAMETERS } from "./reaction-rows.ts";
-
-// The source and the inbox are bound beside the ids.
-const IDS_PER_DELETE = D1_MAX_BOUND_PARAMETERS - 2;
+import { queryBatches } from "./query-batches.ts";
 
 export type Follower = { identifier: string; inbox: string | null; sharedInbox: string | null };
 
@@ -85,9 +82,10 @@ export async function removeFollowersAtInbox(
     }
   });
   const removed: string[] = [];
-  for (let i = 0; i < ids.length; i += IDS_PER_DELETE) {
+  // The source and the inbox are bound beside the ids.
+  for (const batch of queryBatches(ids, 2)) {
     const rows = await db.delete(followers)
-      .where(and(eq(followers.source, source), eq(followers.inbox, inbox), inArray(followers.id, ids.slice(i, i + IDS_PER_DELETE))))
+      .where(and(eq(followers.source, source), eq(followers.inbox, inbox), inArray(followers.id, batch)))
       .returning({ identifier: followers.identifier });
     removed.push(...rows.map(({ identifier }) => identifier));
   }

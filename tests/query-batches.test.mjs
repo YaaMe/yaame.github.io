@@ -8,6 +8,7 @@ import assert from "node:assert/strict";
 import { migrate } from "../src/integrations/activitypub/store/schema.ts";
 import { countReactions, insertReaction } from "../src/integrations/activitypub/store/reaction-rows.ts";
 import { removeFollowersAtInbox, upsertFollower } from "../src/integrations/activitypub/store/follower-rows.ts";
+import { queryBatches } from "../src/integrations/activitypub/store/query-batches.ts";
 import { SOURCES } from "../src/lib/interactions/key-scheme.ts";
 import { storedComment, storedFollower, storedReaction } from "./fixtures/interactions.mjs";
 import { testDatabase } from "./fixtures/databases.mjs";
@@ -24,6 +25,16 @@ function queries(database, method) {
 }
 
 const names = (prefix, length) => Array.from({ length }, (_, index) => `${prefix}-${index}`);
+
+test("a batch fills what the statement leaves of D1's hundred parameters, and a budget with no room is refused", () => {
+  const values = names("value", 201);
+  assert.deepEqual(queryBatches([], 0), []);
+  assert.deepEqual(queryBatches(values, 0).map((batch) => batch.length), [100, 100, 1]);
+  assert.deepEqual(queryBatches(values, 1).map((batch) => batch.length), [99, 99, 3]);
+  assert.equal(queryBatches(values, 99).length, 201);
+  assert.deepEqual(queryBatches(values, 2).flat(), values);
+  for (const reserved of [100, 101, -1, 1.5, Number.NaN]) assert.throws(() => queryBatches(values, reserved), RangeError);
+});
 
 for (const host of ["node", "d1"]) {
   test(`${host}: reaction counts bind up to 100 targets per query`, async (context) => {
