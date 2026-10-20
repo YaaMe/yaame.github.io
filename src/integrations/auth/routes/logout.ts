@@ -1,5 +1,6 @@
 import type { APIRoute } from "astro";
-import { clearSessionCookie, destroy } from "../session";
+import { destroy } from "../../../services/session";
+import { clearSessionCookie } from "../session-core";
 import { logoutResponse } from "./logout-handler";
 
 export const prerender = false;

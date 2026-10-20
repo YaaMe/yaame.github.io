@@ -1,5 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { fileURLToPath } from "node:url";
+import { inspect } from "node:util";
+import { build } from "esbuild";
 import { AUTH, roleOf } from "../src/integrations/auth/config.ts";
 import { callbackResponse } from "../src/integrations/auth/routes/callback-handler.ts";
 import { GET as githubLogin } from "../src/integrations/auth/routes/github.ts";
@@ -8,7 +11,7 @@ import {
   clearSessionCookie,
   clearStateCookie,
   clearVerifierCookie,
-  currentSession,
+  readSession,
   sessionKey,
   setVerifierCookie,
   setStateCookie,
@@ -249,33 +252,172 @@ test("roleOf uses the numeric account id", () => {
   assert.equal(roleOf(AUTH.owner.id + 1), "guest");
 });
 
-test("current refuses an expired session even when the store still returns it", async () => {
-  const id = "expired-session";
-  const key = sessionKey(id);
-  const record = {
-    userId: AUTH.owner.id,
-    login: AUTH.owner.login,
-    createdAt: "2026-01-01T00:00:00.000Z",
-    expiresAt: "2026-01-02T00:00:00.000Z",
-  };
-  let readKey;
-  let removedKey;
+const expiredRecord = {
+  userId: AUTH.owner.id,
+  login: AUTH.owner.login,
+  createdAt: "2026-01-01T00:00:00.000Z",
+  expiresAt: "2026-01-02T00:00:00.000Z",
+};
 
-  const result = await currentSession(
-    new Request(`${origin}/`, { headers: { cookie: `session=${id}` } }),
-    {
-      get: async (requested) => {
-        readKey = requested;
-        return record;
-      },
-      remove: async (requested) => {
-        removedKey = requested;
-      },
+function sessionRequest(id) {
+  return new Request(`${origin}/`, id ? { headers: { cookie: `session=${id}` } } : {});
+}
+
+test("readSession reports an expired record without writing to the store", async () => {
+  const id = "expired-session";
+  const reads = [];
+  const store = {
+    get: async (key) => {
+      reads.push(key);
+      return expiredRecord;
     },
-    Date.parse("2026-01-03T00:00:00.000Z"),
-  );
+    put: async () => assert.fail("a read must not put"),
+    remove: async () => assert.fail("a read must not remove"),
+  };
+
+  const result = await readSession(sessionRequest(id), store, Date.parse("2026-01-03T00:00:00.000Z"));
+
+  assert.deepEqual(result, { state: "expired", key: sessionKey(id) });
+  assert.deepEqual(reads, [sessionKey(id)]);
+});
+
+test("readSession distinguishes absent, expired and active", async () => {
+  const records = new Map([
+    [sessionKey("active"), { ...expiredRecord, expiresAt: "2026-01-04T00:00:00.000Z" }],
+    [sessionKey("expired"), expiredRecord],
+  ]);
+  const store = { get: async (key) => records.get(key) ?? null };
+  const now = Date.parse("2026-01-03T00:00:00.000Z");
+
+  assert.deepEqual(await readSession(sessionRequest(null), store, now), { state: "absent" });
+  assert.deepEqual(await readSession(sessionRequest("missing"), store, now), { state: "absent" });
+  assert.deepEqual(await readSession(sessionRequest("expired"), store, now), {
+    state: "expired",
+    key: sessionKey("expired"),
+  });
+  assert.deepEqual(await readSession(sessionRequest("active"), store, now), {
+    state: "active",
+    session: { ...records.get(sessionKey("active")), role: roleOf(AUTH.owner.id) },
+  });
+  // The boundary: a record whose expiry is now has ended.
+  const atExpiry = Date.parse(expiredRecord.expiresAt);
+  assert.equal((await readSession(sessionRequest("expired"), store, atExpiry)).state, "expired");
+});
+
+/**
+ * The service as built: its `virtual:platform` import resolves to a Map-backed
+ * fake that records every removal, so the test sees what the service asks the
+ * host to delete.
+ */
+let serviceLoads = 0;
+
+async function sessionService() {
+  const bundle = await build({
+    stdin: {
+      contents: `
+        export { create, current, destroy } from "./session";
+        export { records, removed, faults } from "virtual:platform";
+      `,
+      resolveDir: fileURLToPath(new URL("../src/services/", import.meta.url)),
+      loader: "ts",
+    },
+    bundle: true,
+    write: false,
+    platform: "node",
+    format: "esm",
+    plugins: [{
+      name: "session-platform-fixture",
+      setup(builder) {
+        builder.onResolve({ filter: /^virtual:platform$/ }, () => ({ path: "platform", namespace: "fixture" }));
+        builder.onLoad({ filter: /.*/, namespace: "fixture" }, () => ({
+          contents: `
+            export const records = new Map();
+            export const removed = [];
+            export const faults = { remove: null };
+            export const platform = {
+              get: async (key) => records.get(key) ?? null,
+              put: async (key, value) => { records.set(key, value); },
+              remove: async (key) => {
+                if (faults.remove) throw faults.remove(key);
+                removed.push(key);
+                records.delete(key);
+              },
+            };
+          `,
+        }));
+      },
+    }],
+  });
+  // A distinct source per call: an identical data URL returns the cached
+  // module, and with it another test's records.
+  const source = `${bundle.outputFiles[0].text}\n// ${++serviceLoads}`;
+  return import(`data:text/javascript;base64,${Buffer.from(source).toString("base64")}`);
+}
+
+test("current removes exactly the expired record and reports no session", async () => {
+  const service = await sessionService();
+  const neighbour = { ...expiredRecord, expiresAt: "2999-01-01T00:00:00.000Z" };
+  service.records.set(sessionKey("expired"), expiredRecord);
+  service.records.set(sessionKey("neighbour"), neighbour);
+
+  assert.equal(await service.current(sessionRequest("expired")), null);
+  assert.deepEqual(service.removed, [sessionKey("expired")]);
+  assert.equal(service.records.has(sessionKey("expired")), false);
+  assert.deepEqual(service.records.get(sessionKey("neighbour")), neighbour);
+});
+
+test("current still reports no session when removing the expired record fails, and logs neither key nor id", async () => {
+  const service = await sessionService();
+  const id = "expired-credential";
+  const key = sessionKey(id);
+  service.records.set(key, expiredRecord);
+  // Shaped like a Node filesystem error, whose message names the file and so the key.
+  service.faults.remove = (failing) =>
+    Object.assign(new Error(`EACCES: permission denied, unlink '/data/${failing}.json'`), { code: "EACCES" });
+
+  const logged = [];
+  const saved = { warn: console.warn, error: console.error, log: console.log, info: console.info };
+  for (const level of Object.keys(saved)) console[level] = (...args) => logged.push(args);
+  let result;
+  try {
+    result = await service.current(sessionRequest(id));
+  } finally {
+    Object.assign(console, saved);
+  }
 
   assert.equal(result, null);
-  assert.equal(readKey, key);
-  assert.equal(removedKey, key);
+  assert.equal(service.records.has(key), true);
+  assert.ok(logged.length > 0, "a failed removal is logged");
+  const text = inspect(logged, { depth: Infinity, showHidden: true });
+  assert.ok(!text.includes(id), `the log carries the session id: ${text}`);
+  assert.ok(!text.includes(key), `the log carries the session key: ${text}`);
+});
+
+test("current removes nothing for an active or absent session", async () => {
+  const service = await sessionService();
+  const active = { ...expiredRecord, expiresAt: "2999-01-01T00:00:00.000Z" };
+  service.records.set(sessionKey("active"), active);
+
+  assert.deepEqual(await service.current(sessionRequest("active")), {
+    ...active,
+    role: roleOf(active.userId),
+  });
+  assert.equal(await service.current(sessionRequest("missing")), null);
+  assert.equal(await service.current(sessionRequest(null)), null);
+  assert.deepEqual(service.removed, []);
+  assert.deepEqual(service.records.get(sessionKey("active")), active);
+});
+
+test("create stores a session that current reads back, and destroy removes it", async () => {
+  const service = await sessionService();
+  const id = await service.create({ id: AUTH.owner.id, login: AUTH.owner.login });
+
+  const session = await service.current(sessionRequest(id));
+  assert.equal(session.userId, AUTH.owner.id);
+  assert.equal(session.login, AUTH.owner.login);
+  assert.equal(session.role, "owner");
+
+  await service.destroy(sessionRequest(id));
+  assert.deepEqual(service.removed, [sessionKey(id)]);
+  assert.equal(await service.current(sessionRequest(id)), null);
 });

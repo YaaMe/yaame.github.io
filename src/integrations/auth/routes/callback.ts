@@ -1,6 +1,6 @@
 import type { APIRoute } from "astro";
 import { platform } from "../../../platform";
-import { create } from "../session";
+import { create } from "../../../services/session";
 import { callbackResponse } from "./callback-handler";
 
 export const prerender = false;

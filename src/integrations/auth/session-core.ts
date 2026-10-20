@@ -108,30 +108,36 @@ export function refererPath(req: Request): string {
   }
 }
 
-export type CurrentSessionStore = {
+export type SessionReader = {
   get(key: string): Promise<Session | null>;
-  remove(key: string): Promise<void>;
 };
 
 /**
- * The session a request carries, if it still holds.
+ * What the record a request names says about it. `expired` carries the key
+ * so the caller can remove that record and nothing else.
+ */
+export type SessionRead =
+  | { state: "absent" }
+  | { state: "expired"; key: string }
+  | { state: "active"; session: Session & { role: Role } };
+
+/**
+ * The session a request carries, and whether it still holds. Only reads.
  *
  * Expiry is checked here rather than trusted to the store: a host that cannot
  * expire a key would otherwise keep answering with a session that should have
  * ended.
  */
-export async function currentSession(
+export async function readSession(
   req: Request,
-  store: CurrentSessionStore,
+  store: SessionReader,
   now = Date.now(),
-): Promise<(Session & { role: Role }) | null> {
+): Promise<SessionRead> {
   const id = readSessionCookie(req);
-  if (!id) return null;
-  const session = await store.get(sessionKey(id));
-  if (!session) return null;
-  if (new Date(session.expiresAt).getTime() <= now) {
-    await store.remove(sessionKey(id));
-    return null;
-  }
-  return { ...session, role: roleOf(session.userId) };
+  if (!id) return { state: "absent" };
+  const key = sessionKey(id);
+  const session = await store.get(key);
+  if (!session) return { state: "absent" };
+  if (new Date(session.expiresAt).getTime() <= now) return { state: "expired", key };
+  return { state: "active", session: { ...session, role: roleOf(session.userId) } };
 }
