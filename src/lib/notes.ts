@@ -1,6 +1,6 @@
 import { getCollection } from "astro:content";
 import { marked } from "marked";
-import { site } from "../site.config";
+import { site } from "../config/site.config";
 
 // Must format exactly as post dates are formatted, or a note and a post written
 // in the same hour can show different dates.

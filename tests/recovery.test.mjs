@@ -7,24 +7,11 @@ import {
   RECOVERY_FORMAT_VERSION,
   InMemoryRecoveryFacility,
   exportRecovery,
-  isRecordKeyPattern,
-  recordKeyMatches,
-  recordKeyPlaceholders,
   quoteSqlIdentifier,
   importRecovery,
   registerForLayerKinds,
   selectRecovery,
 } from "../src/lib/recovery.ts";
-
-test("record placeholder names and matching share the named-placeholder grammar", () => {
-  assert.deepEqual(recordKeyPlaceholders("ap:{owner_id}:{Item2}:{owner_id}:{bad-name}:{0bad}"), ["owner_id", "Item2", "owner_id"]);
-  assert.deepEqual(recordKeyPlaceholders("literal.{bad-name}"), []);
-  assert.equal(recordKeyMatches("a.[b]+\\/{id}:{part_2}", "a.[b]+\\/你好:tail"), true);
-  assert.equal(recordKeyMatches("a.[b]+\\/{id}:{part_2}", "axb/你好:tail"), false);
-  assert.equal(recordKeyMatches("key:{id}", "key:"), false);
-  assert.equal(recordKeyMatches("literal.{bad-name}", "literal.{bad-name}"), true);
-  assert.equal(isRecordKeyPattern("{0bad}"), false);
-});
 
 test("SQL identifiers preserve literal names and reject names SQLite cannot quote", () => {
   assert.equal(quoteSqlIdentifier('a "quoted" table'), '"a ""quoted"" table"');
@@ -116,8 +103,6 @@ test("layer-kind registration keeps only the requested facility family and git b
   }, ["records"]);
 
   assert.deepEqual(Object.keys(scoped), ["records", "secret"]);
-  assert.equal(isRecordKeyPattern("auth:session:{id}"), true);
-  assert.equal(isRecordKeyPattern("ap:followers"), false);
 });
 
 test("the in-memory facility round-trips the versioned recovery document", async () => {

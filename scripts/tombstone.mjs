@@ -11,7 +11,7 @@
  */
 import { runCommand } from "./comments-cli.mjs";
 import { column, rowValue, table } from "./comments-rows.mjs";
-import { promotedComments } from "../src/data.config.generated.mjs";
+import { promotedComments } from "../src/config/data.config.generated.mjs";
 import {
   DIR,
   entryFor,

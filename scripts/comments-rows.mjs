@@ -1,4 +1,4 @@
-import { comments } from "../src/data.config.generated.mjs";
+import { comments } from "../src/config/data.config.generated.mjs";
 
 export const commentsColumns = comments.columns;
 export const table = comments.table;

@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { DatabaseSync } from "node:sqlite";
-import registerData from "../src/data.config.json" with { type: "json" };
+import registerData from "../src/config/data.config.json" with { type: "json" };
 import { exportSqlRecovery, importSqlRecovery, sqlInsertStatements, validateSqlPlan } from "../scripts/recovery-sql.mjs";
 import { writeSqlPlan } from "../scripts/platform/node/sqlite.mjs";
 import { importRecovery, InMemoryRecoveryFacility } from "../src/lib/recovery.ts";

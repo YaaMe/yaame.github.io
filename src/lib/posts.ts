@@ -1,5 +1,5 @@
 import { getCollection, render, type CollectionEntry } from "astro:content";
-import type { Tag } from "../tags";
+import type { Tag } from "../config/tags";
 
 /**
  * The data layer.

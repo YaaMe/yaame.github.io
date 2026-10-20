@@ -2,7 +2,7 @@
 import { defineConfig } from "astro/config";
 import cloudflare from "@astrojs/cloudflare";
 import node from "@astrojs/node";
-import { features, site } from "./src/site.config";
+import { features, site } from "./src/config/site.config";
 import activitypub from "./src/integrations/activitypub";
 import auth from "./src/integrations/auth";
 import dynamicRoutes from "./src/integrations/dynamic-routes";

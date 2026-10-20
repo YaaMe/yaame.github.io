@@ -62,7 +62,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          promoted_comments_root=$(node --input-type=module -e 'import { promotedComments } from "./src/data.config.generated.mjs"; console.log(promotedComments.gitRoot)')
+          promoted_comments_root=$(node --input-type=module -e 'import { promotedComments } from "./src/config/data.config.generated.mjs"; console.log(promotedComments.gitRoot)')
           if [ -d "$promoted_comments_root" ]; then
             git add -A -- "$promoted_comments_root"
           fi

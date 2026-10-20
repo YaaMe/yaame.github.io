@@ -3,7 +3,7 @@ import { Temporal } from "@js-temporal/polyfill";
 import { Person, Follow, Undo, Accept, Announce, Create, Delete, Like, Note, Reject, Update, Endpoints, Image, PropertyValue, isActor, type Actor } from "@fedify/fedify/vocab";
 import { configure, getConsoleSink } from "@logtape/logtape";
 import { platform } from "../../platform";
-import { AP } from "./config";
+import { AP } from "../../config/activitypub";
 import { contentIdentifierOf } from "../../lib/interactions/records";
 import {
   actorDigest,
@@ -11,7 +11,7 @@ import {
   followLedger,
   following,
   followIntent,
-} from "../../data.config.generated.mjs";
+} from "../../config/data.config.generated.mjs";
 
 const intent = followIntent as { follow: string[] };
 const ACTOR_DIGEST = actorDigest.key;

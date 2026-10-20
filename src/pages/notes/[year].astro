@@ -2,7 +2,7 @@
 import Base from "../../layouts/Base.astro";
 import NoteList from "../../components/NoteList.astro";
 import { allNotes, noteYears } from "../../lib/notes";
-import { features } from "../../site.config";
+import { features } from "../../config/site.config";
 import NoteComments from "virtual:note-comments";
 
 export async function getStaticPaths() {

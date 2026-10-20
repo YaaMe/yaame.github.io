@@ -50,9 +50,10 @@ column order and boolean conversion; targets execute those statements and
 own connections and transactions. `sqlUserSchemaStatement` accepts excluded
 prefixes and exact names, so each target can recognise its internal schema.
 `validateSqlPlan` checks the complete logical plan for both SQL readers;
-SQLite adds its in-memory constraint and round-trip checks. Quoting and
-record-key placeholder grammar have one owner in `src/lib/recovery.ts`, also
-used by the register generator and consumer checker. The command modules use
+SQLite adds its in-memory constraint and round-trip checks. SQL identifier
+quoting lives in `src/lib/recovery.ts`. Record-key placeholder grammar lives
+in `src/lib/key-pattern.ts`, shared by recovery, the register schema, generator
+and consumer checker. The command modules use
 `scripts/run-cli.mjs` for main-module detection and failure reporting, including
 when invoked through a renamed file or a filesystem alias.
 
@@ -159,7 +160,7 @@ references; the database deliberately enforces no foreign keys.
 It is not a database dump and must not contain credentials. The register layer
 position keeps multiple layers of one entry distinct.
 
-The selection is computed from `src/data.config.json` by `selectRecovery()`:
+The selection is computed from `src/config/data.config.json` by `selectRecovery()`:
 
 - `keep` entries are exported, reading every declared non-git layer.
 - `rebuild`, `reset`, `ephemeral`, and `none` entries are absent from

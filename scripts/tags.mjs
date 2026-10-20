@@ -2,9 +2,9 @@
 /** The tag registry, with how many posts use each one. */
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
-import { komorebi, posts } from "../src/data.config.generated.mjs";
+import { komorebi, posts, tags } from "../src/config/data.config.generated.mjs";
 
-const pool = [...readFileSync("src/tags.ts", "utf8")
+const pool = [...readFileSync(tags.file, "utf8")
   .matchAll(/^\s{2}(\w+):\s*"([^"]+)"/gm)].map((m) => ({ slug: m[1], label: m[2] }));
 
 const used = new Map();

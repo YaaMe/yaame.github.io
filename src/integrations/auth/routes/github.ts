@@ -1,5 +1,5 @@
 import type { APIRoute } from "astro";
-import { AUTH } from "../config.ts";
+import { AUTH } from "../../../config/auth.ts";
 import { refererPath, setStateCookie, setVerifierCookie } from "../session-core.ts";
 
 export const prerender = false;

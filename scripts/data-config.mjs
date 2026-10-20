@@ -1,13 +1,14 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { dirname, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { dataConfigSchema } from "../src/data.config.ts";
-import { isRecordKeyPattern, recordKeyPlaceholders, quoteSqlIdentifier } from "../src/lib/recovery.ts";
+import { dataConfigSchema } from "../src/config/data.config.ts";
+import { isRecordKeyPattern, recordKeyPlaceholders } from "../src/lib/key-pattern.ts";
+import { quoteSqlIdentifier } from "../src/lib/recovery.ts";
 
-const registerPath = new URL("../src/data.config.json", import.meta.url);
-const modulePath = new URL("../src/data.config.generated.mjs", import.meta.url);
-const typesPath = new URL("../src/data.config.generated.d.ts", import.meta.url);
-const projectRoot = dirname(dirname(fileURLToPath(registerPath)));
+const registerPath = new URL("../src/config/data.config.json", import.meta.url);
+const modulePath = new URL("../src/config/data.config.generated.mjs", import.meta.url);
+const typesPath = new URL("../src/config/data.config.generated.d.ts", import.meta.url);
+const projectRoot = fileURLToPath(new URL("../", import.meta.url));
 
 function registerError(error) {
   if (Array.isArray(error?.issues)) {
@@ -163,7 +164,7 @@ function relativeImport(path) {
 }
 
 function generateTypes(values, staticImports, recordPatterns) {
-  const lines = ["// generated from src/data.config.json, do not edit", ""];
+  const lines = ["// generated from src/config/data.config.json, do not edit", ""];
   for (const [name, value] of values) {
     const pattern = recordPatterns.get(name);
     if (!pattern) {
@@ -184,7 +185,7 @@ function generateTypes(values, staticImports, recordPatterns) {
 }
 
 function generateModule(values, staticImports, recordPatterns) {
-  const lines = ["// generated from src/data.config.json, do not edit", ""];
+  const lines = ["// generated from src/config/data.config.json, do not edit", ""];
   for (const [name, path] of staticImports) {
     lines.push(
       `import ${name} from ${JSON.stringify(relativeImport(path))} with { type: "json" };`,

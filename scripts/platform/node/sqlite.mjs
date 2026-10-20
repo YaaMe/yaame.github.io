@@ -2,7 +2,7 @@ import { chmodSync, existsSync, lstatSync, mkdtempSync, renameSync, rmSync } fro
 import { dirname, join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { database as nodeDatabase } from "../../../src/platform/node/database.ts";
-import registerData from "../../../src/data.config.json" with { type: "json" };
+import registerData from "../../../src/config/data.config.json" with { type: "json" };
 import { registerForLayerKinds } from "../../../src/lib/recovery.ts";
 import { databaseFile } from "../../../src/platform/node/sqlite.ts";
 import { migrate } from "../../../src/integrations/activitypub/store/schema.ts";

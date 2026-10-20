@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { randomUUID } from "node:crypto";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import registerData from "../src/data.config.json" with { type: "json" };
+import registerData from "../src/config/data.config.json" with { type: "json" };
 import { exportRecovery, registerForLayerKinds } from "../src/lib/recovery.ts";
 
 const root = fileURLToPath(new URL("../", import.meta.url));

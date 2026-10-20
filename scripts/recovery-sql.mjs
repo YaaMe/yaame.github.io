@@ -1,4 +1,4 @@
-import registerData from "../src/data.config.json" with { type: "json" };
+import registerData from "../src/config/data.config.json" with { type: "json" };
 import { RecoveryError, exportRecovery, quoteSqlIdentifier, registerForLayerKinds, selectRecovery } from "../src/lib/recovery.ts";
 import { planRecoveryImport, runRecoveryAdapter } from "./recovery-plan.mjs";
 import { runIfMain } from "./run-cli.mjs";

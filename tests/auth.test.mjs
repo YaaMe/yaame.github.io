@@ -3,7 +3,8 @@ import assert from "node:assert/strict";
 import { fileURLToPath } from "node:url";
 import { inspect } from "node:util";
 import { build } from "esbuild";
-import { AUTH, roleOf } from "../src/integrations/auth/config.ts";
+import { AUTH } from "../src/config/auth.ts";
+import { roleOf } from "../src/services/auth/roles.ts";
 import { callbackResponse } from "../src/integrations/auth/routes/callback-handler.ts";
 import { GET as githubLogin } from "../src/integrations/auth/routes/github.ts";
 import { logoutResponse } from "../src/integrations/auth/routes/logout-handler.ts";
@@ -247,9 +248,18 @@ test("logout destroys the session record and clears its cookie", async () => {
   assert.equal(records.size, 0);
 });
 
-test("roleOf uses the numeric account id", () => {
+test("roleOf resolves owner, allow-listed and guest identities by numeric id", (context) => {
+  const originalAllow = [...AUTH.allow];
+  context.after(() => AUTH.allow.splice(0, AUTH.allow.length, ...originalAllow));
+  const allowedId = AUTH.owner.id + 1;
+  AUTH.allow.splice(0, AUTH.allow.length,
+    { id: AUTH.owner.id, login: "renamed-owner" },
+    { id: allowedId, login: AUTH.owner.login },
+  );
+
   assert.equal(roleOf(AUTH.owner.id), "owner");
-  assert.equal(roleOf(AUTH.owner.id + 1), "guest");
+  assert.equal(roleOf(allowedId), "allowed");
+  assert.equal(roleOf(allowedId + 1), "guest");
 });
 
 const expiredRecord = {
@@ -316,6 +326,7 @@ async function sessionService() {
     stdin: {
       contents: `
         export { create, current, destroy } from "./session";
+        export { AUTH } from "../config/auth";
         export { records, removed, faults } from "virtual:platform";
       `,
       resolveDir: fileURLToPath(new URL("../src/services/", import.meta.url)),
@@ -420,4 +431,24 @@ test("create stores a session that current reads back, and destroy removes it", 
   await service.destroy(sessionRequest(id));
   assert.deepEqual(service.removed, [sessionKey(id)]);
   assert.equal(await service.current(sessionRequest(id)), null);
+});
+
+test("current applies allow-list changes on later reads of the same session", async () => {
+  const service = await sessionService();
+  const user = { id: AUTH.owner.id + 1, login: AUTH.owner.login };
+  service.AUTH.allow.splice(0);
+  const id = await service.create(user);
+  const request = sessionRequest(id);
+  const stored = { ...service.records.get(sessionKey(id)) };
+
+  assert.deepEqual(await service.current(request), { ...stored, role: "guest" });
+
+  service.AUTH.allow.push(user);
+  assert.deepEqual(await service.current(request), { ...stored, role: "allowed" });
+
+  service.AUTH.allow.pop();
+  assert.deepEqual(await service.current(request), { ...stored, role: "guest" });
+  assert.deepEqual(service.records.get(sessionKey(id)), stored);
+  assert.equal(Object.hasOwn(stored, "role"), false);
+  assert.deepEqual(service.removed, []);
 });

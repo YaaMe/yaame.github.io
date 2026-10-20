@@ -14,7 +14,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { dirname, join } from "node:path";
-import { notes, promotedComments } from "../src/data.config.generated.mjs";
+import { notes, promotedComments } from "../src/config/data.config.generated.mjs";
 import { commentSchema } from "../src/lib/interactions/comment-schema.ts";
 import { contentIdentifier } from "../src/lib/interactions/records.ts";
 

@@ -8,7 +8,7 @@
  * A filter receives a whole thread, not one comment: "keep the entire reply
  * chain" cannot be expressed from a single row. It returns what to keep.
  */
-import { followIntent } from "../src/data.config.generated.mjs";
+import { followIntent } from "../src/config/data.config.generated.mjs";
 import { SOURCES } from "../src/lib/interactions/key-scheme.ts";
 
 function handleFor(actorId) {

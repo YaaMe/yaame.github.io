@@ -54,7 +54,7 @@
   "follow-intent": {
     "layers": [
       {
-        "git": "src/integrations/activitypub/following.json",
+        "git": "src/config/following.json",
         "format": "json"
       }
     ],
@@ -328,7 +328,7 @@
   "site-config": {
     "layers": [
       {
-        "git": "src/site.config.ts",
+        "git": "src/config/site.config.ts",
         "format": "typescript"
       }
     ],
@@ -341,7 +341,7 @@
   "tags": {
     "layers": [
       {
-        "git": "src/tags.ts",
+        "git": "src/config/tags.ts",
         "format": "typescript"
       }
     ],
@@ -354,7 +354,7 @@
   "ap-config": {
     "layers": [
       {
-        "git": "src/integrations/activitypub/config.ts",
+        "git": "src/config/activitypub.ts",
         "format": "typescript"
       }
     ],
@@ -367,7 +367,7 @@
   "auth-config": {
     "layers": [
       {
-        "git": "src/integrations/auth/config.ts",
+        "git": "src/config/auth.ts",
         "format": "typescript"
       }
     ],

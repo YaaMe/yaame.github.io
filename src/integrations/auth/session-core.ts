@@ -1,5 +1,6 @@
-import { AUTH, roleOf, type Role } from "./config.ts";
-import { sessions } from "../../data.config.generated.mjs";
+import { AUTH } from "../../config/auth.ts";
+import { roleOf, type Role } from "../../services/auth/roles.ts";
+import { sessions } from "../../config/data.config.generated.mjs";
 
 /**
  * Only what is used.

@@ -1,11 +1,14 @@
 import { platform } from "../platform";
-import { AUTH, type Role } from "../integrations/auth/config";
+import { AUTH } from "../config/auth";
+import type { Role } from "./auth/roles";
 import {
   readSession,
   readSessionCookie,
   sessionKey,
   type Session,
 } from "../integrations/auth/session-core";
+
+export type { Role } from "./auth/roles";
 
 /**
  * Opaque, and from the runtime's cryptographic random generator.

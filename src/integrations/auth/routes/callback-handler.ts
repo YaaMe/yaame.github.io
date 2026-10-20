@@ -1,4 +1,4 @@
-import { AUTH } from "../config.ts";
+import { AUTH } from "../../../config/auth.ts";
 import {
   clearStateCookie,
   clearVerifierCookie,

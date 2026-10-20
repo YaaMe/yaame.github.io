@@ -7,7 +7,7 @@
  */
 import { mkdirSync, readFileSync, writeFileSync, existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
-import { notes } from "../src/data.config.generated.mjs";
+import { notes } from "../src/config/data.config.generated.mjs";
 
 export const DIR = notes.gitRoot;
 
