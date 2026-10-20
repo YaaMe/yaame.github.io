@@ -4,7 +4,7 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "no
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { deleteSql, main, selectSql } from "../scripts/unpromote.mjs";
-import { comments } from "../src/data.config.generated.mjs";
+import { comments } from "../src/config/data.config.generated.mjs";
 import { archivedComment as entry, physicalComment } from "./fixtures/interactions.mjs";
 
 test("unpromote previews without touching git or SQL", async (t) => {

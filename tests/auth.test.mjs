@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { fileURLToPath } from "node:url";
 import { inspect } from "node:util";
 import { build } from "esbuild";
-import { AUTH } from "../src/integrations/auth/config.ts";
+import { AUTH } from "../src/config/auth.ts";
 import { roleOf } from "../src/services/auth/roles.ts";
 import { callbackResponse } from "../src/integrations/auth/routes/callback-handler.ts";
 import { GET as githubLogin } from "../src/integrations/auth/routes/github.ts";
@@ -326,7 +326,7 @@ async function sessionService() {
     stdin: {
       contents: `
         export { create, current, destroy } from "./session";
-        export { AUTH } from "../integrations/auth/config";
+        export { AUTH } from "../config/auth";
         export { records, removed, faults } from "virtual:platform";
       `,
       resolveDir: fileURLToPath(new URL("../src/services/", import.meta.url)),

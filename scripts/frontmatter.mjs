@@ -16,7 +16,7 @@
  */
 import { readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { posts } from "../src/data.config.generated.mjs";
+import { posts } from "../src/config/data.config.generated.mjs";
 
 const DIR = posts.gitRoot;
 const FIELD = { desc: "description", tags: "tags" };

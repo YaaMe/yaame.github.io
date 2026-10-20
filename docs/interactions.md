@@ -138,7 +138,7 @@ export default (thread) => keptComments;
 
 That file provides `byFollowing`, `byAuthor`, `wholeThread` and `nothing`. The
 default is `byFollowing`, which reads the handles in
-`src/integrations/activitypub/following.json`. Choosing what to keep is a social
+`src/config/following.json`. Choosing what to keep is a social
 judgement, not a data-structure question, so the unit of selection is not fixed.
 
 Promotion stores the comment as structured paragraphs of typed runs, not as
@@ -341,7 +341,7 @@ profile. It serves `/login`, `/auth/github`, `/auth/github/callback` and
   is private and not shared-cached. The `static` profile aliases that component
   to an empty implementation. There is no separate display cookie.
 - **The only secret placed by hand is `GITHUB_CLIENT_SECRET`.** The client id
-  is public and is in `src/integrations/auth/config.ts`.
+  is public and is in `src/config/auth.ts`.
 
 **Cloudflare Access is not used.** It needs less code here, though the Worker
 would still have to verify its JWT. But that gate is state in the Cloudflare

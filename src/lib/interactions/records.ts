@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { AP } from "../../integrations/activitypub/config.ts";
+import { AP } from "../../config/activitypub.ts";
 import { CHANNELS, SOURCES, type Source, commentId, deliveryId, identityId, normalizedIdentifier, normalizedUrl, reactionId, sameOrigin } from "./key-scheme.ts";
 
 export const httpUrl = z.url({ protocol: /^https?$/ });

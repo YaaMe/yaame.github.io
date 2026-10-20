@@ -13,7 +13,7 @@ const workflow = readFileSync(join(root, workflowPath), "utf8");
 function fixture(t, paths) {
   const directory = mkdtempSync(join(root, ".tmp-tombstones-"));
   t.after(() => rmSync(directory, { recursive: true, force: true }));
-  for (const path of [...paths, "src/lib/interactions/records.ts", "src/lib/interactions/key-scheme.ts", "src/integrations/activitypub/config.ts"]) {
+  for (const path of [...paths, "src/lib/interactions/records.ts", "src/lib/interactions/key-scheme.ts", "src/config/activitypub.ts"]) {
     const target = join(directory, path);
     mkdirSync(dirname(target), { recursive: true });
     copyFileSync(join(root, path), target);
@@ -32,8 +32,8 @@ function osFixture(paths) {
 }
 
 test("the data generator validates the register and emits resolved values", (t) => {
-  const cwd = fixture(t, ["scripts/data-config.mjs", "src/data.config.ts", "src/data.config.json", "src/lib/key-pattern.ts", "src/lib/recovery.ts", "src/integrations/activitypub/following.json"]);
-  const registerPath = join(cwd, "src/data.config.json");
+  const cwd = fixture(t, ["scripts/data-config.mjs", "src/config/data.config.ts", "src/config/data.config.json", "src/lib/key-pattern.ts", "src/lib/recovery.ts", "src/config/following.json"]);
+  const registerPath = join(cwd, "src/config/data.config.json");
   const register = JSON.parse(readFileSync(registerPath, "utf8"));
   register["promoted-comments"].layers[0].git = "archive/promoted comments/{posts,notes}/*.json";
   register.sessions.layers[0].records = "auth:{tenant_id}:{Token2}";
@@ -43,13 +43,13 @@ test("the data generator validates the register and emits resolved values", (t) 
 
   const result = spawnSync(process.execPath, ["--experimental-strip-types", "scripts/data-config.mjs"], { cwd, encoding: "utf8" });
   assert.equal(result.status, 0, result.stderr);
-  const generated = readFileSync(join(cwd, "src/data.config.generated.mjs"), "utf8");
-  assert.match(generated, /^\/\/ generated from src\/data\.config\.json, do not edit/);
+  const generated = readFileSync(join(cwd, "src/config/data.config.generated.mjs"), "utf8");
+  assert.match(generated, /^\/\/ generated from src\/config\/data\.config\.json, do not edit/);
   assert.match(generated, /"gitRoot": "archive\/promoted comments"/);
-  assert.match(readFileSync(join(cwd, "src/data.config.generated.d.ts"), "utf8"), /^\/\/ generated from/);
-  assert.match(readFileSync(join(cwd, "src/data.config.generated.d.ts"), "utf8"), /key: \(tenant_id: string, Token2: string\) => string/);
+  assert.match(readFileSync(join(cwd, "src/config/data.config.generated.d.ts"), "utf8"), /^\/\/ generated from/);
+  assert.match(readFileSync(join(cwd, "src/config/data.config.generated.d.ts"), "utf8"), /key: \(tenant_id: string, Token2: string\) => string/);
   const consumer = spawnSync(process.execPath, ["--input-type=module", "--eval", `
-    import { sessions, comments } from "./src/data.config.generated.mjs";
+    import { sessions, comments } from "./src/config/data.config.generated.mjs";
     console.log(JSON.stringify([sessions.key("owner", "token"), comments.table, comments.quotedColumns.content]));
   `], { cwd, encoding: "utf8" });
   assert.equal(consumer.status, 0, consumer.stderr);
@@ -62,16 +62,44 @@ test("the data generator validates the register and emits resolved values", (t) 
   assert.match(invalid.stderr, /data register comments\.origin/);
 });
 
+test("generated follow intent resolves from the module directory and generation is repeatable", (context) => {
+  const cwd = fixture(context, ["scripts/data-config.mjs", "src/config/data.config.ts", "src/config/data.config.json", "src/lib/key-pattern.ts", "src/lib/recovery.ts"]);
+  const registerPath = join(cwd, "src/config/data.config.json");
+  const register = JSON.parse(readFileSync(registerPath, "utf8"));
+  for (const location of ["src/config/following.json", "owner choices/following.json"]) {
+    const intent = { follow: [`reader@${location.startsWith("src/") ? "local" : "other"}.test`] };
+    const target = join(cwd, location);
+    mkdirSync(dirname(target), { recursive: true });
+    writeFileSync(target, JSON.stringify(intent));
+    register["follow-intent"].layers[0].git = location;
+    writeFileSync(registerPath, JSON.stringify(register));
+    const generate = () => spawnSync(process.execPath, ["--experimental-strip-types", "scripts/data-config.mjs"], { cwd, encoding: "utf8" });
+    const first = generate();
+    assert.equal(first.status, 0, first.stderr);
+    const outputs = ["mjs", "d.ts"].map((extension) => join(cwd, `src/config/data.config.generated.${extension}`));
+    const before = outputs.map((path) => readFileSync(path, "utf8"));
+    const repeated = generate();
+    assert.equal(repeated.status, 0, repeated.stderr);
+    assert.deepEqual(outputs.map((path) => readFileSync(path, "utf8")), before);
+    const consumer = spawnSync(process.execPath, ["--input-type=module", "--eval", `
+      import { followIntent, followIntentLocation } from "./src/config/data.config.generated.mjs";
+      console.log(JSON.stringify([followIntentLocation.file, followIntent]));
+    `], { cwd, encoding: "utf8" });
+    assert.equal(consumer.status, 0, consumer.stderr);
+    assert.deepEqual(JSON.parse(consumer.stdout), [location, intent]);
+  }
+});
+
 test("the tombstone workflow scopes both Git operations to the relocated register root", (t) => {
   const cwd = fixture(t, [
     "scripts/data-config.mjs",
-    "src/data.config.ts",
-    "src/data.config.json",
+    "src/config/data.config.ts",
+    "src/config/data.config.json",
     "src/lib/key-pattern.ts",
     "src/lib/recovery.ts",
-    "src/integrations/activitypub/following.json",
+    "src/config/following.json",
   ]);
-  const registerPath = join(cwd, "src/data.config.json");
+  const registerPath = join(cwd, "src/config/data.config.json");
   const register = JSON.parse(readFileSync(registerPath, "utf8"));
   register["promoted-comments"].layers[0].git = "archive/promoted comments/{posts,notes}/*.json";
   writeFileSync(registerPath, JSON.stringify(register));
@@ -119,8 +147,8 @@ test("an open proposal is untouched when either reconciliation reports no write"
     assert.match(workflowText, /if: steps\.reconcile\.outputs\.should-write == 'true'/);
     const cwd = osFixture([
       workflowName === "tombstones.yml" ? ".github/workflows/tombstones.yml" : ".github/workflows/promotions.yml",
-      "src/data.config.generated.mjs",
-      "src/integrations/activitypub/following.json",
+      "src/config/data.config.generated.mjs",
+      "src/config/following.json",
     ]);
     const archiveRoot = join(cwd, "src/content/comments");
     mkdirSync(archiveRoot, { recursive: true });
@@ -166,8 +194,8 @@ const dataCheckInputs = [
   workflowPath,
   "scripts/data-check.mjs",
   "src/lib/key-pattern.ts",
-  "src/data.config.generated.mjs",
-  "src/integrations/activitypub/following.json",
+  "src/config/data.config.generated.mjs",
+  "src/config/following.json",
   "src/content.config.ts",
   "src/integrations/activitypub/store/schema.ts",
   "src/integrations/activitypub/store/migration-history.ts",
@@ -181,6 +209,7 @@ const dataCheckInputs = [
   "scripts/note.mjs",
   "scripts/notes-store.mjs",
   "scripts/newpost.mjs",
+  "scripts/newtag.mjs",
   "scripts/frontmatter.mjs",
   "scripts/pin.mjs",
   "scripts/follow.mjs",
@@ -193,6 +222,34 @@ const dataCheckInputs = [
   ".github/promotion-pr.md",
 ];
 const dataCheck = (cwd) => spawnSync(process.execPath, ["--experimental-strip-types", "scripts/data-check.mjs"], { cwd, encoding: "utf8" });
+
+test("data-check rejects wrong configuration locations in consumers", (context) => {
+  const cwd = fixture(context, dataCheckInputs);
+  const valid = dataCheck(cwd);
+  assert.equal(valid.status, 0, valid.stderr);
+  for (const [path, from, to] of [
+    ["scripts/tags.mjs", "readFileSync(tags.file,", 'readFileSync("wrong/tags.ts",'],
+    ["scripts/newtag.mjs", "const FILE = tags.file", 'const FILE = "wrong/tags.ts"'],
+    ["scripts/newpost.mjs", "readFileSync(tagsLocation.file,", 'readFileSync("wrong/tags.ts",'],
+    ["scripts/newpost.mjs", "const f = tagsLocation.file", 'const f = "wrong/tags.ts"'],
+    ["scripts/note.mjs", "readFileSync(apConfig.file,", 'readFileSync("wrong/activitypub.ts",'],
+    ["src/content.config.ts", "./config/data.config.generated.mjs", "./data.config.generated.mjs"],
+    [workflowPath, "./src/config/data.config.generated.mjs", "./src/data.config.generated.mjs"],
+    [".github/workflows/promotions.yml", "./src/config/data.config.generated.mjs", "./src/data.config.generated.mjs"],
+  ]) {
+    const target = join(cwd, path);
+    const source = readFileSync(target, "utf8");
+    const changed = source.replace(from, to);
+    assert.notEqual(changed, source, `the mutation must change ${path}`);
+    writeFileSync(target, changed);
+    const invalid = dataCheck(cwd);
+    assert.equal(invalid.status, 1, `${path}: ${invalid.stderr}`);
+    assert.ok(invalid.stderr.includes(`data register consumer ${path}: expected`), invalid.stderr);
+    writeFileSync(target, source);
+  }
+  const restored = dataCheck(cwd);
+  assert.equal(restored.status, 0, restored.stderr);
+});
 
 test("data-check rejects workflow path copies and unscoped Git commands", (t) => {
   const cwd = fixture(t, dataCheckInputs);

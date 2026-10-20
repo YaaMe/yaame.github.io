@@ -2,7 +2,7 @@ import { spawnSync } from "node:child_process";
 import { existsSync, mkdtempSync, rmdirSync, unlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import registerData from "../../../src/data.config.json" with { type: "json" };
+import registerData from "../../../src/config/data.config.json" with { type: "json" };
 import { registerForLayerKinds } from "../../../src/lib/recovery.ts";
 import { schemaBootstrapStatements } from "../../../src/integrations/activitypub/store/schema.ts";
 import { sqlSnapshotStatements, sqlInsertStatements, sqlUserSchemaStatement, validateSqlPlan } from "../../recovery-sql.mjs";

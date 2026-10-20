@@ -18,8 +18,8 @@ import { deliverPending, type Pending } from "./delivery";
 import { CHANNELS } from "../../lib/interactions/key-scheme";
 import { counts as reactionCounts } from "./store/reactions";
 import { FIRST, page } from "./paging";
-import { AP } from "./config";
-import { noteDigests } from "../../data.config.generated.mjs";
+import { AP } from "../../config/activitypub";
+import { noteDigests } from "../../config/data.config.generated.mjs";
 import { allPosts, href, type Post } from "../../lib/posts";
 // Aliased: `Note` here is Fedify's protocol object, and the content entry that
 // becomes one needs a different name.

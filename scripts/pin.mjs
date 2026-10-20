@@ -11,7 +11,7 @@
  */
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
-import { postsPinned } from "../src/data.config.generated.mjs";
+import { postsPinned } from "../src/config/data.config.generated.mjs";
 
 const args = process.argv.slice(2);
 const remove = args[0] === "--remove";

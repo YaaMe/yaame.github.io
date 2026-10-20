@@ -1,5 +1,5 @@
 import { platform } from "../platform";
-import { AUTH } from "../integrations/auth/config";
+import { AUTH } from "../config/auth";
 import type { Role } from "./auth/roles";
 import {
   readSession,

@@ -1,15 +1,16 @@
 #!/usr/bin/env node
 /**
- * Add an entry to the tag registry in src/tags.ts.
+ * Add an entry to the tag registry in src/config/tags.ts.
  *
  *   node scripts/newtag.mjs reading 读书
  *
  * The registry is the only truth: a tag that is not in it fails the build.
  */
 import { readFileSync, writeFileSync } from "node:fs";
+import { tags } from "../src/config/data.config.generated.mjs";
 
 const [slug, label] = process.argv.slice(2);
-const FILE = "src/tags.ts";
+const FILE = tags.file;
 
 if (!slug || !label) {
   console.error("  用法: make newtag SLUG=<英文标识> LABEL=<显示名>");

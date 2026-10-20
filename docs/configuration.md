@@ -14,9 +14,13 @@ meaning of one setting is easy to guess. The meaning of a combination is not.
 | `BUILD_PROFILE` | environment variable | before the build | CI / the deployer |
 | `DEPLOY_TARGET` | environment variable | before the build | the deployer |
 | `CF_KV_ID` / `CF_D1_ID` | environment variable → `wrangler.jsonc` | before the build, at deploy | CI repository variables |
-| `features.*` | `src/site.config.ts`, derived from `BUILD_PROFILE` | at build time | the author (by changing the derivation) |
-| `site.*` | `src/site.config.ts` | at build time | the author |
-| `AP.*` | `src/integrations/activitypub/config.ts` | at build time | the author |
+| `features.*` | `src/config/site.config.ts`, derived from `BUILD_PROFILE` | at build time | the author (by changing the derivation) |
+| `site.*` | `src/config/site.config.ts` | at build time | the author |
+| `AP.*` | `src/config/activitypub.ts` | at build time | the author |
+| `AUTH.*` | `src/config/auth.ts` | at build time | the author |
+| `TAGS` | `src/config/tags.ts` | at build time | the author / tag commands |
+| Follow intent | `src/config/following.json` | at build time | the author / follow commands |
+| Data locations | `src/config/data.config.json`, validated by `src/config/data.config.ts` | `make data` | the author |
 | `routes` / bindings / secrets | `wrangler.jsonc.template` | at deploy | the deployer |
 
 ---
@@ -39,7 +43,7 @@ Each site's footer links to the same path on the other site.
 The value is read twice, in two runtimes. When Node loads `astro.config.mjs`,
 it reads `process.env`. When Vite transforms the page modules, `process.env` is
 gone, and the value arrives as `__BUILD_PROFILE__` through `define`.
-`src/site.config.ts` reads both sources. **If it read only one, the same file
+`src/config/site.config.ts` reads both sources. **If it read only one, the same file
 would give different answers depending on who imported it.** The canonical link
 and the RSS feed would then point at different domains.
 

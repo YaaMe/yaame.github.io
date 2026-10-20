@@ -5,15 +5,15 @@ import { defineCollection } from "astro:content";
 // the schema the content layer runs.
 import { z } from "zod";
 import { glob } from "astro/loaders";
-import { TAG_SLUGS } from "./tags";
-import { site } from "./site.config";
+import { TAG_SLUGS } from "./config/tags";
+import { site } from "./config/site.config";
 import { commentSchema } from "./lib/interactions/comment-schema";
 import {
   komorebi as komorebiLocation,
   notes as notesLocation,
   posts as postsLocation,
   promotedComments,
-} from "./data.config.generated.mjs";
+} from "./config/data.config.generated.mjs";
 
 const promotedCommentsGlob = promotedComments.glob;
 const notesGlob = notesLocation.glob;
@@ -24,7 +24,7 @@ const ymd = new Intl.DateTimeFormat("en-CA", {
   timeZone: site.timezone, year: "numeric", month: "2-digit", day: "2-digit",
 });
 
-// Tags must come from the registry in src/tags.ts. A typo fails the build
+// Tags must come from the registry in src/config/tags.ts. A typo fails the build
 // rather than producing a /tags/xxx/ page nobody will visit.
 const tags = z
   .union([z.string(), z.array(z.string()), z.null()])

@@ -18,11 +18,11 @@ import { existsSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { createInterface } from "node:readline/promises";
 import { readFileSync } from "node:fs";
-import { posts } from "../src/data.config.generated.mjs";
+import { posts, tags as tagsLocation } from "../src/config/data.config.generated.mjs";
 
-// Tags come from the registry in src/tags.ts, which is the only truth. The key
+// Tags come from the registry in src/config/tags.ts, which is the only truth. The key
 // names are read out of the source rather than pulling in a TypeScript compiler.
-const POOL = [...readFileSync("src/tags.ts", "utf8")
+const POOL = [...readFileSync(tagsLocation.file, "utf8")
   .matchAll(/^\s{2}(\w+):\s*"([^"]+)"/gm)].map((m) => ({ slug: m[1], label: m[2] }));
 
 const DIR = posts.gitRoot;
@@ -85,7 +85,7 @@ function lastMonth() {
 
 /** Append to the registry, before `} as const;` so the structure holds. */
 function addToPool(slug, zh) {
-  const f = "src/tags.ts";
+  const f = tagsLocation.file;
   const src = readFileSync(f, "utf8");
   writeFileSync(f, src.replace(/\n\} as const;/, `\n  ${slug}: "${zh}",\n} as const;`));
 }
@@ -163,7 +163,7 @@ if (!tags.length && (process.stdin.isTTY || args.includes("--pick")) && !args.in
       if (/^\w+$/.test(slug) && zh) {
         addToPool(slug, zh);
         picked.push(slug);
-        console.log(`    已写入 src/tags.ts：${slug} → ${zh}`);
+        console.log(`    已写入 ${tagsLocation.file}：${slug} → ${zh}`);
       } else {
         console.log("    slug 只能是字母数字下划线，且显示名不能为空 —— 跳过");
       }
@@ -179,7 +179,7 @@ if (!tags.length && (process.stdin.isTTY || args.includes("--pick")) && !args.in
 let fm = `---\ntitle: "${title ?? spec}"\ndate: ${stamp}\n`;
 fm += tags.length
   ? `tags:\n${tags.map((t) => `  - ${t}`).join("\n")}\n`
-  : `tags:\n  # 从 src/tags.ts 的常量池里选；不在池子里的会让构建失败\n`;
+  : `tags:\n  # 从 ${tagsLocation.file} 的常量池里选；不在池子里的会让构建失败\n`;
 fm += `---\n\n`;
 
 writeFileSync(path, fm);

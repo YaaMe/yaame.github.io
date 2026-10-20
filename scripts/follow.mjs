@@ -14,7 +14,7 @@
  * docs/decisions/0004-follow-reconciliation-pivots-on-what-was-sent.md.
  */
 import { readFileSync, writeFileSync } from "node:fs";
-import { followIntentLocation } from "../src/data.config.generated.mjs";
+import { followIntentLocation } from "../src/config/data.config.generated.mjs";
 
 const FILE = followIntentLocation.file;
 // `--remove` rather than a leading `-` on the handle: make reads a leading

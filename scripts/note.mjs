@@ -25,7 +25,7 @@ import { readFileSync, existsSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { append, newId } from "./notes-store.mjs";
 import { postArchivePath } from "./comments-store.mjs";
-import { notes, posts } from "../src/data.config.generated.mjs";
+import { apConfig, notes, posts } from "../src/config/data.config.generated.mjs";
 
 const APPLY = process.env.APPLY === "1";
 const FORCE = process.env.FORCE === "1";
@@ -104,13 +104,13 @@ async function fromFile(path) {
       );
     }
 
-    // Read out of the source rather than imported: config.ts is TypeScript,
+    // Read out of the source rather than imported: activitypub.ts is TypeScript,
     // and this script runs without a compiler.
-    const config = readFileSync("src/integrations/activitypub/config.ts", "utf8");
+    const config = readFileSync(apConfig.file, "utf8");
     const field = (n) => config.match(new RegExp(`${n}:\\s*"([^"]+)"`))?.[1];
     const host = field("actorHost");
     const user = field("user");
-    if (!host || !user) fail("  读不出 actorHost / user —— config.ts 的形状变了，先看一眼再跑");
+    if (!host || !user) fail(`  读不出 actorHost / user —— ${apConfig.file} 的形状变了，先看一眼再跑`);
 
     const address = `https://${host}/users/${user}/notes/${slug}`;
     let live = false;

@@ -160,7 +160,7 @@ references; the database deliberately enforces no foreign keys.
 It is not a database dump and must not contain credentials. The register layer
 position keeps multiple layers of one entry distinct.
 
-The selection is computed from `src/data.config.json` by `selectRecovery()`:
+The selection is computed from `src/config/data.config.json` by `selectRecovery()`:
 
 - `keep` entries are exported, reading every declared non-git layer.
 - `rebuild`, `reset`, `ephemeral`, and `none` entries are absent from

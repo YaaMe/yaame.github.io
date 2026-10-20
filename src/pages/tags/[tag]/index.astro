@@ -2,7 +2,7 @@
 import Base from "../../../layouts/Base.astro";
 import PostList from "../../../components/PostList.astro";
 import { allPosts, allTags, pages, slice } from "../../../lib/posts";
-import { label } from "../../../tags";
+import { label } from "../../../config/tags";
 
 export async function getStaticPaths() {
   const posts = await allPosts();

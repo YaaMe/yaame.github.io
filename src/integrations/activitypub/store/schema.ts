@@ -19,7 +19,7 @@ import {
   migrations as migrationsLocation,
   reactions as reactionsLocation,
   visitorIdentities as identitiesLocation,
-} from "../../../data.config.generated.mjs";
+} from "../../../config/data.config.generated.mjs";
 
 const commentsColumns = commentsLocation.columns;
 const reactionsColumns = reactionsLocation.columns;

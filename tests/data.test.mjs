@@ -3,6 +3,8 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import {
   actorDigest,
+  apConfig,
+  authConfig,
   deliveries,
   departures,
   deliveryFailures,
@@ -22,12 +24,14 @@ import {
   promotedComments,
   queueOrdering,
   reactions,
+  siteConfig,
+  tags,
   visitorIdentities,
-} from "../src/data.config.generated.mjs";
-import { dataConfigSchema } from "../src/data.config.ts";
+} from "../src/config/data.config.generated.mjs";
+import { dataConfigSchema } from "../src/config/data.config.ts";
 
 function copyRegister() {
-  return JSON.parse(readFileSync(new URL("../src/data.config.json", import.meta.url), "utf8"));
+  return JSON.parse(readFileSync(new URL("../src/config/data.config.json", import.meta.url), "utf8"));
 }
 
 test("the register declares the comments stores and their layers", () => {
@@ -98,7 +102,7 @@ test("the register resolves every git content location", () => {
     ["posts", "src/content/posts/**/*.md"],
     ["notes", "src/content/notes/**/*.json"],
     ["komorebi", "src/content/komorebi/**/*.md"],
-    ["follow-intent", "src/integrations/activitypub/following.json"],
+    ["follow-intent", "src/config/following.json"],
   ]) {
     assert.equal(register[kind].layers[0].git, layer);
     assert.equal(register[kind].writeBack.length, 0);
@@ -112,7 +116,19 @@ test("the register resolves every git content location", () => {
   assert.deepEqual(postsPinned.fields, ["pinned"]);
   assert.deepEqual(notes.glob, { base: "./src/content/notes", pattern: "**/*.json" });
   assert.deepEqual(komorebi.glob, { base: "./src/content/komorebi", pattern: "**/*.md" });
-  assert.equal(followIntentLocation.file, "src/integrations/activitypub/following.json");
+  assert.equal(followIntentLocation.file, "src/config/following.json");
+});
+
+test("the register resolves owner configuration under src/config", () => {
+  for (const [location, file] of [
+    [siteConfig, "src/config/site.config.ts"],
+    [tags, "src/config/tags.ts"],
+    [apConfig, "src/config/activitypub.ts"],
+    [authConfig, "src/config/auth.ts"],
+  ]) {
+    assert.equal(location.file, file);
+    assert.ok(readFileSync(new URL(`../${file}`, import.meta.url), "utf8"));
+  }
 });
 
 test("the register resolves runtime keys, tables and patterns", () => {

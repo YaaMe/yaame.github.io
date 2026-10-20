@@ -21,7 +21,7 @@ import {
 } from "./comments-store.mjs";
 import { toContent } from "./promote-text.mjs";
 import { commentHref, commentSchema } from "../src/lib/interactions/comment-schema.ts";
-import { promotedComments } from "../src/data.config.generated.mjs";
+import { promotedComments } from "../src/config/data.config.generated.mjs";
 import { SOURCES } from "../src/lib/interactions/key-scheme.ts";
 const promoteWriteBack = promotedComments.writeBack?.find((name) => name === "promote");
 if (!promoteWriteBack) {

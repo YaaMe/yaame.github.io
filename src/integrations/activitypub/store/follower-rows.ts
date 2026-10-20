@@ -9,7 +9,7 @@ import { and, desc, eq, inArray } from "drizzle-orm";
 import type { Database } from "../../../platform/types";
 import { type Source, identityId } from "../../../lib/interactions/key-scheme.ts";
 import { storedFollowerSchema } from "../../../lib/interactions/records.ts";
-import { followers as followersLocation, visitorIdentities as identitiesLocation } from "../../../data.config.generated.mjs";
+import { followers as followersLocation, visitorIdentities as identitiesLocation } from "../../../config/data.config.generated.mjs";
 import { storedIdentity } from "./identity-write.ts";
 import { followers } from "./schema.ts";
 import { sqlValue } from "./sql-text.ts";

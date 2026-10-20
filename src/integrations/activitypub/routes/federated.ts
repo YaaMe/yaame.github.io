@@ -1,5 +1,5 @@
 import type { APIRoute } from "astro";
-import { AP } from "../config";
+import { AP } from "../../../config/activitypub";
 import { federation } from "../federation";
 // Registers the outbox dispatcher; only the Astro build can resolve its imports.
 import "../outbox";

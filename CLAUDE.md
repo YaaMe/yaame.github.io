@@ -15,8 +15,8 @@ of the tree does not have to know it changed.
 data layer — untouched by a redesign
   src/content/            markdown
   src/content.config.ts   field definitions, tag validation
-  src/tags.ts             the tag registry
-  src/site.config.ts      identity, navigation, links
+  src/config/tags.ts      the tag registry
+  src/config/site.config.ts  identity, navigation, links
   src/lib/posts.ts        posts, tags, the novel
   src/lib/notes.ts        notes, and the permalink they publish
   scripts/*.mjs           fill, check, create
@@ -99,10 +99,10 @@ this rule.
   post under a heading its own title contradicts.
 - **`chapterCount`** counts Han-numeral headings in the novel's body. A page
   should not know that rule.
-- **Tags** must exist in `src/tags.ts`. An unknown tag fails the build rather
+- **Tags** must exist in `src/config/tags.ts`. An unknown tag fails the build rather
   than producing a page nobody visits.
 - **Registered data has one location.** Once a kind is in
-  `src/data.config.json`, current code in one runtime takes its location from
+  `src/config/data.config.json`, current code in one runtime takes its location from
   the register and nowhere else. `make data` validates it and emits the ignored
   plain-JS module that both `src/` and Node scripts import; the declaration file
   gives `src/` types. Shipped migration SQL is schema history and keeps its

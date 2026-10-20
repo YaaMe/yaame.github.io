@@ -5,7 +5,7 @@ Date: 2026-09-19
 
 ## Context
 
-`src/integrations/activitypub/following.json` is the intent: the handles this
+`src/config/following.json` is the intent: the handles this
 actor means to follow, edited by hand and committed. Something has to turn a
 change there into a `Follow` or an `Undo`.
 

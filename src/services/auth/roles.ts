@@ -1,4 +1,4 @@
-import { AUTH } from "../../integrations/auth/config.ts";
+import { AUTH } from "../../config/auth.ts";
 
 export type Role = "owner" | "allowed" | "guest";
 

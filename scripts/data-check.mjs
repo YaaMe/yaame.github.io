@@ -1,5 +1,5 @@
 import { readFileSync, readdirSync, statSync } from "node:fs";
-import { join } from "node:path";
+import { dirname, join, relative } from "node:path";
 import { recordKeyPlaceholders } from "../src/lib/key-pattern.ts";
 
 function registerError(error) {
@@ -15,7 +15,7 @@ function registerError(error) {
 
 let module;
 try {
-  module = await import("../src/data.config.generated.mjs");
+  module = await import("../src/config/data.config.generated.mjs");
 } catch (error) {
   registerError(error);
   process.exit(1);
@@ -44,9 +44,11 @@ const {
   queueOrdering,
   followIntentLocation,
 } = module;
-const followIntentImport = `import followIntent from ${JSON.stringify(`./${followIntentLocation.file.replace(/^src\//, "")}`)} with { type: "json" };`;
-requires("src/data.config.generated.mjs", followIntentImport);
-requires("src/data.config.generated.mjs", "export { followIntent };");
+const generatedPath = "src/config/data.config.generated.mjs";
+const followIntentPath = relative(dirname(generatedPath), followIntentLocation.file).replaceAll("\\", "/");
+const followIntentImport = `import followIntent from ${JSON.stringify(followIntentPath.startsWith(".") ? followIntentPath : `./${followIntentPath}`)} with { type: "json" };`;
+requires(generatedPath, followIntentImport);
+requires(generatedPath, "export { followIntent };");
 const promotedGit = promotedComments.git;
 const promotedRoot = promotedComments.gitRoot;
 const commentsSql = { sql: comments.sql, columns: comments.columns };
@@ -98,7 +100,7 @@ function requiresPattern(path, pattern, label) {
   return source;
 }
 
-const content = requires("src/content.config.ts", 'from "./data.config.generated.mjs"');
+const content = requires("src/content.config.ts", 'from "./config/data.config.generated.mjs"');
 requires("src/content.config.ts", "const promotedCommentsGlob = promotedComments.glob");
 requires("src/content.config.ts", "const notesGlob = notesLocation.glob");
 requires("src/content.config.ts", "const postsGlob = postsLocation.glob");
@@ -108,7 +110,7 @@ for (const globName of ["promotedComments", "notes", "posts", "komorebi"]) {
   requires("src/content.config.ts", `loader: glob(${variable})`);
 }
 
-const schema = requires("src/integrations/activitypub/store/schema.ts", 'from "../../../data.config.generated.mjs"');
+const schema = requires("src/integrations/activitypub/store/schema.ts", 'from "../../../config/data.config.generated.mjs"');
 requires("src/integrations/activitypub/store/schema.ts", "commentsLocation.columns");
 requires("src/integrations/activitypub/store/schema.ts", "reactionsLocation.columns");
 requires("src/integrations/activitypub/store/schema.ts", "migrationsLocation.table");
@@ -142,7 +144,7 @@ const promote = requires("scripts/promote.mjs", 'from "./comments-rows.mjs"');
 requires("scripts/promote.mjs", "promotedComments.writeBack");
 requires("scripts/promote.mjs", "FROM ${table}");
 requires("scripts/promote.mjs", "WHERE ${column(\"deletedAt\")} IS NULL");
-const promoteFilter = requires("scripts/promote-filter.mjs", 'from "../src/data.config.generated.mjs"');
+const promoteFilter = requires("scripts/promote-filter.mjs", 'from "../src/config/data.config.generated.mjs"');
 requires("scripts/promote-filter.mjs", "followIntent");
 
 const unpromote = requires("scripts/unpromote.mjs", 'from "./comments-rows.mjs"');
@@ -151,34 +153,40 @@ requires("scripts/unpromote.mjs", "DELETE FROM ${table}");
 const tombstone = requires("scripts/tombstone.mjs", 'from "./comments-rows.mjs"');
 requires("scripts/tombstone.mjs", "promotedComments.writeBack");
 requires("scripts/tombstone.mjs", "FROM ${table}");
-const commentsRows = requires("scripts/comments-rows.mjs", 'from "../src/data.config.generated.mjs"');
+const commentsRows = requires("scripts/comments-rows.mjs", 'from "../src/config/data.config.generated.mjs"');
 requires("scripts/comments-rows.mjs", "comments.quotedColumns");
 requires("scripts/comments-rows.mjs", "commentsColumns");
 requires("scripts/comments-rows.mjs", "comments.table");
 requires("scripts/comments-rows.mjs", "rowValue");
-const commentsStore = requires("scripts/comments-store.mjs", 'from "../src/data.config.generated.mjs"');
+const commentsStore = requires("scripts/comments-store.mjs", 'from "../src/config/data.config.generated.mjs"');
 requires("scripts/comments-store.mjs", "promotedComments.gitRoot");
 requires("scripts/comments-store.mjs", "notes.gitRoot");
 requires("scripts/comments-store.mjs", "postArchivePath");
 
-const note = requires("scripts/note.mjs", 'from "../src/data.config.generated.mjs"');
+const note = requires("scripts/note.mjs", 'from "../src/config/data.config.generated.mjs"');
 requires("scripts/note.mjs", "postArchivePath");
 requires("scripts/note.mjs", "posts.gitRoot");
 requires("scripts/note.mjs", "notes.gitRoot");
-const notesStore = requires("scripts/notes-store.mjs", 'from "../src/data.config.generated.mjs"');
+requires("scripts/note.mjs", 'readFileSync(apConfig.file, "utf8")');
+const notesStore = requires("scripts/notes-store.mjs", 'from "../src/config/data.config.generated.mjs"');
 requires("scripts/notes-store.mjs", "notes.gitRoot");
-const newpost = requires("scripts/newpost.mjs", 'from "../src/data.config.generated.mjs"');
+const newpost = requires("scripts/newpost.mjs", 'from "../src/config/data.config.generated.mjs"');
 requires("scripts/newpost.mjs", "posts.gitRoot");
-const frontmatter = requires("scripts/frontmatter.mjs", 'from "../src/data.config.generated.mjs"');
+requires("scripts/newpost.mjs", 'readFileSync(tagsLocation.file, "utf8")');
+requires("scripts/newpost.mjs", "const f = tagsLocation.file");
+const newtag = requires("scripts/newtag.mjs", 'from "../src/config/data.config.generated.mjs"');
+requires("scripts/newtag.mjs", "const FILE = tags.file");
+const frontmatter = requires("scripts/frontmatter.mjs", 'from "../src/config/data.config.generated.mjs"');
 requires("scripts/frontmatter.mjs", "posts.gitRoot");
-const pin = requires("scripts/pin.mjs", 'from "../src/data.config.generated.mjs"');
+const pin = requires("scripts/pin.mjs", 'from "../src/config/data.config.generated.mjs"');
 requires("scripts/pin.mjs", "postsPinned.gitRoot");
-const follow = requires("scripts/follow.mjs", 'from "../src/data.config.generated.mjs"');
+const follow = requires("scripts/follow.mjs", 'from "../src/config/data.config.generated.mjs"');
 requires("scripts/follow.mjs", "followIntentLocation.file");
-const tags = requires("scripts/tags.mjs", 'from "../src/data.config.generated.mjs"');
+const tags = requires("scripts/tags.mjs", 'from "../src/config/data.config.generated.mjs"');
 requires("scripts/tags.mjs", "posts.gitRoot");
 requires("scripts/tags.mjs", "komorebi.gitRoot");
-const federation = requires("src/integrations/activitypub/federation.ts", 'from "../../data.config.generated.mjs"');
+requires("scripts/tags.mjs", 'readFileSync(tags.file, "utf8")');
+const federation = requires("src/integrations/activitypub/federation.ts", 'from "../../config/data.config.generated.mjs"');
 requires("src/integrations/activitypub/federation.ts", "followIntent");
 for (const name of ["actorDigest", "departures", "followLedger", "following"]) {
   requires("src/integrations/activitypub/federation.ts", name);
@@ -188,11 +196,11 @@ if (federation.includes("readFollowIntent") || federation.includes("await follow
   process.exitCode = 1;
 }
 
-const outbox = requires("src/integrations/activitypub/outbox.ts", 'from "../../data.config.generated.mjs"');
+const outbox = requires("src/integrations/activitypub/outbox.ts", 'from "../../config/data.config.generated.mjs"');
 requires("src/integrations/activitypub/outbox.ts", "noteDigests");
-const session = requires("src/integrations/auth/session-core.ts", 'from "../../data.config.generated.mjs"');
+const session = requires("src/integrations/auth/session-core.ts", 'from "../../config/data.config.generated.mjs"');
 requires("src/integrations/auth/session-core.ts", "sessions.key");
-const worker = requires("worker/consumer.ts", 'from "../src/data.config.generated.mjs"');
+const worker = requires("worker/consumer.ts", 'from "../src/config/data.config.generated.mjs"');
 requires("worker/consumer.ts", "deliveryFailures.key");
 requires("Makefile", "build-consumer: data");
 requires("Makefile", "deploy-consumer: data");
@@ -203,7 +211,7 @@ requires(".github/workflows/tombstones.yml", "shouldWrite");
 requires(".github/workflows/tombstones.yml", "if: steps.reconcile.outputs.should-write == 'true'");
 requires(
   ".github/workflows/tombstones.yml",
-  'promoted_comments_root=$(node --input-type=module -e \'import { promotedComments } from "./src/data.config.generated.mjs"; console.log(promotedComments.gitRoot)\')',
+  'promoted_comments_root=$(node --input-type=module -e \'import { promotedComments } from "./src/config/data.config.generated.mjs"; console.log(promotedComments.gitRoot)\')',
 );
 requires(
   ".github/workflows/tombstones.yml",
@@ -220,7 +228,7 @@ requires(".github/workflows/promotions.yml", "shouldWrite");
 requires(".github/workflows/promotions.yml", "if: steps.reconcile.outputs.should-write == 'true'");
 requires(
   ".github/workflows/promotions.yml",
-  'promoted_comments_root=$(node --input-type=module -e \'import { promotedComments } from "./src/data.config.generated.mjs"; console.log(promotedComments.gitRoot)\')',
+  'promoted_comments_root=$(node --input-type=module -e \'import { promotedComments } from "./src/config/data.config.generated.mjs"; console.log(promotedComments.gitRoot)\')',
 );
 requires(
   ".github/workflows/promotions.yml",
@@ -242,6 +250,7 @@ const pathConsumers = [
   ["scripts/note.mjs", note],
   ["scripts/notes-store.mjs", notesStore],
   ["scripts/newpost.mjs", newpost],
+  ["scripts/newtag.mjs", newtag],
   ["scripts/frontmatter.mjs", frontmatter],
   ["scripts/pin.mjs", pin],
   ["scripts/follow.mjs", follow],
@@ -343,7 +352,7 @@ const oldPathCopies = [
   ["posts", /(?:src\/)?content\/posts(?:\/|["'`])/, posts],
   ["notes", /(?:src\/)?content\/notes(?:\/|["'`])/, notes],
   ["komorebi", /(?:src\/)?content\/komorebi(?:\/|["'`])/, komorebi],
-  ["follow-intent", /(?:src\/)?integrations\/activitypub\/following\.json|\.\/following\.json/, followIntentLocation],
+  ["follow-intent", /(?:src\/)?config\/following\.json|\.\/following\.json/, followIntentLocation],
 ];
 for (const [path, source] of sourceWithoutComments) {
   for (const [kind, pattern, location] of oldPathCopies) {

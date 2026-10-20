@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { isRecordKeyPattern } from "./lib/key-pattern.ts";
+import { isRecordKeyPattern } from "../lib/key-pattern.ts";
 
 export const ORIGINS = ["owner", "others", "system"] as const;
 export const RECOVERIES = ["keep", "owner-held", "rebuild", "reset", "ephemeral", "none"] as const;

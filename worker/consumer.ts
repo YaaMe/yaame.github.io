@@ -15,7 +15,7 @@
 import type { WorkersMessageQueue } from "@fedify/cfworkers";
 import { dropFollowersAt, federation } from "../src/integrations/activitypub/federation";
 import { platform } from "virtual:platform";
-import { deliveryFailures } from "../src/data.config.generated.mjs";
+import { deliveryFailures } from "../src/config/data.config.generated.mjs";
 
 /**
  * The retry curve, and where it stops.

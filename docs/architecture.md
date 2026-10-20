@@ -9,8 +9,8 @@ rewrite it, and the data does not change.**
 data layer — no line changes in a redesign
   src/content/            markdown. Data only
   src/content.config.ts   field definitions and tag validation
-  src/tags.ts             the tag registry (the single source)
-  src/site.config.ts      site identity, navigation, social links
+  src/config/tags.ts      the tag registry (the single source)
+  src/config/site.config.ts  site identity, navigation, social links
   src/lib/posts.ts        posts, tags, the novel
   src/lib/notes.ts        notes, and the permalink they publish
   src/lib/interactions/comments.ts     promoted comments
@@ -32,7 +32,7 @@ Neither list covers `src/integrations/` (ActivityPub and login) or
 ## The rule
 
 **The design layer must not import `astro:content`.** It reads content only
-through `src/lib/`. It may also import `src/site.config.ts` and `src/tags.ts`.
+through `src/lib/`. It may also import `src/config/site.config.ts` and `src/config/tags.ts`.
 
 What `src/lib/` exports:
 

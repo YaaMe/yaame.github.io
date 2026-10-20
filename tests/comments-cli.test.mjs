@@ -27,15 +27,15 @@ function fixture(t) {
     "scripts/promote.mjs", "scripts/promote-filter.mjs", "scripts/promote-text.mjs",
     "scripts/tombstone.mjs", "scripts/unpromote.mjs", "scripts/comments-store.mjs",
     "scripts/comments-rows.mjs",
-    "scripts/comments-cli.mjs", "src/lib/interactions/comment-schema.ts", "src/data.config.generated.mjs",
-    "src/lib/interactions/records.ts", "src/lib/interactions/key-scheme.ts", "src/integrations/activitypub/config.ts",
+    "scripts/comments-cli.mjs", "src/lib/interactions/comment-schema.ts", "src/config/data.config.generated.mjs",
+    "src/lib/interactions/records.ts", "src/lib/interactions/key-scheme.ts", "src/config/activitypub.ts",
     "src/integrations/activitypub/store/sql-text.ts",
   ]) {
     const target = join(cwd, path);
     mkdirSync(dirname(target), { recursive: true });
     copyFileSync(join(root, path), target);
   }
-  const following = join(cwd, "src/integrations/activitypub/following.json");
+  const following = join(cwd, "src/config/following.json");
   mkdirSync(dirname(following), { recursive: true });
   const follow = (names) => writeFileSync(following, JSON.stringify({ follow: names.map((name) => `${name}@social.test`) }));
   follow(["alice"]);

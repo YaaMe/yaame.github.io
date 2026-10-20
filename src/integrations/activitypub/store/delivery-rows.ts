@@ -6,7 +6,7 @@ import { eq } from "drizzle-orm";
 import type { Database } from "../../../platform/types";
 import { type Channel, deliveryId } from "../../../lib/interactions/key-scheme.ts";
 import { storedDeliverySchema } from "../../../lib/interactions/records.ts";
-import { deliveries as location } from "../../../data.config.generated.mjs";
+import { deliveries as location } from "../../../config/data.config.generated.mjs";
 import { deliveries } from "./schema.ts";
 import { sqlValue } from "./sql-text.ts";
 import { parseStoredRow } from "./stored-row.ts";
