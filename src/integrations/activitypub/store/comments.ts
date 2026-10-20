@@ -4,11 +4,11 @@
  * Reads use Drizzle so host-specific database access stays in the platform.
  */
 import { and, asc, count, eq, inArray, isNotNull, isNull } from "drizzle-orm";
-import { platform } from "../../../platform";
 import { commentHref } from "../../../lib/interactions/comment-schema";
 import { SOURCES, commentId, identityId } from "../../../lib/interactions/key-scheme";
 import type { Database } from "../../../platform/types";
-import { comments, migrate } from "./schema";
+import { store } from "./database";
+import { comments } from "./schema";
 import { insertComment } from "./write-comment";
 
 export type Comment = typeof comments.$inferSelect;
@@ -16,33 +16,6 @@ export type Comment = typeof comments.$inferSelect;
 // D1 permits at most 100 bound parameters per query.
 // https://developers.cloudflare.com/d1/platform/limits/
 const D1_MAX_BOUND_PARAMETERS = 100;
-
-/**
- * The database, with its schema known to be current.
- *
- * Migrations run once per isolate rather than at deploy time, because a deploy
- * holds no database credentials of its own and both hosts would otherwise need
- * separate ways to reach the same tables. When there is nothing to do it costs
- * one read.
- */
-let ready: Promise<Database> | null = null;
-
-export function store(): Promise<Database> {
-  if (ready) return ready;
-  ready = (async () => {
-    const db = platform.db;
-    if (db === false) throw new Error("no database is bound");
-    await migrate(db);
-    return db;
-  })();
-  // A failed migration must not be remembered as done: a cached rejection would
-  // make every later request fail with the first error, long after whatever
-  // caused it had passed.
-  ready.catch(() => {
-    ready = null;
-  });
-  return ready;
-}
 
 /**
  * Where a reply belongs.

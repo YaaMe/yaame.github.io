@@ -2,7 +2,7 @@
  * Boosts and likes, as they arrive and as they are counted.
  */
 import { SOURCES, identityId, reactionId } from "../../../lib/interactions/key-scheme";
-import { store } from "./comments";
+import { store } from "./database";
 import { countReactions, insertReaction, withdrawReaction, type Kind } from "./reaction-rows";
 
 export type { Kind };
