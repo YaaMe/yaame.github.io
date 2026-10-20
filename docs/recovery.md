@@ -50,9 +50,10 @@ column order and boolean conversion; targets execute those statements and
 own connections and transactions. `sqlUserSchemaStatement` accepts excluded
 prefixes and exact names, so each target can recognise its internal schema.
 `validateSqlPlan` checks the complete logical plan for both SQL readers;
-SQLite adds its in-memory constraint and round-trip checks. Quoting and
-record-key placeholder grammar have one owner in `src/lib/recovery.ts`, also
-used by the register generator and consumer checker. The command modules use
+SQLite adds its in-memory constraint and round-trip checks. SQL identifier
+quoting lives in `src/lib/recovery.ts`. Record-key placeholder grammar lives
+in `src/lib/key-pattern.ts`, shared by recovery, the register schema, generator
+and consumer checker. The command modules use
 `scripts/run-cli.mjs` for main-module detection and failure reporting, including
 when invoked through a renamed file or a filesystem alias.
 

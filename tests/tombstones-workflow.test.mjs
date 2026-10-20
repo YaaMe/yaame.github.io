@@ -32,7 +32,7 @@ function osFixture(paths) {
 }
 
 test("the data generator validates the register and emits resolved values", (t) => {
-  const cwd = fixture(t, ["scripts/data-config.mjs", "src/data.config.ts", "src/data.config.json", "src/lib/recovery.ts", "src/integrations/activitypub/following.json"]);
+  const cwd = fixture(t, ["scripts/data-config.mjs", "src/data.config.ts", "src/data.config.json", "src/lib/key-pattern.ts", "src/lib/recovery.ts", "src/integrations/activitypub/following.json"]);
   const registerPath = join(cwd, "src/data.config.json");
   const register = JSON.parse(readFileSync(registerPath, "utf8"));
   register["promoted-comments"].layers[0].git = "archive/promoted comments/{posts,notes}/*.json";
@@ -67,6 +67,7 @@ test("the tombstone workflow scopes both Git operations to the relocated registe
     "scripts/data-config.mjs",
     "src/data.config.ts",
     "src/data.config.json",
+    "src/lib/key-pattern.ts",
     "src/lib/recovery.ts",
     "src/integrations/activitypub/following.json",
   ]);
@@ -164,7 +165,7 @@ const dataCheckInputs = [
   "Makefile",
   workflowPath,
   "scripts/data-check.mjs",
-  "src/lib/recovery.ts",
+  "src/lib/key-pattern.ts",
   "src/data.config.generated.mjs",
   "src/integrations/activitypub/following.json",
   "src/content.config.ts",

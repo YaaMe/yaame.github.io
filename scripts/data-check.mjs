@@ -1,6 +1,6 @@
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
-import { recordKeyPlaceholders } from "../src/lib/recovery.ts";
+import { recordKeyPlaceholders } from "../src/lib/key-pattern.ts";
 
 function registerError(error) {
   if (Array.isArray(error?.issues)) {

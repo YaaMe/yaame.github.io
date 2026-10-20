@@ -8,11 +8,10 @@
  */
 
 import registerData from "../src/data.config.json" with { type: "json" };
+import { isRecordKeyPattern, recordKeyMatches } from "../src/lib/key-pattern.ts";
 import {
   RecoveryError,
   exportRecovery,
-  isRecordKeyPattern,
-  recordKeyMatches,
   registerForLayerKinds,
   selectRecovery,
 } from "../src/lib/recovery.ts";
