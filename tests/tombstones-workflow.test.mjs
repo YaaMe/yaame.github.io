@@ -160,38 +160,42 @@ test("an open proposal is untouched when either reconciliation reports no write"
   }
 });
 
+const dataCheckInputs = [
+  "Makefile",
+  workflowPath,
+  "scripts/data-check.mjs",
+  "src/lib/recovery.ts",
+  "src/data.config.generated.mjs",
+  "src/integrations/activitypub/following.json",
+  "src/content.config.ts",
+  "src/integrations/activitypub/store/schema.ts",
+  "src/integrations/activitypub/store/migration-history.ts",
+  "scripts/promote.mjs",
+  "scripts/comments-store.mjs",
+  "scripts/comments-rows.mjs",
+  "scripts/comments-cli.mjs",
+  "scripts/promote-filter.mjs",
+  "scripts/unpromote.mjs",
+  "scripts/tombstone.mjs",
+  "scripts/note.mjs",
+  "scripts/notes-store.mjs",
+  "scripts/newpost.mjs",
+  "scripts/frontmatter.mjs",
+  "scripts/pin.mjs",
+  "scripts/follow.mjs",
+  "scripts/tags.mjs",
+  "src/integrations/activitypub/federation.ts",
+  "src/integrations/activitypub/outbox.ts",
+  "src/integrations/auth/session-core.ts",
+  "worker/consumer.ts",
+  ".github/workflows/promotions.yml",
+  ".github/promotion-pr.md",
+];
+const dataCheck = (cwd) => spawnSync(process.execPath, ["--experimental-strip-types", "scripts/data-check.mjs"], { cwd, encoding: "utf8" });
+
 test("data-check rejects workflow path copies and unscoped Git commands", (t) => {
-  const cwd = fixture(t, [
-    "Makefile",
-    workflowPath,
-    "scripts/data-check.mjs",
-    "src/lib/recovery.ts",
-    "src/data.config.generated.mjs",
-    "src/integrations/activitypub/following.json",
-    "src/content.config.ts",
-    "src/integrations/activitypub/store/schema.ts",
-    "scripts/promote.mjs",
-    "scripts/comments-store.mjs",
-    "scripts/comments-rows.mjs",
-    "scripts/comments-cli.mjs",
-    "scripts/promote-filter.mjs",
-    "scripts/unpromote.mjs",
-    "scripts/tombstone.mjs",
-    "scripts/note.mjs",
-    "scripts/notes-store.mjs",
-    "scripts/newpost.mjs",
-    "scripts/frontmatter.mjs",
-    "scripts/pin.mjs",
-    "scripts/follow.mjs",
-    "scripts/tags.mjs",
-    "src/integrations/activitypub/federation.ts",
-    "src/integrations/activitypub/outbox.ts",
-    "src/integrations/auth/session-core.ts",
-    "worker/consumer.ts",
-    ".github/workflows/promotions.yml",
-    ".github/promotion-pr.md",
-  ]);
-  const check = () => spawnSync(process.execPath, ["--experimental-strip-types", "scripts/data-check.mjs"], { cwd, encoding: "utf8" });
+  const cwd = fixture(t, dataCheckInputs);
+  const check = () => dataCheck(cwd);
   const valid = check();
   assert.equal(valid.status, 0, valid.stderr);
 
@@ -224,4 +228,35 @@ test("data-check rejects workflow path copies and unscoped Git commands", (t) =>
   const invalidWorker = check();
   assert.equal(invalidWorker.status, 1);
   assert.match(invalidWorker.stderr, /data register consumer worker\/consumer\.ts:/);
+});
+
+test("data-check scans every line of the table declarations and keeps the migration history to history", (t) => {
+  const schemaPath = "src/integrations/activitypub/store/schema.ts";
+  const historyPath = "src/integrations/activitypub/store/migration-history.ts";
+  const schema = readFileSync(join(root, schemaPath), "utf8");
+  const history = readFileSync(join(root, historyPath), "utf8");
+  const cwd = fixture(t, dataCheckInputs);
+  const valid = dataCheck(cwd);
+  assert.equal(valid.status, 0, valid.stderr);
+
+  for (const [path, source, mutation, message] of [
+    [schemaPath, schema, (text) => `${text}\nexport const copy = () => "SELECT 1 FROM 'comments'";\n`, /store\/schema\.ts: repeats comments table comments/],
+    [schemaPath, schema, (text) => text.replace('import { MIGRATIONS } from "./migration-history.ts";\n', "const MIGRATIONS = [];\n"), /store\/schema\.ts: expected from "\.\/migration-history\.ts"/],
+    [historyPath, history, (text) => `import { sql } from "drizzle-orm";\n${text}`, /migration-history\.ts: holds more than the shipped migration list/],
+    [historyPath, history, (text) => `${text}\nexport const live = (db) => db.run("SELECT 1");\n`, /migration-history\.ts: holds more than the shipped migration list/],
+    [historyPath, history, (text) => text.replace("export const MIGRATIONS", "const MIGRATIONS"), /migration-history\.ts: expected export const MIGRATIONS/],
+  ]) {
+    const changed = mutation(source);
+    assert.notEqual(changed, source, "the mutation must change the source");
+    writeFileSync(join(cwd, path), changed);
+    const result = dataCheck(cwd);
+    assert.equal(result.status, 1, changed);
+    assert.match(result.stderr, message);
+    writeFileSync(join(cwd, path), source);
+  }
+
+  rmSync(join(cwd, historyPath));
+  const missing = dataCheck(cwd);
+  assert.equal(missing.status, 1);
+  assert.match(missing.stderr, /migration-history\.ts: ENOENT/);
 });
