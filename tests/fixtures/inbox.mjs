@@ -16,7 +16,8 @@ export async function inboxHarness(context, { databaseUrl = ":memory:", openStor
       contents: `
         export { dropFollowersAt, federation } from "./src/integrations/activitypub/federation.ts";
         export { platform } from "./src/platform/index.ts";
-        export { store, record, replies, replyCounts, withdrawnMany } from "./src/integrations/activitypub/store/comments.ts";
+        export { record, replies, replyCounts, withdrawnMany } from "./src/integrations/activitypub/store/comments.ts";
+        export { store } from "./src/integrations/activitypub/store/database.ts";
         export { comments, followers, reactions, visitorIdentities } from "./src/integrations/activitypub/store/schema.ts";
         export { counts as reactionCounts } from "./src/integrations/activitypub/store/reactions.ts";
         export { insertComment } from "./src/integrations/activitypub/store/write-comment.ts";

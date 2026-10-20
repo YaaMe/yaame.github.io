@@ -374,14 +374,19 @@ for (const [path, pattern] of directLocationCopies) {
   }
 }
 
-// Migration strings are shipped schema history. The live Drizzle declaration
-// below them must still take its table and columns from the register.
-const migrationStart = schema.indexOf("const MIGRATIONS");
-const migrationEnd = schema.indexOf("/**\n * Bring a database", migrationStart);
-const liveSchema = `${schema.slice(0, migrationStart)}${schema.slice(migrationEnd)}`;
-const liveSchemaCode = withoutComments(liveSchema);
+// Migration strings are shipped schema history and keep their names, so their
+// file is not scanned for copies. That holds only while it is history alone:
+// anything it imports could be live code reading tables by literal name.
+const historyPath = "src/integrations/activitypub/store/migration-history.ts";
+requires("src/integrations/activitypub/store/schema.ts", 'from "./migration-history.ts"');
+const history = withoutComments(requires(historyPath, "export const MIGRATIONS"));
+if (/^\s*import\b|\bimport\s*\(|\bsqliteTable\b|\bfunction\b|=>/m.test(history)) {
+  console.error(`  data register consumer ${historyPath}: holds more than the shipped migration list`);
+  process.exitCode = 1;
+}
+const liveSchemaCode = withoutComments(schema);
 for (const [kind, location] of sqlLocations) {
-  if (new RegExp(`sqliteTable\\s*\\(\\s*["']${location.sql}["']`).test(liveSchema)) {
+  if (new RegExp(`sqliteTable\\s*\\(\\s*["']${location.sql}["']`).test(schema)) {
     console.error(`  data register consumer src/integrations/activitypub/store/schema.ts: repeats ${kind} table ${location.sql}`);
     process.exitCode = 1;
   }

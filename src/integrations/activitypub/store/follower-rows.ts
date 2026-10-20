@@ -8,14 +8,13 @@
 import { and, desc, eq, inArray } from "drizzle-orm";
 import type { Database } from "../../../platform/types";
 import { type Source, identityId } from "../../../lib/interactions/key-scheme.ts";
-import { storedFollowerSchema, visitorIdentitySchema } from "../../../lib/interactions/records.ts";
+import { storedFollowerSchema } from "../../../lib/interactions/records.ts";
 import { followers as followersLocation, visitorIdentities as identitiesLocation } from "../../../data.config.generated.mjs";
+import { storedIdentity } from "./identity-write.ts";
 import { followers } from "./schema.ts";
 import { sqlValue } from "./sql-text.ts";
-import { D1_MAX_BOUND_PARAMETERS } from "./reaction-rows.ts";
-
-// The source and the inbox are bound beside the ids.
-const IDS_PER_DELETE = D1_MAX_BOUND_PARAMETERS - 2;
+import { parseStoredRow } from "./stored-row.ts";
+import { queryBatches } from "./query-batches.ts";
 
 export type Follower = { identifier: string; inbox: string | null; sharedInbox: string | null };
 
@@ -30,23 +29,18 @@ export type Follower = { identifier: string; inbox: string | null; sharedInbox: 
  * neither behind.
  */
 export async function upsertFollower(db: Database, value: unknown): Promise<boolean> {
-  const follower = storedFollowerSchema.safeParse(value);
-  if (!follower.success) return false;
-  const identity = visitorIdentitySchema.safeParse({
-    id: follower.data.id,
-    source: follower.data.source,
-    identifier: follower.data.identifier,
-    name: null,
-  });
-  if (!identity.success) return false;
+  const follower = parseStoredRow(storedFollowerSchema, value);
+  if (follower === null) return false;
+  const identity = storedIdentity(follower.id, follower);
+  if (identity === null) return false;
   const insert = (location: { table: string; columns: Record<string, string>; quotedColumns: Record<string, string> }, row: Record<string, string | null>) =>
     `INSERT INTO ${location.table} (${Object.values(location.quotedColumns).join(", ")}) VALUES (${
       Object.keys(location.columns).map((column) => sqlValue(row[column] ?? null)).join(", ")}) ON CONFLICT (${location.quotedColumns.id})`;
   const refreshed = (["inbox", "sharedInbox", "followId"] as const)
     .map((column) => `${followersLocation.quotedColumns[column]} = excluded.${followersLocation.quotedColumns[column]}`);
   await db.atomic([
-    `${insert(identitiesLocation, identity.data)} DO NOTHING`,
-    `${insert(followersLocation, follower.data)} DO UPDATE SET ${refreshed.join(", ")}`,
+    `${insert(identitiesLocation, identity)} DO NOTHING`,
+    `${insert(followersLocation, follower)} DO UPDATE SET ${refreshed.join(", ")}`,
   ]);
   return true;
 }
@@ -85,9 +79,10 @@ export async function removeFollowersAtInbox(
     }
   });
   const removed: string[] = [];
-  for (let i = 0; i < ids.length; i += IDS_PER_DELETE) {
+  // The source and the inbox are bound beside the ids.
+  for (const batch of queryBatches(ids, 2)) {
     const rows = await db.delete(followers)
-      .where(and(eq(followers.source, source), eq(followers.inbox, inbox), inArray(followers.id, ids.slice(i, i + IDS_PER_DELETE))))
+      .where(and(eq(followers.source, source), eq(followers.inbox, inbox), inArray(followers.id, batch)))
       .returning({ identifier: followers.identifier });
     removed.push(...rows.map(({ identifier }) => identifier));
   }

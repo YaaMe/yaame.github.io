@@ -2,7 +2,7 @@
  * Federated followers, as the inbox records them and as delivery reads them.
  */
 import { SOURCES, identityId, normalizedUrl } from "../../../lib/interactions/key-scheme";
-import { store } from "./comments";
+import { store } from "./database";
 import { listFollowers, removeFollower, removeFollowersAtInbox, upsertFollower } from "./follower-rows";
 
 export type FederatedFollower = { identifier: string; inbox: string; sharedInbox: string | null };

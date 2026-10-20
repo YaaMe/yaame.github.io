@@ -3,7 +3,8 @@ import assert from "node:assert/strict";
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { main } from "../scripts/unpromote.mjs";
+import { deleteSql, main, selectSql } from "../scripts/unpromote.mjs";
+import { comments } from "../src/data.config.generated.mjs";
 import { archivedComment as entry, physicalComment } from "./fixtures/interactions.mjs";
 
 test("unpromote previews without touching git or SQL", async (t) => {
@@ -70,4 +71,10 @@ test("unpromote removes only the requested internal ID and preserves its neighbo
   assert.deepEqual(JSON.parse(readFileSync(path, "utf8")).comments, [neighbour]);
   assert.equal(result.deleteId, target.id);
   assert.notEqual(result.deleteId, target.activityId);
+});
+
+test("unpromote's statements carry the id as one quoted SQL string", () => {
+  const where = `WHERE ${comments.quotedColumns.id} = 'o''brien'`;
+  assert.equal(deleteSql("o'brien"), `DELETE FROM ${comments.table} ${where}`);
+  assert.ok(selectSql("o'brien").endsWith(`\n   ${where}`));
 });
