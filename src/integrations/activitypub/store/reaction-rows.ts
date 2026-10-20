@@ -8,22 +8,23 @@ import { type Source, reactionId } from "../../../lib/interactions/key-scheme.ts
 import { storedReactionSchema, visitorIdentitySchema, type REACTION_KINDS } from "../../../lib/interactions/records.ts";
 import { queryBatches } from "./query-batches.ts";
 import { reactions, visitorIdentities } from "./schema.ts";
+import { parseStoredRow } from "./stored-row.ts";
 
 export type Kind = typeof REACTION_KINDS[number];
 
 /** False when refused, or when the computed id is already held. */
 export async function insertReaction(db: Database, value: unknown): Promise<boolean> {
-  const reaction = storedReactionSchema.safeParse(value);
-  if (!reaction.success) return false;
-  const author = visitorIdentitySchema.safeParse({
-    id: reaction.data.authorId,
-    source: reaction.data.source,
-    identifier: reaction.data.identifier,
+  const reaction = parseStoredRow(storedReactionSchema, value);
+  if (reaction === null) return false;
+  const author = parseStoredRow(visitorIdentitySchema, {
+    id: reaction.authorId,
+    source: reaction.source,
+    identifier: reaction.identifier,
     name: null,
   });
-  if (!author.success) return false;
-  await db.insert(visitorIdentities).values(author.data).onConflictDoNothing({ target: visitorIdentities.id });
-  const written = await db.insert(reactions).values(reaction.data)
+  if (author === null) return false;
+  await db.insert(visitorIdentities).values(author).onConflictDoNothing({ target: visitorIdentities.id });
+  const written = await db.insert(reactions).values(reaction)
     .onConflictDoNothing({ target: reactions.id }).returning({ id: reactions.id });
   return written.length > 0;
 }

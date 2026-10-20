@@ -9,6 +9,7 @@ import { storedDeliverySchema } from "../../../lib/interactions/records.ts";
 import { deliveries as location } from "../../../data.config.generated.mjs";
 import { deliveries } from "./schema.ts";
 import { sqlValue } from "./sql-text.ts";
+import { parseStoredRow } from "./stored-row.ts";
 
 export type Delivery = { id: string; channel: Channel; target: string; enqueuedAt: string };
 
@@ -26,8 +27,7 @@ export function deliveryRow(channel: Channel, target: string, enqueuedAt: string
   } catch {
     return null;
   }
-  const row = storedDeliverySchema.safeParse({ id, channel, target, enqueuedAt });
-  return row.success ? (row.data as Delivery) : null;
+  return parseStoredRow(storedDeliverySchema, { id, channel, target, enqueuedAt }) as Delivery | null;
 }
 
 /**
