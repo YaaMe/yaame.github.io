@@ -10,8 +10,8 @@ import { promotedComment } from "../scripts/promote.mjs";
 import { fileFor } from "../scripts/comments-store.mjs";
 import { promotedComments } from "../src/config/data.config.generated.mjs";
 import { commentSchema } from "../src/models/content/comments.ts";
-import { renderedText } from "../src/lib/interactions/comment-runs.ts";
-import { visibleComments } from "../src/lib/interactions/comment-view.ts";
+import { renderedText } from "../src/selectors/interactions/comment-runs.ts";
+import { visibleComments } from "../src/selectors/interactions/comment-view.ts";
 import { SOURCES, commentId, identityId } from "../src/models/interactions/key-scheme.ts";
 
 const author = {
@@ -218,11 +218,12 @@ test("comment readers use content identifiers and internal withdrawal IDs", asyn
   const bundle = await build({
     stdin: {
       contents: `
-        export { commentsFor, handle } from "./comments";
+        export { commentsFor, handle } from "./promoted";
         export { liveCommentsFor, liveCommentsForMany } from "./comments-live";
-        export { withdrawalCalls, withdrawalState } from "../../selectors/interactions/comments";
+        export { withdrawalCalls, withdrawalState } from "./comments";
+        export { collectionCalls } from "virtual:astro";
       `,
-      resolveDir: fileURLToPath(new URL("../src/lib/interactions/", import.meta.url)),
+      resolveDir: fileURLToPath(new URL("../src/selectors/interactions/", import.meta.url)),
       loader: "ts",
     },
     bundle: true,
@@ -232,16 +233,18 @@ test("comment readers use content identifiers and internal withdrawal IDs", asyn
     plugins: [{
       name: "comment-reader-fixtures",
       setup(builder) {
-        builder.onResolve({ filter: /^astro:content$/ }, () => ({ path: "content", namespace: "collection" }));
+        builder.onResolve({ filter: /^virtual:astro$/ }, () => ({ path: "content", namespace: "collection" }));
         builder.onLoad({ filter: /.*/, namespace: "collection" }, () => ({
           contents: `
+            export const collectionCalls = [];
             export async function getCollection(name) {
               if (name !== "comments") throw new Error("Unexpected collection");
+              collectionCalls.push(name);
               return ${JSON.stringify(files)};
             }
           `,
         }));
-        builder.onResolve({ filter: /\/selectors\/interactions\/comments$/ }, () => ({ path: "withdrawals", namespace: "store" }));
+        builder.onResolve({ filter: /^\.\/comments$/ }, () => ({ path: "withdrawals", namespace: "store" }));
         builder.onLoad({ filter: /.*/, namespace: "store" }, () => ({
           contents: `
             export const withdrawalCalls = [];
@@ -262,7 +265,7 @@ test("comment readers use content identifiers and internal withdrawal IDs", asyn
       },
     }],
   });
-  const { commentsFor, handle, liveCommentsFor, liveCommentsForMany, withdrawalCalls, withdrawalState } =
+  const { commentsFor, handle, liveCommentsFor, liveCommentsForMany, withdrawalCalls, withdrawalState, collectionCalls } =
     await import(`data:text/javascript;base64,${Buffer.from(bundle.outputFiles[0].text).toString("base64")}`);
 
   assert.deepEqual(await commentsFor(comment.root), [comment, newer]);
@@ -272,6 +275,7 @@ test("comment readers use content identifiers and internal withdrawal IDs", asyn
   assert.deepEqual(await commentsFor("missing-root"), []);
   assert.deepEqual(await commentsFor(comment.root, new Map([[comment.id, deletedAt]])), [newer]);
   assert.deepEqual(withdrawalCalls, []);
+  assert.deepEqual(collectionCalls, Array(6).fill("comments"));
 
   assert.deepEqual(await liveCommentsFor(comment.root), [newer]);
   assert.deepEqual(withdrawalCalls, [comment.root]);
@@ -284,6 +288,7 @@ test("comment readers use content identifiers and internal withdrawal IDs", asyn
   ]));
   assert.deepEqual(withdrawalCalls, [comment.root, roots]);
   assert.deepEqual(await liveCommentsForMany([]), new Map());
+  assert.deepEqual(collectionCalls, Array(11).fill("comments"));
 
   assert.equal(handle(author), "@friend@example.test");
   assert.equal(handle({ ...author, name: "A renamed friend" }), "@friend@example.test");
@@ -295,6 +300,7 @@ test("comment readers use content identifiers and internal withdrawal IDs", asyn
   withdrawalState.fail = true;
   await assert.rejects(liveCommentsFor(comment.root), /Withdrawals unavailable/);
   await assert.rejects(liveCommentsForMany(roots), /Withdrawals unavailable/);
+  assert.deepEqual(collectionCalls, Array(11).fill("comments"));
 });
 
 test("Comments checks hrefs at the rendered boundary", async (context) => {
@@ -315,7 +321,7 @@ test("Comments checks hrefs at the rendered boundary", async (context) => {
     plugins: [{
       name: "comment-render",
       setup(builder) {
-        builder.onResolve({ filter: /^astro:content$/ }, () => ({ path: "content", namespace: "collection" }));
+        builder.onResolve({ filter: /^virtual:astro$/ }, () => ({ path: "content", namespace: "collection" }));
         builder.onLoad({ filter: /.*/, namespace: "collection" }, () => ({
           contents: 'export function getCollection() { throw new Error("Unexpected collection read"); }',
         }));

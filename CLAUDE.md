@@ -8,17 +8,22 @@ Chinese content, Astro 7, no theme.
 Two, and they are the same shape: put what changes behind one door, so the rest
 of the tree does not have to know it changed.
 
-**One — the design layer must not import `astro:content`.** It reads from
-`src/lib/` and nothing else.
+**One — the design layer reaches application data through the middle band.**
+Views may call services and selectors. They import result types through selectors,
+never models or the framework binding, and never `astro:content`, including types.
 
 ```
 data layer — untouched by a redesign
   src/content/            markdown
-  src/content.config.ts   field definitions, tag validation
+  src/content.config.ts   collection registration
+  src/models/content/    field definitions, tag validation
+  src/persistence/content/  collection reads and Astro renders
+  src/astro.binding.ts    framework content access, through virtual:astro
   src/config/tags.ts      the tag registry
   src/config/site.config.ts  identity, navigation, links
-  src/lib/posts.ts        posts, tags, the novel
-  src/lib/notes.ts        notes, and the permalink they publish
+  src/selectors/posts.ts  posts, tags, the novel
+  src/selectors/notes.ts  notes, and the permalink they publish
+  src/selectors/interactions/  comment reads, visibility and display preparation
   scripts/*.mjs           fill, check, create
   Makefile
 
@@ -28,7 +33,27 @@ design layer — replaceable wholesale
 
 See `docs/architecture.md` for the first, `docs/configuration.md` for every
 switch and how they interact. When adding data a page needs, add it to
-`lib/posts.ts` first.
+the relevant selector first.
+
+Collection schemas reach `src/content.config.ts` through
+`src/selectors/content/collections.ts`. Keep the declaration file at Astro's fixed
+path, with only loaders and registration. Content persistence uses `virtual:astro`;
+the site binds it to `src/astro.binding.ts`, and the consumer to
+`worker/astro.stub.ts`. The stub throws on a read or render, while imports succeed.
+Posts, notes and promoted-comment selectors reach content through persistence.
+`src/lib/` holds neutral logic. Its remaining recovery imports of models and a
+service close in ADR 0018's step 12.
+
+Post filename grammar belongs to `src/models/content/post-filename.ts`; its
+matches and calendar facts leave acceptance, tags and fallbacks to each caller.
+The post selector uses the model directly. Scripts reach the parser through
+`src/services/authoring/posts.ts`, which must import under
+plain Node without virtual aliases. Step 14 moves their authoring decisions
+behind that interface, preserving the commands' different acceptance rules.
+
+`calendarDate()` in `src/models/content/fields.ts` owns the site-timezone calendar
+split used by post stamps and the notes selector. Note archive years still come
+from their files; changing the display timezone must not change a note's URL.
 
 **Two — runtime host-specific code lives behind a platform entry point, one per tree.** In
 `src/`, nothing outside `src/platform/` may reach a host-specific runtime data
@@ -271,7 +296,7 @@ taken back. Notes may be added to a year; nothing already in one may move.
 See `docs/decisions/0009`.
 
 **A post has a title and a note does not** — that, not length, is the line
-between the two collections, and `content.config.ts` enforces it. A short
+between the two collections, declared by their schemas in `src/models/content/`. A short
 titled piece is a post.
 
 ## Not in version control

@@ -1,7 +1,7 @@
 ---
-import { handle, type Comment } from "../lib/interactions/comments";
-import { runLabel } from "../lib/interactions/comment-runs";
-import { commentHref } from "../models/content/comments";
+import { handle, type Comment } from "../selectors/interactions/promoted";
+import { runLabel } from "../selectors/interactions/comment-runs";
+import { safeHref, stamp } from "../selectors/interactions/comment-display";
 
 interface Props {
   comments: Comment[];
@@ -11,12 +11,6 @@ interface Props {
   forId?: string;
 }
 const { comments, state, forId } = Astro.props;
-
-const stamp = (iso: string) => iso.slice(0, 10);
-const safeHref = (value: string) => {
-  const parsed = commentHref.safeParse(value);
-  return parsed.success ? parsed.data : undefined;
-};
 ---
 {(comments.length > 0 || state !== undefined) && (
   <section

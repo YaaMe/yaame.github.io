@@ -11,8 +11,8 @@ const CONTENT_PREFIX = `https://${AP.actorHost}/users/${AP.user}/notes/`;
 /**
  * The site's content identifier a federated object URL names, or null when it names none.
  *
- * A prefix test, not a lookup: asking the content layer would pull
- * `astro:content` into the queue consumer, which cannot resolve it.
+ * A content lookup would fail in the queue consumer, whose framework binding
+ * refuses collection reads.
  */
 export function contentIdentifierOf(url: string): string | null {
   let identifier: string;

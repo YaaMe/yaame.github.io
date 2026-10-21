@@ -1,4 +1,5 @@
-import { getCollection, render, type CollectionEntry } from "astro:content";
+import { readPosts, readKomorebi, renderContent, type Post, type Chapter } from "../persistence/content/posts";
+import { parsePostFilename } from "../models/content/post-filename";
 import type { Tag } from "../config/tags";
 
 /**
@@ -9,14 +10,14 @@ import type { Tag } from "../config/tags";
  * of the data and the rules about it untouched.
  */
 
-export type Post = CollectionEntry<"posts">;
+export type { Post, Chapter } from "../persistence/content/posts";
 
 // Part of the URL contract: changing it changes which posts are on
 // /tags/{tag}/page/{n}/.
 export const PAGE_SIZE = 10;
 
 export async function allPosts(): Promise<Post[]> {
-  return (await getCollection("posts")).sort(
+  return (await readPosts()).sort(
     (a, b) => b.data.date.at.getTime() - a.data.date.at.getTime(),
   );
 }
@@ -44,8 +45,7 @@ export function slice(posts: Post[], page: number) {
  * under a heading its own title contradicts. The filename records the period.
  */
 export function periodYear(p: Post): string {
-  const m = /^(\d{4})/.exec(p.id);
-  return m ? m[1] : p.data.date.y;
+  return parsePostFilename(p.id).yearPrefix ?? p.data.date.y;
 }
 
 /**
@@ -62,10 +62,12 @@ export function periodYear(p: Post): string {
  * the only source, so a mismatched tag cannot change the label.
  */
 export function period(p: Post): { label: string; datetime: string } {
-  const m = /^(\d{4})(?:-(\d{2}|year)(?:-(\d{2}))?)?$/.exec(p.id);
-  if (m?.[2] === "year") return { label: "年结", datetime: m[1] };
-  if (m?.[2] && m[3]) return { label: `${m[2]}-${m[3]}`, datetime: p.id };
-  if (m?.[2]) return { label: `${m[2]} 月`, datetime: p.id };
+  const match = parsePostFilename(p.id).period;
+  switch (match?.kind) {
+    case "year": return { label: "年结", datetime: match.year };
+    case "day": return { label: `${match.month}-${match.day}`, datetime: p.id };
+    case "month": return { label: `${match.month} 月`, datetime: p.id };
+  }
   return { label: `${p.data.date.mo}-${p.data.date.d}`, datetime: p.data.date.iso };
 }
 
@@ -83,10 +85,8 @@ export async function allTags(): Promise<Tag[]> {
 }
 
 
-export type Chapter = CollectionEntry<"komorebi">;
-
 export async function komorebi() {
-  return getCollection("komorebi");
+  return readKomorebi();
 }
 
 /** The novel itself, excluding its index page. */
@@ -104,5 +104,5 @@ export async function chapterCount(): Promise<number> {
 
 /** Render one entry. Wrapped so the design layer depends only on this module. */
 export async function content(entry: Post | Chapter) {
-  return render(entry);
+  return renderContent(entry);
 }

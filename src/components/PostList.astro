@@ -1,5 +1,5 @@
 ---
-import { href, type Post } from "../lib/posts";
+import { href, type Post } from "../selectors/posts";
 interface Props { posts: Post[]; page: number; total: number; base: string }
 const { posts, page, total, base } = Astro.props;
 // `base` ends in a slash, e.g. "/tags/summaries/".

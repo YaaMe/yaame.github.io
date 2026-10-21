@@ -62,6 +62,7 @@ export default defineConfig({
     build: { cssTarget: ["chrome123", "safari17.5", "firefox120", "edge123"] },
     resolve: {
       alias: {
+        "virtual:astro": "/src/astro.binding.ts",
         "virtual:platform": `/src/platform/${TARGET}`,
         "virtual:session-bar": SESSION_BAR,
         "virtual:comments-section": COMMENTS_SECTION,

@@ -63,7 +63,8 @@ The cached runtime store still migrates on first access; B13 removes that behavi
 from row schemas. It uses the existing URL prefix and identifier format without
 reading Astro content. The federation entrance reaches the decoder through
 `src/selectors/activitypub/objects.ts`. Step 10 adds the shared template codec.
-`comments-live.ts` imports interaction selectors until its relocation in step 7.
+`src/selectors/interactions/comments-live.ts` combines promoted reads with the
+withdrawal selectors in `src/selectors/interactions/comments.ts`.
 
 Astro registers promoted comments through this graph:
 
@@ -82,10 +83,14 @@ same model. The consumer reaches it through the interaction comment service.
 The collection selector and object selector are intentional forwards under
 ADR 0018's strict traversal rule.
 
+Promoted-comment reads go from `src/selectors/interactions/promoted.ts` through
+`src/persistence/content/comments.ts` to `virtual:astro`. The site binding supplies
+Astro's collection query; the consumer stub refuses it when called. Flattening,
+root filtering, ordering and visibility stay in the public reader. Each call still
+reads the collection, including each root in `liveCommentsForMany`.
+
 Temporary imports remain during the later steps of ADR 0018's plan:
 
-- Step 7 moves `lib/interactions/comments.ts`, `comment-runs.ts`, and
-  `comments-live.ts` into selectors, ending their model and selector imports from `lib/`.
 - Step 10 splits the remaining delivery orchestration in
   `integrations/activitypub/outbox.ts` and `delivery.ts`. Their direct model and
   persistence imports remain until that split.
@@ -94,8 +99,11 @@ Temporary imports remain during the later steps of ADR 0018's plan:
 - Step 13 redirects `scripts/promote.mjs`, `scripts/comments-store.mjs`, and
   `scripts/promote-filter.mjs` through operation interfaces. It also replaces
   `scripts/unpromote.mjs`'s direct persistence import of `sqlValue`.
-- Step 15 gives `src/components/Comments.astro` a selector projection in place
-  of its direct `commentHref` model import.
+
+Comment visibility, run labels and text, and link/date preparation live in
+`src/selectors/interactions/{comment-view,comment-runs,comment-display}.ts`.
+`Comments.astro` obtains safe links and date labels through `comment-display.ts`;
+it has no model import. Step 15 adds the broader page display projections.
 
 SQLite was not chosen for being better. The constraints left nothing else:
 
@@ -520,7 +528,7 @@ found and opened, but it does not appear in timelines. That is correct, but
 ## Rendering comments on the site
 
 Post pages render promoted comments, in both profiles. `commentsFor(slug)` in
-`src/lib/interactions/comments.ts` reads the `comments` content collection. A build-time
+`src/selectors/interactions/promoted.ts` reads the `comments` content collection. A build-time
 alias selects the implementation: `static` renders that git view inline,
 while `full` leaves a deferred server island in the prerendered page. The full
 island reads the git view and asks the platform database for withdrawn ids,

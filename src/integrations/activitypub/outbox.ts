@@ -1,10 +1,8 @@
 /**
  * The outbox, kept apart from federation.ts.
  *
- * It reads the posts, which means astro:content, which exists only inside an
- * Astro build. The queue consumer is a plain Worker and cannot resolve it — so
- * everything the consumer needs stays in federation.ts, and everything that
- * needs the content lives here, imported only from the Astro side.
+ * Content-backed registrations run only in the site. The queue consumer's
+ * virtual:astro binding refuses collection reads and renders.
  */
 import type { Context } from "@fedify/fedify";
 import { Temporal } from "@js-temporal/polyfill";
@@ -20,10 +18,10 @@ import { counts as reactionCounts } from "../../selectors/interactions/reactions
 import { FIRST, page } from "./paging";
 import { AP } from "../../config/activitypub";
 import { noteDigests } from "../../config/data.config.generated.mjs";
-import { allPosts, href, type Post } from "../../lib/posts";
+import { allPosts, href, type Post } from "../../selectors/posts";
 // Aliased: `Note` here is Fedify's protocol object, and the content entry that
 // becomes one needs a different name.
-import { allNotes, noteHref, noteHtml, type Note as NoteEntry } from "../../lib/notes";
+import { allNotes, noteHref, noteHtml, type Note as NoteEntry } from "../../selectors/notes";
 
 const PUBLIC = new URL("https://www.w3.org/ns/activitystreams#Public");
 
