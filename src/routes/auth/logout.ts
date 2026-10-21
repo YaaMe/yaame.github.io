@@ -1,3 +1,10 @@
+import type { APIRoute } from "astro";
+import { readSessionCookie } from "../../params/auth.ts";
+import { clearSessionCookie } from "../../schemas/auth-cookies.ts";
+import { destroy } from "../../services/auth/session.ts";
+
+export const prerender = false;
+
 /**
  * POST only, answering 204.
  *
@@ -18,20 +25,12 @@
  * explicitly switched off. The caller decides what to show next, because the
  * caller is the one that knows.
  */
-export async function logoutResponse({
-  request,
-  destroy,
-  clearCookie,
-}: {
-  request: Request;
-  destroy(request: Request): Promise<void>;
-  clearCookie: string;
-}): Promise<Response> {
+export const POST: APIRoute = async ({ request }) => {
   // The record goes, not just the cookie. Clearing the cookie alone leaves a
   // copy of it — one taken from a shared machine, say — working until it
   // expires on its own.
-  await destroy(request);
+  await destroy(readSessionCookie(request));
   const headers = new Headers();
-  headers.append("set-cookie", clearCookie);
+  headers.append("set-cookie", clearSessionCookie());
   return new Response(null, { status: 204, headers });
-}
+};

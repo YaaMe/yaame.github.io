@@ -201,8 +201,8 @@ if (federation.includes("readFollowIntent") || federation.includes("await follow
 
 const outbox = requires("src/integrations/activitypub/outbox.ts", 'from "../../config/data.config.generated.mjs"');
 requires("src/integrations/activitypub/outbox.ts", "noteDigests");
-const session = requires("src/integrations/auth/session-core.ts", 'from "../../config/data.config.generated.mjs"');
-requires("src/integrations/auth/session-core.ts", "sessions.key");
+const session = requires("src/persistence/records/sessions.ts", 'from "../../config/data.config.generated.mjs"');
+requires("src/persistence/records/sessions.ts", "sessions.key");
 const worker = requires("worker/consumer.ts", 'from "../src/config/data.config.generated.mjs"');
 requires("worker/consumer.ts", "deliveryFailures.key");
 requires("Makefile", "build-consumer: data");
@@ -260,7 +260,7 @@ const pathConsumers = [
   ["scripts/tags.mjs", tags],
   ["src/integrations/activitypub/federation.ts", federation],
   ["src/integrations/activitypub/outbox.ts", outbox],
-  ["src/integrations/auth/session-core.ts", session],
+  ["src/persistence/records/sessions.ts", session],
   ["worker/consumer.ts", worker],
   [".github/workflows/tombstones.yml", workflow],
   [".github/workflows/promotions.yml", promotionsWorkflow],

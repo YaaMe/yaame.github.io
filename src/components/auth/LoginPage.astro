@@ -1,38 +1,20 @@
 ---
-import Base from "../../../layouts/Base.astro";
-import { site } from "../../../config/site.config";
-import { current, type Role } from "../../../services/session";
+import Base from "../../layouts/Base.astro";
+import type { LoginPageData } from "../../selectors/auth/login.ts";
 
-export const prerender = false;
-
-const session = await current(Astro.request);
-const error = Astro.url.searchParams.get("error");
-
-const WHY: Record<string, string> = {
-  state: "请求没有带上我们发出的凭据，登录已中止。重新点一次即可。",
-  verifier: "登录凭据不完整，登录已中止。重新点一次即可。",
-  code: "GitHub 没有回传授权码。",
-  exchange: "跟 GitHub 换令牌失败，可能是授权码过期了。",
-  user: "换到了令牌，但读不到你的账号信息。",
-  config: "这一侧还没配置好，不是你的问题。",
-};
-
-const ROLE: Record<Role, string> = {
-  owner: "站长",
-  allowed: "名单内",
-  guest: "访客",
-};
+interface Props { data: LoginPageData }
+const { title, error, session } = Astro.props.data;
 ---
-<Base title={`login · ${site.title}`}>
+<Base title={title}>
   <h1>login</h1>
 
-  {error && <p class="error">{WHY[error] ?? "登录没有完成。"}</p>}
+  {error && <p class="error">{error}</p>}
 
   {session ? (
     <div class="who">
       <p>
         <strong>@{session.login}</strong>
-        <span class="role">{ROLE[session.role]}</span>
+        <span class="role">{session.role}</span>
       </p>
       <button id="logout" type="button">登出</button>
     </div>

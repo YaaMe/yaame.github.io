@@ -380,9 +380,36 @@ deletes the row from D1, follow the contract in
 ## The write entry point
 
 A write through a route needs an authenticated identity. GitHub OAuth routes
-and settings live in `src/integrations/auth/`. Login exists only in the `full`
-profile. It serves `/login`, `/auth/github`, `/auth/github/callback` and
-`/auth/logout`. Logout is `POST` only.
+live in `src/routes/auth/`; settings live in `src/config/auth.ts`.
+The login page lives in `src/pages-extra/auth/login.astro`. Only the `full`
+profile injects it and the handlers. They serve `/login`, `/auth/github`,
+`/auth/github/callback` and `/auth/logout`. Logout is `POST` only.
+
+The entrances and session island decode credentials through `src/params/auth.ts`.
+Cookie output lives in `src/schemas/auth-cookies.ts`. They pass the credential to
+`src/services/auth/session.ts`, which owns expiry, role resolution and cleanup.
+The service re-exports the model's `ActiveSession` type, a session with its current
+role. Session reads report expiry without writing; `current()` separately removes
+the expired record.
+Cleanup failures still return no session and log only the error kind and code.
+
+`src/persistence/records/sessions.ts` binds the registered location and TTL through
+the shared `recordAt<T>(location)` accessor. `src/models/records/sessions.ts` owns
+`Session`, `Role` and `ActiveSession`; the login selector imports its types there.
+`src/params/auth-cookies.ts` owns cookie names and the state-cookie encoding and
+decoding. OAuth flow checks, login orchestration and safe returns live in
+`src/services/auth/`. `src/gateways/github.ts` owns the GitHub
+requests and obtains the client secret through the platform. Routes map failures
+and redirects. `src/schemas/auth-urls.ts` owns the callback path and URL builder.
+The route declaration, authorization request and token exchange share that path.
+No middleware resolves sessions.
+
+All auth services live under `src/services/auth/`. The auth integration contains
+only route wiring, which step 16 moves to `astro.config.mjs`. The login page
+renders `src/components/auth/LoginPage.astro` with labels from
+`src/selectors/auth/login.ts`. B11 removes these temporary login modules and the
+empty `src/pages-extra/auth/` directory after O14 chooses the replacement failure
+display.
 
 - **The scope is `read:user`, written out.** With an empty scope, GitHub
   reuses whatever the user granted before. What arrives would then depend on
