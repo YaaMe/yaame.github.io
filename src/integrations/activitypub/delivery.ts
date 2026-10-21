@@ -5,8 +5,9 @@
  * the send it is given, so it runs and is tested without an Astro build.
  */
 import type { Database } from "../../platform/types";
-import type { Channel } from "../../lib/interactions/key-scheme.ts";
-import { deliveryRow, enqueuedTargets, markEnqueued } from "./store/delivery-rows.ts";
+import type { Channel } from "../../models/interactions/key-scheme.ts";
+import { deliveryRow } from "../../models/interactions/delivery.ts";
+import { enqueuedTargets, markEnqueued } from "../../persistence/interactions/delivery-rows.ts";
 
 export type Pending<T> = { target: string; activity: T };
 

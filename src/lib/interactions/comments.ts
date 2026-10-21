@@ -1,6 +1,6 @@
 import { getCollection, type CollectionEntry } from "astro:content";
 import { visibleComments } from "./comment-view";
-import { SOURCES } from "./key-scheme";
+import { SOURCES } from "../../models/interactions/key-scheme";
 
 export type Comment = CollectionEntry<"comments">["data"]["comments"][number];
 

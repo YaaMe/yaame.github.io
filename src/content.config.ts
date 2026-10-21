@@ -7,7 +7,7 @@ import { z } from "zod";
 import { glob } from "astro/loaders";
 import { TAG_SLUGS } from "./config/tags";
 import { site } from "./config/site.config";
-import { commentSchema } from "./lib/interactions/comment-schema";
+import { commentCollectionSchema } from "./selectors/content/collections";
 import {
   komorebi as komorebiLocation,
   notes as notesLocation,
@@ -78,7 +78,7 @@ export const collections = {
   notes,
   comments: defineCollection({
     loader: glob(promotedCommentsGlob),
-    schema: z.object({ comments: z.array(commentSchema) }),
+    schema: commentCollectionSchema,
   }),
   posts: defineCollection({
     loader: glob(postsGlob),

@@ -32,13 +32,70 @@ note to the database.
 | Driver | D1 (first-party binding) | built-in `node:sqlite`, no dependency |
 | Above it | Drizzle, one set of table definitions for both drivers | same |
 
-The table definitions are in `src/integrations/activitypub/store/schema.ts`.
+The table definitions are in `src/models/interactions/tables.ts`.
 `author_id` and `reply_to` are conceptual references maintained by the application.
 The database deliberately enforces no foreign keys. Comment insertion creates
 the visitor identity before inserting the comment.
 Why Drizzle, and why not KV, a document store or hand-written SQL: see
 [0007](decisions/0007-interactions-live-in-a-database-the-host-provides.md).
 In the bundle Drizzle is 167 KiB (3.2%). Fedify is 72%.
+
+Interaction writes enter through `src/services/interactions/`: `comments.ts`,
+`reactions.ts`, and `followers.ts`. Reads and parent/thread interpretation live
+in the matching modules under `src/selectors/interactions/`. SQL lives under
+`src/persistence/interactions/`, including `comment-rows.ts` for comment
+reads and `write-comment.ts` for insertion and withdrawal.
+
+`src/models/interactions/` holds the tables, keys, row schemas, and model helpers
+in `identity.ts`, `delivery.ts`, and `stored-row.ts`. Persistence holds
+`identity-write.ts` and `delivery-rows.ts`. Comment and reaction insertion writes
+the identity and interaction in separate statements.
+A failed second statement can leave the identity behind. The follower upsert
+still writes its identity and follower atomically.
+
+`src/services/interactions/schema.ts` exposes bootstrap SQL and migration over
+an explicitly supplied database. Both operational host adapters import that
+service. It calls `src/migrations/index.ts`, which combines bootstrap and runner
+over the unchanged statements in `src/migrations/history.ts`.
+The cached runtime store still migrates on first access; B13 removes that behavior.
+
+`src/models/activitypub/object-id.ts` holds the content prefix and decoder apart
+from row schemas. It uses the existing URL prefix and identifier format without
+reading Astro content. The federation entrance reaches the decoder through
+`src/selectors/activitypub/objects.ts`. Step 10 adds the shared template codec.
+`comments-live.ts` imports interaction selectors until its relocation in step 7.
+
+Astro registers promoted comments through this graph:
+
+```text
+src/content.config.ts
+  → src/selectors/content/collections.ts
+    → src/models/content/comments.ts
+      → src/models/interactions/records.ts → src/models/activitypub/object-id.ts
+      → src/models/interactions/key-scheme.ts
+```
+
+The comment model exports both the entry schema and the collection schema.
+Its dependencies use Zod, the key scheme, and ActivityPub configuration; none
+requires Astro or a platform alias. Plain Node comment operations import that
+same model. The consumer reaches it through the interaction comment service.
+The collection selector and object selector are intentional forwards under
+ADR 0018's strict traversal rule.
+
+Temporary imports remain during the later steps of ADR 0018's plan:
+
+- Step 7 moves `lib/interactions/comments.ts`, `comment-runs.ts`, and
+  `comments-live.ts` into selectors, ending their model and selector imports from `lib/`.
+- Step 10 splits the remaining delivery orchestration in
+  `integrations/activitypub/outbox.ts` and `delivery.ts`. Their direct model and
+  persistence imports remain until that split.
+- Step 12 moves `lib/recovery.ts` into services and redirects
+  `scripts/recovery-sql.mjs`, ending their direct model imports.
+- Step 13 redirects `scripts/promote.mjs`, `scripts/comments-store.mjs`, and
+  `scripts/promote-filter.mjs` through operation interfaces. It also replaces
+  `scripts/unpromote.mjs`'s direct persistence import of `sqlValue`.
+- Step 15 gives `src/components/Comments.astro` a selector projection in place
+  of its direct `commentHref` model import.
 
 SQLite was not chosen for being better. The constraints left nothing else:
 
@@ -89,7 +146,7 @@ Safeguards:
 
 Exceptions to the second rule:
 
-- The migrations in `schema.ts` are hand-written SQL.
+- The migrations in `src/migrations/history.ts` are hand-written SQL.
 - `scripts/platform/cloudflare/` contains the D1-only Bash entry points for
   promotion, tombstones and unpromotion. They call `wrangler d1 execute` and
   pass rows to host-free JavaScript logic.
@@ -254,7 +311,7 @@ identifier as `slug` preserves its identity. Changing a written slug or a
 note id changes that published identity.
 
 The namespace and input normalisation have one owner:
-`src/lib/interactions/key-scheme.ts`. Raw inputs remain stored so a migration
+`src/models/interactions/key-scheme.ts`. Raw inputs remain stored so a migration
 can recompute ids. These ids appear in storage, recovery exports and local
 commands; public pages and ActivityPub use the existing external URLs.
 

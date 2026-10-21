@@ -5,7 +5,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { migrate, schemaBootstrapStatements } from "../src/integrations/activitypub/store/schema.ts";
+import { migrate, schemaBootstrapStatements } from "../src/services/interactions/schema.ts";
 
 // sha256 of each shipped version's statements, as JSON, in order.
 const SHIPPED = [

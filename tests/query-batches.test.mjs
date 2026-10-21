@@ -5,11 +5,11 @@
  */
 import test from "node:test";
 import assert from "node:assert/strict";
-import { migrate } from "../src/integrations/activitypub/store/schema.ts";
-import { countReactions, insertReaction } from "../src/integrations/activitypub/store/reaction-rows.ts";
-import { removeFollowersAtInbox, upsertFollower } from "../src/integrations/activitypub/store/follower-rows.ts";
-import { queryBatches } from "../src/integrations/activitypub/store/query-batches.ts";
-import { SOURCES } from "../src/lib/interactions/key-scheme.ts";
+import { migrate } from "../src/services/interactions/schema.ts";
+import { countReactions, insertReaction } from "../src/persistence/interactions/reaction-rows.ts";
+import { removeFollowersAtInbox, upsertFollower } from "../src/persistence/interactions/follower-rows.ts";
+import { queryBatches } from "../src/persistence/interactions/query-batches.ts";
+import { SOURCES } from "../src/models/interactions/key-scheme.ts";
 import { storedComment, storedFollower, storedReaction } from "./fixtures/interactions.mjs";
 import { testDatabase } from "./fixtures/databases.mjs";
 import { inboxHarness } from "./fixtures/inbox.mjs";

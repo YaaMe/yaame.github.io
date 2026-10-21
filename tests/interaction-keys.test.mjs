@@ -1,7 +1,23 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { NAMESPACE, SOURCES, identityId, commentId, reactionId } from "../src/lib/interactions/key-scheme.ts";
+import { NAMESPACE, SOURCES, identityId, commentId, reactionId } from "../src/models/interactions/key-scheme.ts";
+import { contentIdentifierOf } from "../src/models/activitypub/object-id.ts";
+
+test("content object ids decode by prefix and format without a content lookup", () => {
+  assert.equal(contentIdentifierOf("https://yaame.dev/users/yaame/notes/not-in-the-archive"), "not-in-the-archive");
+  assert.equal(contentIdentifierOf("HTTPS://YAAME.DEV:443/users/yaame/notes/%E6%9C%AA%E5%8F%91%E8%A1%A8.1"), "未发表.1");
+  for (const url of [
+    "https://other.test/users/yaame/notes/example",
+    "http://yaame.dev/users/yaame/notes/example",
+    "https://yaame.dev/users/other/notes/example",
+    "https://yaame.dev/users/yaame/notes/",
+    "https://yaame.dev/users/yaame/notes/example?query",
+    "https://yaame.dev/users/yaame/notes/example#fragment",
+    "https://yaame.dev/users/yaame/notes/example%2Fchild",
+    "https://yaame.dev/users/yaame/notes/%ZZ",
+  ]) assert.equal(contentIdentifierOf(url), null, url);
+});
 
 test("stored v5 ids remain stable across builds", () => {
   const identifier = "https://remote.example/users/alice";

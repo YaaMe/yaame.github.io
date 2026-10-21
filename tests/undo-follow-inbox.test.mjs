@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { Follow, Like, Undo } from "@fedify/fedify/vocab";
-import { schemaBootstrapStatements } from "../src/integrations/activitypub/store/schema.ts";
+import { schemaBootstrapStatements } from "../src/services/interactions/schema.ts";
 import { inboxHarness } from "./fixtures/inbox.mjs";
 
 const ownActor = "https://yaame.dev/users/yaame";

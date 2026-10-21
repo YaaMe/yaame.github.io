@@ -9,7 +9,7 @@
  * chain" cannot be expressed from a single row. It returns what to keep.
  */
 import { followIntent } from "../src/config/data.config.generated.mjs";
-import { SOURCES } from "../src/lib/interactions/key-scheme.ts";
+import { SOURCES } from "../src/models/interactions/key-scheme.ts";
 
 function handleFor(actorId) {
   try {

@@ -6,14 +6,14 @@
  * written back loses whichever of two concurrent writers finishes first.
  */
 import { and, desc, eq, inArray } from "drizzle-orm";
-import type { Database } from "../../../platform/types";
-import { type Source, identityId } from "../../../lib/interactions/key-scheme.ts";
-import { storedFollowerSchema } from "../../../lib/interactions/records.ts";
-import { followers as followersLocation, visitorIdentities as identitiesLocation } from "../../../config/data.config.generated.mjs";
-import { storedIdentity } from "./identity-write.ts";
-import { followers } from "./schema.ts";
+import type { Database } from "../../platform/types";
+import { type Source, identityId } from "../../models/interactions/key-scheme.ts";
+import { storedFollowerSchema } from "../../models/interactions/records.ts";
+import { followers as followersLocation, visitorIdentities as identitiesLocation } from "../../config/data.config.generated.mjs";
+import { storedIdentity } from "../../models/interactions/identity.ts";
+import { followers } from "../../models/interactions/tables.ts";
 import { sqlValue } from "./sql-text.ts";
-import { parseStoredRow } from "./stored-row.ts";
+import { parseStoredRow } from "../../models/interactions/stored-row.ts";
 import { queryBatches } from "./query-batches.ts";
 
 export type Follower = { identifier: string; inbox: string | null; sharedInbox: string | null };

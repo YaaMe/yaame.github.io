@@ -5,7 +5,7 @@ import { database as nodeDatabase } from "../../../src/platform/node/database.ts
 import registerData from "../../../src/config/data.config.json" with { type: "json" };
 import { registerForLayerKinds } from "../../../src/lib/recovery.ts";
 import { databaseFile } from "../../../src/platform/node/sqlite.ts";
-import { migrate } from "../../../src/integrations/activitypub/store/schema.ts";
+import { migrate } from "../../../src/services/interactions/schema.ts";
 import {
   exportSqlRecovery, sqlSnapshotStatements, sqlInsertStatements, sqlClearStatements, sqlUserSchemaStatement, validateSqlPlan,
 } from "../../recovery-sql.mjs";

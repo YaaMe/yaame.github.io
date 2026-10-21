@@ -1,11 +1,6 @@
-/**
- * Federated followers, as the inbox records them and as delivery reads them.
- */
-import { SOURCES, identityId, normalizedUrl } from "../../../lib/interactions/key-scheme";
-import { store } from "./database";
-import { listFollowers, removeFollower, removeFollowersAtInbox, upsertFollower } from "./follower-rows";
-
-export type FederatedFollower = { identifier: string; inbox: string; sharedInbox: string | null };
+import { SOURCES, identityId, normalizedUrl } from "../../models/interactions/key-scheme.ts";
+import { store } from "../../persistence/interactions/database.ts";
+import { removeFollower, removeFollowersAtInbox, upsertFollower } from "../../persistence/interactions/follower-rows.ts";
 
 /** False when the actor or an address is not one the table accepts. */
 export async function follow(
@@ -36,10 +31,4 @@ export async function unfollow(signer: string): Promise<boolean> {
 
 export async function dropAtInbox(actorIds: readonly string[], inbox: string): Promise<string[]> {
   return removeFollowersAtInbox(await store(), SOURCES.activitypub, actorIds, inbox);
-}
-
-/** Every federated row carries an inbox; the stored schema refuses one without. */
-export async function all(): Promise<FederatedFollower[]> {
-  return (await listFollowers(await store(), SOURCES.activitypub))
-    .flatMap(({ inbox, ...rest }) => (inbox === null ? [] : [{ ...rest, inbox }]));
 }

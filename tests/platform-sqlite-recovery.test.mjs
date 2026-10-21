@@ -8,7 +8,7 @@ import { fileURLToPath } from "node:url";
 import { DatabaseSync } from "node:sqlite";
 import { database as nodeDatabase } from "../src/platform/node/database.ts";
 import { seedComment, seedDelivery, seedFollower, seedReaction, storedComment } from "./fixtures/interactions.mjs";
-import { migrate } from "../src/integrations/activitypub/store/schema.ts";
+import { migrate } from "../src/services/interactions/schema.ts";
 import { comments } from "../src/config/data.config.generated.mjs";
 import registerData from "../src/config/data.config.json" with { type: "json" };
 import { InMemoryRecoveryFacility, exportRecovery, importRecovery, registerForLayerKinds } from "../src/lib/recovery.ts";

@@ -9,10 +9,10 @@ import { parseFragment } from "parse5";
 import { promotedComment } from "../scripts/promote.mjs";
 import { fileFor } from "../scripts/comments-store.mjs";
 import { promotedComments } from "../src/config/data.config.generated.mjs";
-import { commentSchema } from "../src/lib/interactions/comment-schema.ts";
+import { commentSchema } from "../src/models/content/comments.ts";
 import { renderedText } from "../src/lib/interactions/comment-runs.ts";
 import { visibleComments } from "../src/lib/interactions/comment-view.ts";
-import { SOURCES, commentId, identityId } from "../src/lib/interactions/key-scheme.ts";
+import { SOURCES, commentId, identityId } from "../src/models/interactions/key-scheme.ts";
 
 const author = {
   id: identityId(SOURCES.activitypub, "https://example.test/users/friend"),
@@ -47,6 +47,44 @@ const commentRow = {
   deleted_at: null,
   promoted_at: null,
 };
+
+test("the registered comment collection preserves archive validation", async () => {
+  const bundle = await build({
+    entryPoints: [fileURLToPath(new URL("../src/content.config.ts", import.meta.url))],
+    bundle: true,
+    write: false,
+    platform: "node",
+    format: "esm",
+    plugins: [{
+      name: "collection-registration",
+      setup(builder) {
+        builder.onResolve({ filter: /^astro(?::content|\/loaders)$/ }, ({ path }) => ({ path, namespace: "astro" }));
+        builder.onLoad({ filter: /.*/, namespace: "astro" }, () => ({
+          contents: "export const defineCollection = (value) => value; export const glob = (value) => value;",
+        }));
+      },
+    }],
+  });
+  const { collections } = await import(`data:text/javascript;base64,${Buffer.from(bundle.outputFiles[0].text).toString("base64")}`);
+  const schema = collections.comments.schema;
+  const { replyTo, ...withoutReply } = comment;
+  assert.deepEqual(schema.parse({ comments: [withoutReply], ignored: true }), { comments: [comment] });
+  assert.deepEqual(schema.parse({ comments: [] }), { comments: [] });
+  const { content, ...withdrawn } = comment;
+  const tombstone = { ...withdrawn, deletedAt: "2026-10-11T00:00:00Z" };
+  assert.deepEqual(schema.parse({ comments: [tombstone] }), { comments: [tombstone] });
+  for (const document of [
+    {},
+    { comments: comment },
+    { comments: [{ ...comment, root: comment.inReplyTo }] },
+    { comments: [{ ...comment, id: author.id }] },
+    { comments: [{ ...comment, content: [[{ type: "link", href: "javascript:alert(1)", label: "unsafe" }]] }] },
+    { comments: [{ ...tombstone, content }] },
+    { comments: [{ ...comment, unexpected: true }] },
+  ]) {
+    assert.equal(schema.safeParse(document).success, false, JSON.stringify(document));
+  }
+});
 
 test("the schema accepts HTTP(S) metadata with matching ActivityPub identity hashes", () => {
   for (const protocol of ["http", "https"]) {
@@ -182,7 +220,7 @@ test("comment readers use content identifiers and internal withdrawal IDs", asyn
       contents: `
         export { commentsFor, handle } from "./comments";
         export { liveCommentsFor, liveCommentsForMany } from "./comments-live";
-        export { withdrawalCalls, withdrawalState } from "../../integrations/activitypub/store/comments";
+        export { withdrawalCalls, withdrawalState } from "../../selectors/interactions/comments";
       `,
       resolveDir: fileURLToPath(new URL("../src/lib/interactions/", import.meta.url)),
       loader: "ts",
@@ -203,7 +241,7 @@ test("comment readers use content identifiers and internal withdrawal IDs", asyn
             }
           `,
         }));
-        builder.onResolve({ filter: /\/store\/comments$/ }, () => ({ path: "withdrawals", namespace: "store" }));
+        builder.onResolve({ filter: /\/selectors\/interactions\/comments$/ }, () => ({ path: "withdrawals", namespace: "store" }));
         builder.onLoad({ filter: /.*/, namespace: "store" }, () => ({
           contents: `
             export const withdrawalCalls = [];

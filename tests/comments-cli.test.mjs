@@ -9,6 +9,7 @@ import { main as tombstoneMain } from "../scripts/tombstone.mjs";
 import { main as unpromoteMain } from "../scripts/unpromote.mjs";
 import { byFollowing } from "../scripts/promote-filter.mjs";
 import { storedComment } from "./fixtures/interactions.mjs";
+import { interactionRecordFiles } from "./fixtures/interaction-record-files.mjs";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
 const row = (name, extra = {}) => storedComment(name, {
@@ -27,9 +28,9 @@ function fixture(t) {
     "scripts/promote.mjs", "scripts/promote-filter.mjs", "scripts/promote-text.mjs",
     "scripts/tombstone.mjs", "scripts/unpromote.mjs", "scripts/comments-store.mjs",
     "scripts/comments-rows.mjs",
-    "scripts/comments-cli.mjs", "src/lib/interactions/comment-schema.ts", "src/config/data.config.generated.mjs",
-    "src/lib/interactions/records.ts", "src/lib/interactions/key-scheme.ts", "src/config/activitypub.ts",
-    "src/integrations/activitypub/store/sql-text.ts",
+    "scripts/comments-cli.mjs", "src/models/content/comments.ts", "src/config/data.config.generated.mjs",
+    ...interactionRecordFiles,
+    "src/persistence/interactions/sql-text.ts",
   ]) {
     const target = join(cwd, path);
     mkdirSync(dirname(target), { recursive: true });

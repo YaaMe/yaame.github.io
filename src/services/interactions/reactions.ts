@@ -1,9 +1,6 @@
-/**
- * Boosts and likes, as they arrive and as they are counted.
- */
-import { SOURCES, identityId, reactionId } from "../../../lib/interactions/key-scheme";
-import { store } from "./database";
-import { countReactions, insertReaction, withdrawReaction, type Kind } from "./reaction-rows";
+import { SOURCES, identityId, reactionId } from "../../models/interactions/key-scheme.ts";
+import { store } from "../../persistence/interactions/database.ts";
+import { insertReaction, withdrawReaction, type Kind } from "../../persistence/interactions/reaction-rows.ts";
 
 export type { Kind };
 
@@ -48,10 +45,4 @@ export async function record(
 /** Withdraw the reaction the signer's Undo names; anyone else's Undo changes nothing. */
 export async function undo(signer: string, activityId: string): Promise<boolean> {
   return withdrawReaction(await store(), { source: SOURCES.activitypub, identifier: signer, activityId });
-}
-
-/** Counts keyed by content identifier, the same key replies are counted by. */
-export async function counts(targets: string[]): Promise<Map<string, { likes: number; shares: number }>> {
-  if (targets.length === 0) return new Map();
-  return countReactions(await store(), targets);
 }

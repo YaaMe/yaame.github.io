@@ -5,6 +5,7 @@ import { chmodSync, copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, 
 import { dirname, join } from "node:path";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
+import { interactionRecordFiles } from "./fixtures/interaction-record-files.mjs";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
 const workflowPath = ".github/workflows/tombstones.yml";
@@ -13,7 +14,7 @@ const workflow = readFileSync(join(root, workflowPath), "utf8");
 function fixture(t, paths) {
   const directory = mkdtempSync(join(root, ".tmp-tombstones-"));
   t.after(() => rmSync(directory, { recursive: true, force: true }));
-  for (const path of [...paths, "src/lib/interactions/records.ts", "src/lib/interactions/key-scheme.ts", "src/config/activitypub.ts"]) {
+  for (const path of [...paths, ...interactionRecordFiles, "src/services/recovery/interaction-references.ts"]) {
     const target = join(directory, path);
     mkdirSync(dirname(target), { recursive: true });
     copyFileSync(join(root, path), target);
@@ -197,8 +198,9 @@ const dataCheckInputs = [
   "src/config/data.config.generated.mjs",
   "src/config/following.json",
   "src/content.config.ts",
-  "src/integrations/activitypub/store/schema.ts",
-  "src/integrations/activitypub/store/migration-history.ts",
+  "src/models/interactions/tables.ts",
+  "src/migrations/index.ts",
+  "src/migrations/history.ts",
   "scripts/promote.mjs",
   "scripts/comments-store.mjs",
   "scripts/comments-rows.mjs",
@@ -289,20 +291,23 @@ test("data-check rejects workflow path copies and unscoped Git commands", (t) =>
 });
 
 test("data-check scans every line of the table declarations and keeps the migration history to history", (t) => {
-  const schemaPath = "src/integrations/activitypub/store/schema.ts";
-  const historyPath = "src/integrations/activitypub/store/migration-history.ts";
+  const schemaPath = "src/models/interactions/tables.ts";
+  const migrationPath = "src/migrations/index.ts";
+  const historyPath = "src/migrations/history.ts";
   const schema = readFileSync(join(root, schemaPath), "utf8");
+  const migration = readFileSync(join(root, migrationPath), "utf8");
   const history = readFileSync(join(root, historyPath), "utf8");
   const cwd = fixture(t, dataCheckInputs);
   const valid = dataCheck(cwd);
   assert.equal(valid.status, 0, valid.stderr);
 
   for (const [path, source, mutation, message] of [
-    [schemaPath, schema, (text) => `${text}\nexport const copy = () => "SELECT 1 FROM 'comments'";\n`, /store\/schema\.ts: repeats comments table comments/],
-    [schemaPath, schema, (text) => text.replace('import { MIGRATIONS } from "./migration-history.ts";\n', "const MIGRATIONS = [];\n"), /store\/schema\.ts: expected from "\.\/migration-history\.ts"/],
-    [historyPath, history, (text) => `import { sql } from "drizzle-orm";\n${text}`, /migration-history\.ts: holds more than the shipped migration list/],
-    [historyPath, history, (text) => `${text}\nexport const live = (db) => db.run("SELECT 1");\n`, /migration-history\.ts: holds more than the shipped migration list/],
-    [historyPath, history, (text) => text.replace("export const MIGRATIONS", "const MIGRATIONS"), /migration-history\.ts: expected export const MIGRATIONS/],
+    [schemaPath, schema, (text) => `${text}\nexport const copy = () => "SELECT 1 FROM 'comments'";\n`, /models\/interactions\/tables\.ts: repeats comments table comments/],
+    [migrationPath, migration, (text) => text.replace('import { MIGRATIONS } from "./history.ts";\n', "const MIGRATIONS = [];\n"), /migrations\/index\.ts: expected from "\.\/history\.ts"/],
+    [migrationPath, migration, (text) => `${text}\nexport const copy = () => "SELECT 1 FROM 'migrations'";\n`, /migrations\/index\.ts: repeats migrations table migrations/],
+    [historyPath, history, (text) => `import { sql } from "drizzle-orm";\n${text}`, /migrations\/history\.ts: holds more than the shipped migration list/],
+    [historyPath, history, (text) => `${text}\nexport const live = (db) => db.run("SELECT 1");\n`, /migrations\/history\.ts: holds more than the shipped migration list/],
+    [historyPath, history, (text) => text.replace("export const MIGRATIONS", "const MIGRATIONS"), /migrations\/history\.ts: expected export const MIGRATIONS/],
   ]) {
     const changed = mutation(source);
     assert.notEqual(changed, source, "the mutation must change the source");
@@ -316,5 +321,5 @@ test("data-check scans every line of the table declarations and keeps the migrat
   rmSync(join(cwd, historyPath));
   const missing = dataCheck(cwd);
   assert.equal(missing.status, 1);
-  assert.match(missing.stderr, /migration-history\.ts: ENOENT/);
+  assert.match(missing.stderr, /migrations\/history\.ts: ENOENT/);
 });

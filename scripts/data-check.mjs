@@ -110,34 +110,37 @@ for (const globName of ["promotedComments", "notes", "posts", "komorebi"]) {
   requires("src/content.config.ts", `loader: glob(${variable})`);
 }
 
-const schema = requires("src/integrations/activitypub/store/schema.ts", 'from "../../../config/data.config.generated.mjs"');
-requires("src/integrations/activitypub/store/schema.ts", "commentsLocation.columns");
-requires("src/integrations/activitypub/store/schema.ts", "reactionsLocation.columns");
-requires("src/integrations/activitypub/store/schema.ts", "migrationsLocation.table");
-requires("src/integrations/activitypub/store/schema.ts", "identitiesLocation.columns");
-requiresPattern("src/integrations/activitypub/store/schema.ts", /sqliteTable\s*\(\s*identitiesLocation\.sql/, "sqliteTable(identitiesLocation.sql)");
+const schema = requires("src/models/interactions/tables.ts", 'from "../../config/data.config.generated.mjs"');
+requires("src/models/interactions/tables.ts", "commentsLocation.columns");
+requires("src/models/interactions/tables.ts", "reactionsLocation.columns");
+requires("src/models/interactions/tables.ts", "identitiesLocation.columns");
+requiresPattern("src/models/interactions/tables.ts", /sqliteTable\s*\(\s*identitiesLocation\.sql/, "sqliteTable(identitiesLocation.sql)");
 for (const field of Object.keys(visitorIdentities.columns)) {
-  requires("src/integrations/activitypub/store/schema.ts", `identityColumns.${field}`);
+  requires("src/models/interactions/tables.ts", `identityColumns.${field}`);
 }
-requiresPattern("src/integrations/activitypub/store/schema.ts", /sqliteTable\s*\(\s*commentsLocation\.sql/, "sqliteTable(commentsLocation.sql)");
-requiresPattern("src/integrations/activitypub/store/schema.ts", /sqliteTable\s*\(\s*reactionsLocation\.sql/, "sqliteTable(reactionsLocation.sql)");
+requiresPattern("src/models/interactions/tables.ts", /sqliteTable\s*\(\s*commentsLocation\.sql/, "sqliteTable(commentsLocation.sql)");
+requiresPattern("src/models/interactions/tables.ts", /sqliteTable\s*\(\s*reactionsLocation\.sql/, "sqliteTable(reactionsLocation.sql)");
 for (const field of Object.keys(commentsSql.columns)) {
-  requires("src/integrations/activitypub/store/schema.ts", `commentsColumns.${field}`);
+  requires("src/models/interactions/tables.ts", `commentsColumns.${field}`);
 }
 for (const field of Object.keys(reactions.columns)) {
-  requires("src/integrations/activitypub/store/schema.ts", `reactionsColumns.${field}`);
+  requires("src/models/interactions/tables.ts", `reactionsColumns.${field}`);
 }
-requires("src/integrations/activitypub/store/schema.ts", "followersLocation.columns");
-requiresPattern("src/integrations/activitypub/store/schema.ts", /sqliteTable\s*\(\s*followersLocation\.sql/, "sqliteTable(followersLocation.sql)");
+requires("src/models/interactions/tables.ts", "followersLocation.columns");
+requiresPattern("src/models/interactions/tables.ts", /sqliteTable\s*\(\s*followersLocation\.sql/, "sqliteTable(followersLocation.sql)");
 for (const field of Object.keys(followers.columns)) {
-  requires("src/integrations/activitypub/store/schema.ts", `followerColumns.${field}`);
+  requires("src/models/interactions/tables.ts", `followerColumns.${field}`);
 }
-requiresPattern("src/integrations/activitypub/store/schema.ts", /sqliteTable\s*\(\s*deliveriesLocation\.sql/, "sqliteTable(deliveriesLocation.sql)");
+requiresPattern("src/models/interactions/tables.ts", /sqliteTable\s*\(\s*deliveriesLocation\.sql/, "sqliteTable(deliveriesLocation.sql)");
 for (const field of Object.keys(deliveries.columns)) {
-  requires("src/integrations/activitypub/store/schema.ts", `deliveryColumns.${field}`);
+  requires("src/models/interactions/tables.ts", `deliveryColumns.${field}`);
 }
+const migrationPath = "src/migrations/index.ts";
+const migrationSource = requires(migrationPath, 'from "../config/data.config.generated.mjs"');
+requires(migrationPath, 'from "./history.ts"');
+requires(migrationPath, "migrationsLocation.table");
 for (const field of Object.keys(migrations.columns)) {
-  requires("src/integrations/activitypub/store/schema.ts", `migrationsColumns.quotedColumns.${field}`);
+  requires(migrationPath, `migrationsColumns.quotedColumns.${field}`);
 }
 
 const promote = requires("scripts/promote.mjs", 'from "./comments-rows.mjs"');
@@ -386,33 +389,34 @@ for (const [path, pattern] of directLocationCopies) {
 // Migration strings are shipped schema history and keep their names, so their
 // file is not scanned for copies. That holds only while it is history alone:
 // anything it imports could be live code reading tables by literal name.
-const historyPath = "src/integrations/activitypub/store/migration-history.ts";
-requires("src/integrations/activitypub/store/schema.ts", 'from "./migration-history.ts"');
+const historyPath = "src/migrations/history.ts";
 const history = withoutComments(requires(historyPath, "export const MIGRATIONS"));
 if (/^\s*import\b|\bimport\s*\(|\bsqliteTable\b|\bfunction\b|=>/m.test(history)) {
   console.error(`  data register consumer ${historyPath}: holds more than the shipped migration list`);
   process.exitCode = 1;
 }
-const liveSchemaCode = withoutComments(schema);
-for (const [kind, location] of sqlLocations) {
-  if (new RegExp(`sqliteTable\\s*\\(\\s*["']${location.sql}["']`).test(schema)) {
-    console.error(`  data register consumer src/integrations/activitypub/store/schema.ts: repeats ${kind} table ${location.sql}`);
-    process.exitCode = 1;
-  }
-  const tableLiteral = new RegExp(
-    "(?:sqliteTable\\s*\\(|\\b(?:FROM|INTO|UPDATE|JOIN|TABLE)\\s+)[\"']" +
-      location.sql +
-      "[\"']",
-  );
-  if (tableLiteral.test(liveSchemaCode)) {
-    console.error(`  data register consumer src/integrations/activitypub/store/schema.ts: repeats ${kind} table ${location.sql}`);
-    process.exitCode = 1;
-  }
-  for (const column of Object.values(location.columns)) {
-    const escaped = column.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    if (new RegExp(`(?:text|integer|real|blob)\\s*\\(\\s*["']${escaped}["']`).test(liveSchemaCode)) {
-      console.error(`  data register consumer src/integrations/activitypub/store/schema.ts: repeats ${kind} column ${column}`);
+for (const [path, source] of [["src/models/interactions/tables.ts", schema], [migrationPath, migrationSource]]) {
+  const liveSchemaCode = withoutComments(source);
+  for (const [kind, location] of sqlLocations) {
+    if (new RegExp(`sqliteTable\\s*\\(\\s*["']${location.sql}["']`).test(source)) {
+      console.error(`  data register consumer ${path}: repeats ${kind} table ${location.sql}`);
       process.exitCode = 1;
+    }
+    const tableLiteral = new RegExp(
+      "(?:sqliteTable\\s*\\(|\\b(?:FROM|INTO|UPDATE|JOIN|TABLE)\\s+)[\"']" +
+        location.sql +
+        "[\"']",
+    );
+    if (tableLiteral.test(liveSchemaCode)) {
+      console.error(`  data register consumer ${path}: repeats ${kind} table ${location.sql}`);
+      process.exitCode = 1;
+    }
+    for (const column of Object.values(location.columns)) {
+      const escaped = column.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      if (new RegExp(`(?:text|integer|real|blob)\\s*\\(\\s*["']${escaped}["']`).test(liveSchemaCode)) {
+        console.error(`  data register consumer ${path}: repeats ${kind} column ${column}`);
+        process.exitCode = 1;
+      }
     }
   }
 }

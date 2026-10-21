@@ -20,9 +20,9 @@ import {
   writeDocument,
 } from "./comments-store.mjs";
 import { toContent } from "./promote-text.mjs";
-import { commentHref, commentSchema } from "../src/lib/interactions/comment-schema.ts";
+import { commentHref, commentSchema } from "../src/models/content/comments.ts";
 import { promotedComments } from "../src/config/data.config.generated.mjs";
-import { SOURCES } from "../src/lib/interactions/key-scheme.ts";
+import { SOURCES } from "../src/models/interactions/key-scheme.ts";
 const promoteWriteBack = promotedComments.writeBack?.find((name) => name === "promote");
 if (!promoteWriteBack) {
   throw new Error("promoted-comments has no promote write-back in the data register");

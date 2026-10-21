@@ -54,10 +54,13 @@ What `src/lib/` exports:
 | `interactions/comment-view.ts` | `visibleComments()` | withdrawal and fixed-point tombstone visibility keyed by comment id |
 | `interactions/comment-runs.ts` | `runLabel()` / `renderedText()` | typed comment runs, prepared for display |
 | `interactions/comments-live.ts` | `liveCommentsFor(slug)` | the full profile's current withdrawal view |
-| `interactions/key-scheme.ts` | `identityId()` / `commentId()` | the authoritative namespace, source names and input normalisation; federated comment ids use the signing actor URL and Note object id |
 
 This list is everything the design layer can get. To add new data, add it
 here first.
+
+The interaction key scheme lives in `src/models/interactions/key-scheme.ts`.
+It owns the namespace, source names and input normalisation. Federated comment
+ids use the signing actor URL and Note object id.
 
 ## What belongs in the data layer
 
