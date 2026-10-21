@@ -5,9 +5,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { migrate } from "../src/services/interactions/schema.ts";
-import { enqueuedTargets } from "../src/integrations/activitypub/store/delivery-rows.ts";
+import { enqueuedTargets } from "../src/persistence/interactions/delivery-rows.ts";
 import { deliverPending } from "../src/integrations/activitypub/delivery.ts";
-import { CHANNELS, deliveryId } from "../src/lib/interactions/key-scheme.ts";
+import { CHANNELS, deliveryId } from "../src/models/interactions/key-scheme.ts";
 
 const AP = CHANNELS.activitypub;
 import { testDatabase } from "./fixtures/databases.mjs";

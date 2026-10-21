@@ -8,8 +8,8 @@ import { importRecovery, InMemoryRecoveryFacility } from "../src/lib/recovery.ts
 import { migrate } from "../src/services/interactions/schema.ts";
 import { database } from "../src/platform/node/database.ts";
 import { storedComment, storedDelivery, storedFollower, storedReaction } from "./fixtures/interactions.mjs";
-import { CHANNELS, SOURCES, commentId, deliveryId, identityId, reactionId } from "../src/lib/interactions/key-scheme.ts";
-import { validateInteractionRows } from "../src/lib/interactions/records.ts";
+import { CHANNELS, SOURCES, commentId, deliveryId, identityId, reactionId } from "../src/models/interactions/key-scheme.ts";
+import { validateInteractionRows } from "../src/models/interactions/records.ts";
 
 const register = {
   "visitor-identities": registerData["visitor-identities"], comments: registerData.comments, reactions: registerData.reactions, followers: registerData.followers, deliveries: registerData.deliveries,

@@ -1,5 +1,5 @@
-import { type Channel, deliveryId } from "../../../lib/interactions/key-scheme.ts";
-import { storedDeliverySchema } from "../../../lib/interactions/records.ts";
+import { type Channel, deliveryId } from "./key-scheme.ts";
+import { storedDeliverySchema } from "./records.ts";
 import { parseStoredRow } from "./stored-row.ts";
 
 export type Delivery = { id: string; channel: Channel; target: string; enqueuedAt: string };

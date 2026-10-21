@@ -1,4 +1,4 @@
-import { visitorIdentitySchema } from "../../../lib/interactions/records.ts";
+import { visitorIdentitySchema } from "./records.ts";
 import { parseStoredRow } from "./stored-row.ts";
 
 /** The visitor identity a stored row names, or null when the identity schema refuses it. */

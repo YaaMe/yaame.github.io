@@ -1,4 +1,4 @@
-import { CHANNELS, SOURCES, commentId, deliveryId, identityId, reactionId } from "../../src/lib/interactions/key-scheme.ts";
+import { CHANNELS, SOURCES, commentId, deliveryId, identityId, reactionId } from "../../src/models/interactions/key-scheme.ts";
 import { comments, deliveries, followers, reactions, visitorIdentities } from "../../src/config/data.config.generated.mjs";
 
 export function storedComment(name = "one", extra = {}) {

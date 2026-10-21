@@ -502,7 +502,7 @@ must be rechecked when updating the lockfile.
 
 The file first checks that user schema is still absent, then creates the migration
 table and restores the exported migration ledger. `schemaBootstrapStatements()` in
-`src/integrations/activitypub/store/schema-bootstrap.ts` applies the runtime's full schema
+`src/migrations/index.ts` applies the runtime's full schema
 history and records any missing versions with the bootstrap timestamp. Exported
 version rows keep their timestamps. The file then inserts the remaining selected
 payloads, so the next runtime migration leaves restored data intact. There are
@@ -510,12 +510,12 @@ no per-row remote writes, merge, table clearing or partial-batch retries. The
 generated SQL contains no `BEGIN`, `COMMIT` or `SAVEPOINT`; D1 rejects them.
 
 The bootstrap and migration interfaces are exposed through
-`src/services/interactions/schema.ts`. The operational host adapters retain the
-`store/schema.ts` forward until ADR 0018 step 5 redirects them to that service.
+`src/services/interactions/schema.ts`. Both operational host adapters call that
+service, which imports `src/migrations/index.ts` without a runtime platform alias.
 Cross-row recovery checks live in
 `src/services/recovery/interaction-references.ts`; both `src/lib/recovery.ts`
 and `scripts/recovery-sql.mjs` call it. Step 12 relocates the remaining recovery
-rules. Row validation remains in `src/lib/interactions/records.ts` until step 5.
+rules. Row validation lives in `src/models/interactions/records.ts`.
 
 The guarantee is weaker than node SQLite in two ways. Preview validates the
 entire document and logical plan but cannot rehearse D1's constraints or

@@ -1,6 +1,6 @@
-import { SOURCES } from "../../lib/interactions/key-scheme.ts";
-import { store } from "../../integrations/activitypub/store/database.ts";
-import { listFollowers } from "../../integrations/activitypub/store/follower-rows.ts";
+import { SOURCES } from "../../models/interactions/key-scheme.ts";
+import { store } from "../../persistence/interactions/database.ts";
+import { listFollowers } from "../../persistence/interactions/follower-rows.ts";
 
 export type FederatedFollower = { identifier: string; inbox: string; sharedInbox: string | null };
 

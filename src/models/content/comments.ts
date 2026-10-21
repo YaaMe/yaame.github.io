@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { SOURCES } from "./key-scheme.ts";
-import { contentIdentifier, httpUrl, internalId, storedCommentSchema, visitorIdentitySchema } from "./records.ts";
+import { SOURCES } from "../interactions/key-scheme.ts";
+import { contentIdentifier, httpUrl, internalId, storedCommentSchema, visitorIdentitySchema } from "../interactions/records.ts";
 
 export const commentHref = httpUrl;
 export const commentRun = z.discriminatedUnion("type", [
@@ -51,3 +51,5 @@ export const commentSchema = z.discriminatedUnion("source", [
     for (const issue of record.error.issues) context.addIssue({ code: "custom", path: issue.path, message: issue.message });
   }
 });
+
+export const commentCollectionSchema = z.object({ comments: z.array(commentSchema) });

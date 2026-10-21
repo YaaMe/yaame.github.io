@@ -6,7 +6,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { Delete, Endpoints, Follow, Person, Undo } from "@fedify/fedify/vocab";
-import { SOURCES, identityId } from "../src/lib/interactions/key-scheme.ts";
+import { SOURCES, identityId } from "../src/models/interactions/key-scheme.ts";
 import { inboxHarness } from "./fixtures/inbox.mjs";
 
 const ownActor = "https://yaame.dev/users/yaame";

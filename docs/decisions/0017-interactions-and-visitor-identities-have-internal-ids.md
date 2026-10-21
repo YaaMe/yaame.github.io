@@ -35,7 +35,7 @@ gets a new form UUID.
 Every input is stored. Every write path checks that the inputs compute the
 stored id, including git validation and recovery imports through raw SQL.
 The namespace, source names and input normalisation are defined once as
-constants in `src/lib/interactions/key-scheme.ts`. That module is
+constants in `src/models/interactions/key-scheme.ts`. That module is
 authoritative; this record names it without copying the values. Changing them requires a migration that
 recomputes ids in SQL and git together. These ids stay in storage, recovery
 exports and local commands; they do not become public page or protocol

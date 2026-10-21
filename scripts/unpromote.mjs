@@ -7,7 +7,7 @@
 import { column, rowValue, table } from "./comments-rows.mjs";
 import { DIR, locate, readDocuments, writeDocument } from "./comments-store.mjs";
 import { runCommand } from "./comments-cli.mjs";
-import { sqlValue } from "../src/integrations/activitypub/store/sql-text.ts";
+import { sqlValue } from "../src/persistence/interactions/sql-text.ts";
 
 export function selectSql(id) {
   return `SELECT ${column("id")}, ${column("root")}, ${column("identifier")},

@@ -1,6 +1,6 @@
 import type { Database } from "../../platform/types.ts";
-import { store } from "../../integrations/activitypub/store/database.ts";
-import { findCommentParent, listThread, listWithdrawals, countReplies, listReplies, type Comment } from "../../integrations/activitypub/store/comment-rows.ts";
+import { store } from "../../persistence/interactions/database.ts";
+import { findCommentParent, listThread, listWithdrawals, countReplies, listReplies, type Comment } from "../../persistence/interactions/comment-rows.ts";
 
 export type { Comment };
 

@@ -1,5 +1,5 @@
 import type { z } from "zod";
-import type { commentRun } from "./comment-schema";
+import type { commentRun } from "../../models/content/comments";
 
 export type CommentRun = z.infer<typeof commentRun>;
 

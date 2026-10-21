@@ -1,9 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { migrate, schemaBootstrapStatements } from "../src/services/interactions/schema.ts";
-import { insertComment } from "../src/integrations/activitypub/store/write-comment.ts";
-import { insertReaction } from "../src/integrations/activitypub/store/reaction-rows.ts";
-import { upsertFollower } from "../src/integrations/activitypub/store/follower-rows.ts";
+import { insertComment } from "../src/persistence/interactions/write-comment.ts";
+import { insertReaction } from "../src/persistence/interactions/reaction-rows.ts";
+import { upsertFollower } from "../src/persistence/interactions/follower-rows.ts";
 import { storedComment, storedFollower, storedReaction } from "./fixtures/interactions.mjs";
 import { LATEST_MIGRATION, testDatabase } from "./fixtures/databases.mjs";
 

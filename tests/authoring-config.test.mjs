@@ -4,6 +4,7 @@ import { spawnSync } from "node:child_process";
 import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { interactionRecordFiles } from "./fixtures/interaction-record-files.mjs";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
 
@@ -14,8 +15,8 @@ function fixture(context) {
     "scripts/data-config.mjs", "scripts/tags.mjs", "scripts/newtag.mjs", "scripts/newpost.mjs",
     "scripts/note.mjs", "scripts/notes-store.mjs", "scripts/comments-store.mjs",
     "src/config/data.config.ts", "src/config/data.config.json", "src/config/following.json",
-    "src/config/activitypub.ts", "src/lib/key-pattern.ts", "src/lib/recovery.ts",
-    "src/lib/interactions/records.ts", "src/lib/interactions/object-id.ts", "src/lib/interactions/key-scheme.ts", "src/services/recovery/interaction-references.ts", "src/lib/interactions/comment-schema.ts",
+    "src/lib/key-pattern.ts", "src/lib/recovery.ts",
+    ...interactionRecordFiles, "src/services/recovery/interaction-references.ts", "src/models/content/comments.ts",
   ]) {
     const target = join(cwd, path);
     mkdirSync(dirname(target), { recursive: true });

@@ -1,8 +1,8 @@
 import { z } from "zod";
-import { contentIdentifier, contentIdentifierOf } from "./object-id.ts";
+import { contentIdentifier, contentIdentifierOf } from "../activitypub/object-id.ts";
 import { CHANNELS, SOURCES, type Source, commentId, deliveryId, identityId, normalizedIdentifier, reactionId, sameOrigin } from "./key-scheme.ts";
 
-export { contentIdentifier } from "./object-id.ts";
+export { contentIdentifier } from "../activitypub/object-id.ts";
 
 export const httpUrl = z.url({ protocol: /^https?$/ });
 export const internalId = z.uuid({ version: "v5" });

@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { Announce, Follow, Like, Undo } from "@fedify/fedify/vocab";
-import { SOURCES, identityId, reactionId } from "../src/lib/interactions/key-scheme.ts";
+import { SOURCES, identityId, reactionId } from "../src/models/interactions/key-scheme.ts";
 import { inboxHarness } from "./fixtures/inbox.mjs";
 
 const ownActor = "https://yaame.dev/users/yaame";

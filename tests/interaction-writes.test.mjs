@@ -1,8 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { migrate } from "../src/services/interactions/schema.ts";
-import { insertComment } from "../src/integrations/activitypub/store/write-comment.ts";
-import { SOURCES, commentId } from "../src/lib/interactions/key-scheme.ts";
+import { insertComment } from "../src/persistence/interactions/write-comment.ts";
+import { SOURCES, commentId } from "../src/models/interactions/key-scheme.ts";
 import { storedComment } from "./fixtures/interactions.mjs";
 import { testDatabase } from "./fixtures/databases.mjs";
 

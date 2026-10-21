@@ -4,7 +4,7 @@ import { Person, Follow, Undo, Accept, Announce, Create, Delete, Like, Note, Rej
 import { configure, getConsoleSink } from "@logtape/logtape";
 import { platform } from "../../platform";
 import { AP } from "../../config/activitypub";
-import { contentIdentifierOf } from "../../lib/interactions/object-id";
+import { contentIdentifierOf } from "../../selectors/activitypub/objects";
 import {
   actorDigest,
   departures,
@@ -18,9 +18,10 @@ const ACTOR_DIGEST = actorDigest.key;
 const DEPARTURES = departures.key;
 const FOLLOWING = following.key;
 const FOLLOW_INTENT = followLedger.key;
-import { record, remove } from "./store/comments";
-import * as reactions from "./store/reactions";
-import * as followerRows from "./store/followers";
+import { record, remove } from "../../services/interactions/comments";
+import * as reactions from "../../services/interactions/reactions";
+import * as followerRows from "../../services/interactions/followers";
+import { all as allFollowers } from "../../selectors/interactions/followers";
 import { FIRST, page } from "./paging";
 import {
   handleCommentDelete,
@@ -539,7 +540,7 @@ federation
 
 federation.setFollowersDispatcher(`/users/{identifier}/followers`, async (_ctx, identifier, cursor) => {
   if (identifier !== AP.user) return null;
-  const list = (await followerRows.all()).map((f) => ({
+  const list = (await allFollowers()).map((f) => ({
     id: new URL(f.identifier),
     inboxId: new URL(f.inbox),
     // Fedify prefers this when fanning out, collapsing one POST per follower
@@ -554,7 +555,7 @@ federation.setFollowersDispatcher(`/users/{identifier}/followers`, async (_ctx, 
   // Without a counter the collection carries no totalItems — and a follower
   // count is what most software displays, as zero.
   .setCounter(async (_ctx, identifier) =>
-    identifier === AP.user ? (await followerRows.all()).length : null,
+    identifier === AP.user ? (await allFollowers()).length : null,
   )
   .setFirstCursor(FIRST);
 

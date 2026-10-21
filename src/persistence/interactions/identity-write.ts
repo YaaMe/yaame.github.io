@@ -1,7 +1,7 @@
 import type { SQLiteTableWithColumns } from "drizzle-orm/sqlite-core";
-import type { Database } from "../../../platform/types";
-import { comments, reactions, visitorIdentities } from "./tables.ts";
-import { storedIdentity } from "./identity.ts";
+import type { Database } from "../../platform/types";
+import { comments, reactions, visitorIdentities } from "../../models/interactions/tables.ts";
+import { storedIdentity } from "../../models/interactions/identity.ts";
 
 /**
  * Write the identity a validated row names, then the row.

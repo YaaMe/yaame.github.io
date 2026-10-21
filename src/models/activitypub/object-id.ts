@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { AP } from "../../config/activitypub.ts";
-import { normalizedUrl } from "./key-scheme.ts";
+import { normalizedUrl } from "../interactions/key-scheme.ts";
 
 export const contentIdentifier = z.string().min(1).regex(/^[\p{L}\p{N}_-]+(?:\.[\p{L}\p{N}_-]+)*$/u);
 

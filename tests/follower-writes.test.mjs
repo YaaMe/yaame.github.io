@@ -5,8 +5,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { migrate } from "../src/services/interactions/schema.ts";
-import { listFollowers, removeFollower, removeFollowersAtInbox, upsertFollower } from "../src/integrations/activitypub/store/follower-rows.ts";
-import { SOURCES, identityId } from "../src/lib/interactions/key-scheme.ts";
+import { listFollowers, removeFollower, removeFollowersAtInbox, upsertFollower } from "../src/persistence/interactions/follower-rows.ts";
+import { SOURCES, identityId } from "../src/models/interactions/key-scheme.ts";
 import { storedFollower } from "./fixtures/interactions.mjs";
 import { testDatabase } from "./fixtures/databases.mjs";
 

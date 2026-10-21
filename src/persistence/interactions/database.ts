@@ -1,6 +1,6 @@
-import { platform } from "../../../platform";
-import type { Database } from "../../../platform/types";
-import { migrate } from "./schema";
+import { platform } from "../../platform";
+import type { Database } from "../../platform/types";
+import { migrate } from "../../migrations/index";
 
 /**
  * The database, with its schema known to be current.

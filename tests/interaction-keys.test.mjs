@@ -1,8 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { NAMESPACE, SOURCES, identityId, commentId, reactionId } from "../src/lib/interactions/key-scheme.ts";
-import { contentIdentifierOf } from "../src/lib/interactions/object-id.ts";
+import { NAMESPACE, SOURCES, identityId, commentId, reactionId } from "../src/models/interactions/key-scheme.ts";
+import { contentIdentifierOf } from "../src/models/activitypub/object-id.ts";
 
 test("content object ids decode by prefix and format without a content lookup", () => {
   assert.equal(contentIdentifierOf("https://yaame.dev/users/yaame/notes/not-in-the-archive"), "not-in-the-archive");

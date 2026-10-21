@@ -15,7 +15,7 @@ import {
   followers as followersLocation,
   reactions as reactionsLocation,
   visitorIdentities as identitiesLocation,
-} from "../../../config/data.config.generated.mjs";
+} from "../../config/data.config.generated.mjs";
 
 const commentsColumns = commentsLocation.columns;
 const reactionsColumns = reactionsLocation.columns;

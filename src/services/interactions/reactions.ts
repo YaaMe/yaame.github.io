@@ -1,6 +1,6 @@
-import { SOURCES, identityId, reactionId } from "../../lib/interactions/key-scheme.ts";
-import { store } from "../../integrations/activitypub/store/database.ts";
-import { insertReaction, withdrawReaction, type Kind } from "../../integrations/activitypub/store/reaction-rows.ts";
+import { SOURCES, identityId, reactionId } from "../../models/interactions/key-scheme.ts";
+import { store } from "../../persistence/interactions/database.ts";
+import { insertReaction, withdrawReaction, type Kind } from "../../persistence/interactions/reaction-rows.ts";
 
 export type { Kind };
 

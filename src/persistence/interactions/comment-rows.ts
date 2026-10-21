@@ -4,10 +4,10 @@
  * Reads use Drizzle so host-specific database access stays in the platform.
  */
 import { and, asc, count, eq, inArray, isNotNull, isNull } from "drizzle-orm";
-import { SOURCES } from "../../../lib/interactions/key-scheme.ts";
-import type { Database } from "../../../platform/types.ts";
+import { SOURCES } from "../../models/interactions/key-scheme.ts";
+import type { Database } from "../../platform/types.ts";
 import { queryBatches } from "./query-batches.ts";
-import { comments } from "./tables.ts";
+import { comments } from "../../models/interactions/tables.ts";
 
 export type Comment = typeof comments.$inferSelect;
 

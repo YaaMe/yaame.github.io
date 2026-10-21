@@ -3,12 +3,12 @@
  * deliveries table.
  */
 import { eq } from "drizzle-orm";
-import type { Database } from "../../../platform/types";
-import type { Channel } from "../../../lib/interactions/key-scheme.ts";
-import { deliveries as location } from "../../../config/data.config.generated.mjs";
-import { deliveries } from "./tables.ts";
+import type { Database } from "../../platform/types";
+import type { Channel } from "../../models/interactions/key-scheme.ts";
+import { deliveries as location } from "../../config/data.config.generated.mjs";
+import { deliveries } from "../../models/interactions/tables.ts";
 import { sqlValue } from "./sql-text.ts";
-import type { Delivery } from "./delivery.ts";
+import type { Delivery } from "../../models/interactions/delivery.ts";
 
 /** One channel's marks; another channel's rows say nothing about this one. */
 export async function enqueuedTargets(db: Database, channel: Channel): Promise<Set<string>> {

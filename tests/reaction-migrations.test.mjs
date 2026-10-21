@@ -2,8 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { DatabaseSync } from "node:sqlite";
 import { migrate, schemaBootstrapStatements } from "../src/services/interactions/schema.ts";
-import { insertReaction } from "../src/integrations/activitypub/store/reaction-rows.ts";
-import { insertComment } from "../src/integrations/activitypub/store/write-comment.ts";
+import { insertReaction } from "../src/persistence/interactions/reaction-rows.ts";
+import { insertComment } from "../src/persistence/interactions/write-comment.ts";
 import { storedComment, storedReaction } from "./fixtures/interactions.mjs";
 import { LATEST_MIGRATION, testDatabase } from "./fixtures/databases.mjs";
 

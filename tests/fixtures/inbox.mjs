@@ -18,10 +18,10 @@ export async function inboxHarness(context, { databaseUrl = ":memory:", openStor
         export { platform } from "./src/platform/index.ts";
         export { record } from "./src/services/interactions/comments.ts";
         export { replies, replyCounts, withdrawnMany } from "./src/selectors/interactions/comments.ts";
-        export { store } from "./src/integrations/activitypub/store/database.ts";
-        export { comments, followers, reactions, visitorIdentities } from "./src/integrations/activitypub/store/tables.ts";
+        export { store } from "./src/persistence/interactions/database.ts";
+        export { comments, followers, reactions, visitorIdentities } from "./src/models/interactions/tables.ts";
         export { counts as reactionCounts } from "./src/selectors/interactions/reactions.ts";
-        export { insertComment } from "./src/integrations/activitypub/store/write-comment.ts";
+        export { insertComment } from "./src/persistence/interactions/write-comment.ts";
       `,
       resolveDir: process.cwd(),
     },

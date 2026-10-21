@@ -1,6 +1,6 @@
-import { SOURCES, identityId, normalizedUrl } from "../../lib/interactions/key-scheme.ts";
-import { store } from "../../integrations/activitypub/store/database.ts";
-import { removeFollower, removeFollowersAtInbox, upsertFollower } from "../../integrations/activitypub/store/follower-rows.ts";
+import { SOURCES, identityId, normalizedUrl } from "../../models/interactions/key-scheme.ts";
+import { store } from "../../persistence/interactions/database.ts";
+import { removeFollower, removeFollowersAtInbox, upsertFollower } from "../../persistence/interactions/follower-rows.ts";
 
 /** False when the actor or an address is not one the table accepts. */
 export async function follow(

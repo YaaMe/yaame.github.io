@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import registerData from "../../../src/config/data.config.json" with { type: "json" };
 import { registerForLayerKinds } from "../../../src/lib/recovery.ts";
-import { schemaBootstrapStatements } from "../../../src/integrations/activitypub/store/schema.ts";
+import { schemaBootstrapStatements } from "../../../src/services/interactions/schema.ts";
 import { sqlSnapshotStatements, sqlInsertStatements, sqlUserSchemaStatement, validateSqlPlan } from "../../recovery-sql.mjs";
 import { runIfMain } from "../../run-cli.mjs";
 import { runRecoveryReader } from "../../recovery-plan.mjs";

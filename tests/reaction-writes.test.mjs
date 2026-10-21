@@ -1,8 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { migrate } from "../src/services/interactions/schema.ts";
-import { countReactions, insertReaction, withdrawReaction } from "../src/integrations/activitypub/store/reaction-rows.ts";
-import { SOURCES, identityId, reactionId } from "../src/lib/interactions/key-scheme.ts";
+import { countReactions, insertReaction, withdrawReaction } from "../src/persistence/interactions/reaction-rows.ts";
+import { SOURCES, identityId, reactionId } from "../src/models/interactions/key-scheme.ts";
 import { storedReaction } from "./fixtures/interactions.mjs";
 import { testDatabase } from "./fixtures/databases.mjs";
 

@@ -3,13 +3,13 @@
  * reactions table.
  */
 import { and, countDistinct, eq, inArray, isNull } from "drizzle-orm";
-import type { Database } from "../../../platform/types";
-import { type Source, reactionId } from "../../../lib/interactions/key-scheme.ts";
-import { storedReactionSchema, type REACTION_KINDS } from "../../../lib/interactions/records.ts";
+import type { Database } from "../../platform/types";
+import { type Source, reactionId } from "../../models/interactions/key-scheme.ts";
+import { storedReactionSchema, type REACTION_KINDS } from "../../models/interactions/records.ts";
 import { insertWithIdentity } from "./identity-write.ts";
 import { queryBatches } from "./query-batches.ts";
-import { reactions } from "./tables.ts";
-import { parseStoredRow } from "./stored-row.ts";
+import { reactions } from "../../models/interactions/tables.ts";
+import { parseStoredRow } from "../../models/interactions/stored-row.ts";
 
 export type Kind = typeof REACTION_KINDS[number];
 

@@ -1,7 +1,7 @@
-import { commentHref } from "../../lib/interactions/comment-schema.ts";
-import { SOURCES, commentId, identityId } from "../../lib/interactions/key-scheme.ts";
-import { store } from "../../integrations/activitypub/store/database.ts";
-import { insertComment, withdrawComment } from "../../integrations/activitypub/store/write-comment.ts";
+import { commentHref } from "../../models/content/comments.ts";
+import { SOURCES, commentId, identityId } from "../../models/interactions/key-scheme.ts";
+import { store } from "../../persistence/interactions/database.ts";
+import { insertComment, withdrawComment } from "../../persistence/interactions/write-comment.ts";
 import { rootOf } from "../../selectors/interactions/comments.ts";
 
 /**
