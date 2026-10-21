@@ -1,12 +1,6 @@
 import { readNotes } from "../persistence/content/notes";
 import { marked } from "marked";
-import { site } from "../config/site.config";
-
-// Must format exactly as post dates are formatted, or a note and a post written
-// in the same hour can show different dates.
-const ymd = new Intl.DateTimeFormat("en-CA", {
-  timeZone: site.timezone, year: "numeric", month: "2-digit", day: "2-digit",
-});
+import { calendarDate } from "../models/content/fields";
 
 /**
  * Notes, archived a file per year and read back as one stream.
@@ -35,8 +29,7 @@ export async function allNotes(): Promise<Note[]> {
   return years
     .flatMap((year) =>
       year.data.notes.map((n) => {
-        const [y, mo, d] = ymd.format(new Date(n.published)).split("-");
-        return { ...n, year: year.id, date: { y, mo, d } };
+        return { ...n, year: year.id, date: calendarDate(new Date(n.published)) };
       }),
     )
     .sort((a, b) => b.published.localeCompare(a.published));

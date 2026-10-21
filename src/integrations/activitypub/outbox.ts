@@ -18,10 +18,10 @@ import { counts as reactionCounts } from "../../selectors/interactions/reactions
 import { FIRST, page } from "./paging";
 import { AP } from "../../config/activitypub";
 import { noteDigests } from "../../config/data.config.generated.mjs";
-import { allPosts, href, type Post } from "../../lib/posts";
+import { allPosts, href, type Post } from "../../selectors/posts";
 // Aliased: `Note` here is Fedify's protocol object, and the content entry that
 // becomes one needs a different name.
-import { allNotes, noteHref, noteHtml, type Note as NoteEntry } from "../../lib/notes";
+import { allNotes, noteHref, noteHtml, type Note as NoteEntry } from "../../selectors/notes";
 
 const PUBLIC = new URL("https://www.w3.org/ns/activitystreams#Public");
 

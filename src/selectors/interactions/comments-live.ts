@@ -1,5 +1,5 @@
-import { commentsFor, type Comment } from "./comments";
-import { withdrawn, withdrawnMany } from "../../selectors/interactions/comments";
+import { commentsFor, type Comment } from "./promoted";
+import { withdrawn, withdrawnMany } from "./comments";
 
 /** Read the promoted view after applying withdrawals received by the inbox. */
 export async function liveCommentsFor(contentId: string): Promise<Comment[]> {

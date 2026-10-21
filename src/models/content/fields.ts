@@ -10,6 +10,13 @@ const ymd = new Intl.DateTimeFormat("en-CA", {
   timeZone: site.timezone, year: "numeric", month: "2-digit", day: "2-digit",
 });
 
+// Must format exactly as post dates are formatted, or a note and a post written
+// in the same hour can show different dates.
+export function calendarDate(date: Date): { y: string; mo: string; d: string } {
+  const [y, mo, d] = ymd.format(date).split("-");
+  return { y, mo, d };
+}
+
 // Tags must come from the registry in src/config/tags.ts. A typo fails the build
 // rather than producing a /tags/xxx/ page nobody will visit.
 const tags = z
@@ -19,8 +26,7 @@ const tags = z
   .pipe(z.array(z.enum(TAG_SLUGS)));
 
 export const stamped = z.coerce.date().transform((d) => {
-  const [y, mo, day] = ymd.format(d).split("-");
-  return { at: d, y, mo, d: day, iso: d.toISOString() };
+  return { at: d, ...calendarDate(d), iso: d.toISOString() };
 });
 
 export const base = {

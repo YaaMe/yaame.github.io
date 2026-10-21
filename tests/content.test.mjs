@@ -2,14 +2,15 @@ import assert from "node:assert/strict";
 import { resolve } from "node:path";
 import test from "node:test";
 import { build } from "esbuild";
+import { postCollectionSchema } from "../src/selectors/content/collections.ts";
 
 async function contentGraph(options = {}, exports = "") {
   const bundle = await build({
     stdin: {
       contents: `
-        export * as posts from "./src/lib/posts.ts";
-        export * as notes from "./src/lib/notes.ts";
-        export * as comments from "./src/lib/interactions/comments.ts";
+        export * as posts from "./src/selectors/posts.ts";
+        export * as notes from "./src/selectors/notes.ts";
+        export * as comments from "./src/selectors/interactions/promoted.ts";
         ${exports}
       `,
       resolveDir: process.cwd(),
@@ -59,6 +60,44 @@ test("post periods preserve prefix grouping, shape-only labels and publication f
     const post = { id, data: { date, tags: ["year", "month"] } };
     assert.equal(posts.periodYear(post), year, id);
     assert.deepEqual(posts.period(post), expected, id);
+  }
+});
+
+test("a note and a post stamped in the same hour show the same site calendar date", async () => {
+  const cases = [
+    ["2025-12-31T15:05:00Z", "2025-12-31T15:55:00Z", { y: "2025", mo: "12", d: "31" }],
+    ["2025-12-31T16:05:00Z", "2025-12-31T16:55:00Z", { y: "2026", mo: "01", d: "01" }],
+    ["2024-02-28T16:05:00Z", "2024-02-28T16:55:00Z", { y: "2024", mo: "02", d: "29" }],
+  ];
+  const archive = {
+    id: "2025",
+    data: { notes: cases.map(([, published], index) => ({ id: `note0${index}`, published, content: "Note" })) },
+  };
+  const { notes } = await contentGraph({
+    plugins: [{
+      name: "calendar-date-fixture",
+      setup(builder) {
+        builder.onResolve({ filter: /^virtual:astro$/ }, () => ({ path: "content", namespace: "fixture" }));
+        builder.onLoad({ filter: /.*/, namespace: "fixture" }, () => ({
+          contents: `
+            export async function getCollection(name) {
+              if (name !== "notes") throw new Error("Unexpected collection");
+              return ${JSON.stringify([archive])};
+            }
+            export function render() { throw new Error("Unexpected render"); }
+          `,
+        }));
+      },
+    }],
+  });
+  const stream = await notes.allNotes();
+  for (const [date, published, expected] of cases) {
+    const post = postCollectionSchema.parse({ title: "Post", date });
+    const note = stream.find((entry) => entry.published === published);
+    assert.deepEqual({ y: post.date.y, mo: post.date.mo, d: post.date.d }, expected);
+    assert.deepEqual(note.date, expected);
+    assert.equal(note.year, "2025");
+    assert.equal(notes.noteHref(note), `/notes/2025/#${note.id}`);
   }
 });
 

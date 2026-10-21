@@ -1,6 +1,6 @@
 ---
 import Comments from "../Comments.astro";
-import { commentsFor } from "../../lib/interactions/comments";
+import { commentsFor } from "../../selectors/interactions/promoted";
 
 interface Props { slug: string }
 const { slug } = Astro.props;

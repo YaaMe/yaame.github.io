@@ -10,8 +10,8 @@ import { promotedComment } from "../scripts/promote.mjs";
 import { fileFor } from "../scripts/comments-store.mjs";
 import { promotedComments } from "../src/config/data.config.generated.mjs";
 import { commentSchema } from "../src/models/content/comments.ts";
-import { renderedText } from "../src/lib/interactions/comment-runs.ts";
-import { visibleComments } from "../src/lib/interactions/comment-view.ts";
+import { renderedText } from "../src/selectors/interactions/comment-runs.ts";
+import { visibleComments } from "../src/selectors/interactions/comment-view.ts";
 import { SOURCES, commentId, identityId } from "../src/models/interactions/key-scheme.ts";
 
 const author = {
@@ -218,12 +218,12 @@ test("comment readers use content identifiers and internal withdrawal IDs", asyn
   const bundle = await build({
     stdin: {
       contents: `
-        export { commentsFor, handle } from "./comments";
+        export { commentsFor, handle } from "./promoted";
         export { liveCommentsFor, liveCommentsForMany } from "./comments-live";
-        export { withdrawalCalls, withdrawalState } from "../../selectors/interactions/comments";
+        export { withdrawalCalls, withdrawalState } from "./comments";
         export { collectionCalls } from "virtual:astro";
       `,
-      resolveDir: fileURLToPath(new URL("../src/lib/interactions/", import.meta.url)),
+      resolveDir: fileURLToPath(new URL("../src/selectors/interactions/", import.meta.url)),
       loader: "ts",
     },
     bundle: true,
@@ -244,7 +244,7 @@ test("comment readers use content identifiers and internal withdrawal IDs", asyn
             }
           `,
         }));
-        builder.onResolve({ filter: /\/selectors\/interactions\/comments$/ }, () => ({ path: "withdrawals", namespace: "store" }));
+        builder.onResolve({ filter: /^\.\/comments$/ }, () => ({ path: "withdrawals", namespace: "store" }));
         builder.onLoad({ filter: /.*/, namespace: "store" }, () => ({
           contents: `
             export const withdrawalCalls = [];

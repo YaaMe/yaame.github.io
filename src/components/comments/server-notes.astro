@@ -1,7 +1,7 @@
 ---
-import { allNotes } from "../../lib/notes";
+import { allNotes } from "../../selectors/notes";
 import Comments from "../Comments.astro";
-import { liveCommentsForMany } from "../../lib/interactions/comments-live";
+import { liveCommentsForMany } from "../../selectors/interactions/comments-live";
 
 interface Props { year: string }
 Astro.response.headers.set("Cache-Control", "private, no-store");
