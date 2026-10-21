@@ -4,7 +4,7 @@ import { Person, Follow, Undo, Accept, Announce, Create, Delete, Like, Note, Rej
 import { configure, getConsoleSink } from "@logtape/logtape";
 import { platform } from "../../platform";
 import { AP } from "../../config/activitypub";
-import { contentIdentifierOf } from "../../lib/interactions/records";
+import { contentIdentifierOf } from "../../lib/interactions/object-id";
 import {
   actorDigest,
   departures,

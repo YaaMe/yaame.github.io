@@ -32,13 +32,40 @@ note to the database.
 | Driver | D1 (first-party binding) | built-in `node:sqlite`, no dependency |
 | Above it | Drizzle, one set of table definitions for both drivers | same |
 
-The table definitions are in `src/integrations/activitypub/store/schema.ts`.
+The table definitions are in `src/integrations/activitypub/store/tables.ts`.
 `author_id` and `reply_to` are conceptual references maintained by the application.
 The database deliberately enforces no foreign keys. Comment insertion creates
 the visitor identity before inserting the comment.
 Why Drizzle, and why not KV, a document store or hand-written SQL: see
 [0007](decisions/0007-interactions-live-in-a-database-the-host-provides.md).
 In the bundle Drizzle is 167 KiB (3.2%). Fedify is 72%.
+
+Interaction writes enter through `src/services/interactions/`: `comments.ts`,
+`reactions.ts`, and `followers.ts`. Reads and parent/thread interpretation live
+in the matching modules under `src/selectors/interactions/`. SQL remains under
+`src/integrations/activitypub/store/`, including `comment-rows.ts` for comment
+reads and `write-comment.ts` for insertion and withdrawal.
+
+Within the store, `identity.ts`, `delivery.ts`, and `stored-row.ts` contain only
+model helpers. Database operations remain in `identity-write.ts`,
+`delivery-rows.ts`, and the other persistence modules. Comment and reaction
+insertion still writes the identity and interaction in separate statements.
+A failed second statement can leave the identity behind. The follower upsert
+still writes its identity and follower atomically.
+
+`src/services/interactions/schema.ts` exposes bootstrap SQL and migration over
+an explicitly supplied database. Its implementation remains in the store's
+`schema-bootstrap.ts` and `migration-runner.ts`. The store's `schema.ts`,
+`comments.ts`, `reactions.ts`, and `followers.ts` forward to the split modules
+until ADR 0018 step 5 removes those forwards and relocates the store.
+Both operational host adapters still import `store/schema.ts` until that step.
+The cached runtime store still migrates on first access; B13 removes that behavior.
+
+`src/lib/interactions/object-id.ts` holds the content prefix and decoder apart
+from row schemas. It uses the existing URL prefix and identifier format without
+reading Astro content. Step 5 moves it to the ActivityPub object-id model.
+`comments-live.ts` still reaches selectors through the old store forward until
+step 5, then imports them directly until its own relocation in step 7.
 
 SQLite was not chosen for being better. The constraints left nothing else:
 

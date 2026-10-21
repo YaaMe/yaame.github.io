@@ -28,7 +28,7 @@ function fixture(t) {
     "scripts/tombstone.mjs", "scripts/unpromote.mjs", "scripts/comments-store.mjs",
     "scripts/comments-rows.mjs",
     "scripts/comments-cli.mjs", "src/lib/interactions/comment-schema.ts", "src/config/data.config.generated.mjs",
-    "src/lib/interactions/records.ts", "src/lib/interactions/key-scheme.ts", "src/config/activitypub.ts",
+    "src/lib/interactions/records.ts", "src/lib/interactions/object-id.ts", "src/lib/interactions/key-scheme.ts", "src/config/activitypub.ts",
     "src/integrations/activitypub/store/sql-text.ts",
   ]) {
     const target = join(cwd, path);

@@ -4,30 +4,16 @@
  */
 import { eq } from "drizzle-orm";
 import type { Database } from "../../../platform/types";
-import { type Channel, deliveryId } from "../../../lib/interactions/key-scheme.ts";
-import { storedDeliverySchema } from "../../../lib/interactions/records.ts";
+import type { Channel } from "../../../lib/interactions/key-scheme.ts";
 import { deliveries as location } from "../../../config/data.config.generated.mjs";
-import { deliveries } from "./schema.ts";
+import { deliveries } from "./tables.ts";
 import { sqlValue } from "./sql-text.ts";
-import { parseStoredRow } from "./stored-row.ts";
-
-export type Delivery = { id: string; channel: Channel; target: string; enqueuedAt: string };
+import type { Delivery } from "./delivery.ts";
 
 /** One channel's marks; another channel's rows say nothing about this one. */
 export async function enqueuedTargets(db: Database, channel: Channel): Promise<Set<string>> {
   const rows = await db.select({ target: deliveries.target }).from(deliveries).where(eq(deliveries.channel, channel));
   return new Set(rows.map(({ target }) => target));
-}
-
-/** The row a mark would write, or null when the stored schema refuses it. */
-export function deliveryRow(channel: Channel, target: string, enqueuedAt: string): Delivery | null {
-  let id: string;
-  try {
-    id = deliveryId(channel, target);
-  } catch {
-    return null;
-  }
-  return parseStoredRow(storedDeliverySchema, { id, channel, target, enqueuedAt }) as Delivery | null;
 }
 
 /**

@@ -5,7 +5,7 @@ import registerData from "../src/config/data.config.json" with { type: "json" };
 import { exportSqlRecovery, importSqlRecovery, sqlInsertStatements, validateSqlPlan } from "../scripts/recovery-sql.mjs";
 import { writeSqlPlan } from "../scripts/platform/node/sqlite.mjs";
 import { importRecovery, InMemoryRecoveryFacility } from "../src/lib/recovery.ts";
-import { migrate } from "../src/integrations/activitypub/store/schema.ts";
+import { migrate } from "../src/services/interactions/schema.ts";
 import { database } from "../src/platform/node/database.ts";
 import { storedComment, storedDelivery, storedFollower, storedReaction } from "./fixtures/interactions.mjs";
 import { CHANNELS, SOURCES, commentId, deliveryId, identityId, reactionId } from "../src/lib/interactions/key-scheme.ts";

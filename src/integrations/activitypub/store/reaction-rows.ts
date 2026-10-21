@@ -8,7 +8,7 @@ import { type Source, reactionId } from "../../../lib/interactions/key-scheme.ts
 import { storedReactionSchema, type REACTION_KINDS } from "../../../lib/interactions/records.ts";
 import { insertWithIdentity } from "./identity-write.ts";
 import { queryBatches } from "./query-batches.ts";
-import { reactions } from "./schema.ts";
+import { reactions } from "./tables.ts";
 import { parseStoredRow } from "./stored-row.ts";
 
 export type Kind = typeof REACTION_KINDS[number];

@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { migrate, schemaBootstrapStatements } from "../src/integrations/activitypub/store/schema.ts";
+import { migrate, schemaBootstrapStatements } from "../src/services/interactions/schema.ts";
 import { insertComment } from "../src/integrations/activitypub/store/write-comment.ts";
 import { insertReaction } from "../src/integrations/activitypub/store/reaction-rows.ts";
 import { upsertFollower } from "../src/integrations/activitypub/store/follower-rows.ts";

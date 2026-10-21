@@ -1,12 +1,29 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { migrate } from "../src/integrations/activitypub/store/schema.ts";
+import { migrate } from "../src/services/interactions/schema.ts";
 import { countReactions, insertReaction, withdrawReaction } from "../src/integrations/activitypub/store/reaction-rows.ts";
 import { SOURCES, identityId, reactionId } from "../src/lib/interactions/key-scheme.ts";
 import { storedReaction } from "./fixtures/interactions.mjs";
 import { testDatabase } from "./fixtures/databases.mjs";
 
 for (const host of ["node", "d1"]) {
+  test(`${host}: a failed reaction insert leaves its identity for a later retry`, async (context) => {
+    const { database, execute, rows } = await testDatabase(context, host);
+    await migrate(database);
+    const reaction = storedReaction("retry");
+    await execute("CREATE TRIGGER refuse_reaction BEFORE INSERT ON reactions BEGIN SELECT RAISE(ABORT, 'injected reaction failure'); END");
+    await assert.rejects(insertReaction(database, reaction), (error) => {
+      assert.match(error.cause?.message ?? "", /injected reaction failure/);
+      return true;
+    });
+    assert.deepEqual((await rows("SELECT id FROM visitor_identities")).map(({ id }) => id), [reaction.authorId]);
+    assert.deepEqual(await rows("SELECT * FROM reactions"), []);
+    await execute("DROP TRIGGER refuse_reaction");
+    assert.equal(await insertReaction(database, reaction), true);
+    assert.equal((await rows("SELECT * FROM visitor_identities")).length, 1);
+    assert.deepEqual((await rows("SELECT id FROM reactions")).map(({ id }) => id), [reaction.id]);
+  });
+
   test(`${host}: a redelivered or concurrently delivered reaction is stored and counted once`, async (context) => {
     const { database, rows } = await testDatabase(context, host);
     await migrate(database);

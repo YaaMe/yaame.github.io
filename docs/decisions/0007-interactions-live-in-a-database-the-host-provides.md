@@ -19,7 +19,7 @@ a queue. A database is the same kind of question.
 `platform.db`, beside `kv` and `queue`, holding a SQL database the host
 supplies: D1 on Cloudflare, `node:sqlite` in a process, `false` where there is
 none. Drizzle renders the queries from one set of table definitions in
-`store/schema.ts`.
+`src/integrations/activitypub/store/tables.ts`.
 
 ## Rejected
 

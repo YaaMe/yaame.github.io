@@ -3,7 +3,8 @@
  * module owns the document shape and the register's selection rule.
  */
 
-import { validateInteractionReferences, validateInteractionRows } from "./interactions/records.ts";
+import { validateInteractionRows } from "./interactions/records.ts";
+import { validateInteractionReferences } from "../services/recovery/interaction-references.ts";
 import { recordKeyMatches } from "./key-pattern.ts";
 
 export const RECOVERY_FORMAT = "blogu-recovery" as const;

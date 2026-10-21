@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { Miniflare, convertV4MiniflareOptions } from "miniflare";
 import { database as nodeDatabase } from "../../src/platform/node/database.ts";
 import { database as d1Database } from "../../src/platform/cloudflare/database.ts";
-import { schemaBootstrapStatements } from "../../src/integrations/activitypub/store/schema.ts";
+import { schemaBootstrapStatements } from "../../src/services/interactions/schema.ts";
 
 // The bootstrap records one version row per migration, so this follows every append.
 export const LATEST_MIGRATION = schemaBootstrapStatements().filter((statement) => statement.startsWith("INSERT OR IGNORE INTO")).length - 1;

@@ -4,7 +4,7 @@
  */
 import test from "node:test";
 import assert from "node:assert/strict";
-import { migrate } from "../src/integrations/activitypub/store/schema.ts";
+import { migrate } from "../src/services/interactions/schema.ts";
 import { enqueuedTargets } from "../src/integrations/activitypub/store/delivery-rows.ts";
 import { deliverPending } from "../src/integrations/activitypub/delivery.ts";
 import { CHANNELS, deliveryId } from "../src/lib/interactions/key-scheme.ts";

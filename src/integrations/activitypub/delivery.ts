@@ -6,7 +6,8 @@
  */
 import type { Database } from "../../platform/types";
 import type { Channel } from "../../lib/interactions/key-scheme.ts";
-import { deliveryRow, enqueuedTargets, markEnqueued } from "./store/delivery-rows.ts";
+import { deliveryRow } from "./store/delivery.ts";
+import { enqueuedTargets, markEnqueued } from "./store/delivery-rows.ts";
 
 export type Pending<T> = { target: string; activity: T };
 

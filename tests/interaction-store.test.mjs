@@ -8,7 +8,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import { schemaBootstrapStatements } from "../src/integrations/activitypub/store/schema.ts";
+import { schemaBootstrapStatements } from "../src/services/interactions/schema.ts";
 import { LATEST_MIGRATION } from "./fixtures/databases.mjs";
 import { inboxHarness } from "./fixtures/inbox.mjs";
 

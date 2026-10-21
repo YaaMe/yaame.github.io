@@ -15,7 +15,7 @@ function fixture(context) {
     "scripts/note.mjs", "scripts/notes-store.mjs", "scripts/comments-store.mjs",
     "src/config/data.config.ts", "src/config/data.config.json", "src/config/following.json",
     "src/config/activitypub.ts", "src/lib/key-pattern.ts", "src/lib/recovery.ts",
-    "src/lib/interactions/records.ts", "src/lib/interactions/key-scheme.ts", "src/lib/interactions/comment-schema.ts",
+    "src/lib/interactions/records.ts", "src/lib/interactions/object-id.ts", "src/lib/interactions/key-scheme.ts", "src/services/recovery/interaction-references.ts", "src/lib/interactions/comment-schema.ts",
   ]) {
     const target = join(cwd, path);
     mkdirSync(dirname(target), { recursive: true });

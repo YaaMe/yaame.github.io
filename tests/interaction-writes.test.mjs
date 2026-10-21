@@ -1,12 +1,29 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { migrate } from "../src/integrations/activitypub/store/schema.ts";
+import { migrate } from "../src/services/interactions/schema.ts";
 import { insertComment } from "../src/integrations/activitypub/store/write-comment.ts";
 import { SOURCES, commentId } from "../src/lib/interactions/key-scheme.ts";
 import { storedComment } from "./fixtures/interactions.mjs";
 import { testDatabase } from "./fixtures/databases.mjs";
 
 for (const host of ["node", "d1"]) {
+  test(`${host}: a failed comment insert leaves its identity for a later retry`, async (context) => {
+    const { database, execute, rows } = await testDatabase(context, host);
+    await migrate(database);
+    const comment = storedComment("retry");
+    await execute("CREATE TRIGGER refuse_comment BEFORE INSERT ON comments BEGIN SELECT RAISE(ABORT, 'injected comment failure'); END");
+    await assert.rejects(insertComment(database, comment), (error) => {
+      assert.match(error.cause?.message ?? "", /injected comment failure/);
+      return true;
+    });
+    assert.deepEqual((await rows("SELECT id FROM visitor_identities")).map(({ id }) => id), [comment.authorId]);
+    assert.deepEqual(await rows("SELECT * FROM comments"), []);
+    await execute("DROP TRIGGER refuse_comment");
+    assert.equal(await insertComment(database, comment), true);
+    assert.equal((await rows("SELECT * FROM visitor_identities")).length, 1);
+    assert.deepEqual((await rows("SELECT id FROM comments")).map(({ id }) => id), [comment.id]);
+  });
+
   test(`${host}: receipt and concurrent first deliveries use computed primary keys`, async (context) => {
     const { database, rows } = await testDatabase(context, host);
     await migrate(database);

@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { DatabaseSync } from "node:sqlite";
-import { migrate, schemaBootstrapStatements } from "../src/integrations/activitypub/store/schema.ts";
+import { migrate, schemaBootstrapStatements } from "../src/services/interactions/schema.ts";
 import { insertReaction } from "../src/integrations/activitypub/store/reaction-rows.ts";
 import { insertComment } from "../src/integrations/activitypub/store/write-comment.ts";
 import { storedComment, storedReaction } from "./fixtures/interactions.mjs";

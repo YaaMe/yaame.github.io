@@ -2,7 +2,8 @@ import registerData from "../src/config/data.config.json" with { type: "json" };
 import { RecoveryError, exportRecovery, quoteSqlIdentifier, registerForLayerKinds, selectRecovery } from "../src/lib/recovery.ts";
 import { planRecoveryImport, runRecoveryAdapter } from "./recovery-plan.mjs";
 import { runIfMain } from "./run-cli.mjs";
-import { validateInteractionReferences, validateInteractionRows } from "../src/lib/interactions/records.ts";
+import { validateInteractionRows } from "../src/lib/interactions/records.ts";
+import { validateInteractionReferences } from "../src/services/recovery/interaction-references.ts";
 
 // Rows that reference a visitor identity are written after it and cleared before it.
 // A kind missing here sorts last and is refused by validateInteractionRows.

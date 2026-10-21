@@ -13,7 +13,7 @@ const workflow = readFileSync(join(root, workflowPath), "utf8");
 function fixture(t, paths) {
   const directory = mkdtempSync(join(root, ".tmp-tombstones-"));
   t.after(() => rmSync(directory, { recursive: true, force: true }));
-  for (const path of [...paths, "src/lib/interactions/records.ts", "src/lib/interactions/key-scheme.ts", "src/config/activitypub.ts"]) {
+  for (const path of [...paths, "src/lib/interactions/records.ts", "src/lib/interactions/object-id.ts", "src/lib/interactions/key-scheme.ts", "src/services/recovery/interaction-references.ts", "src/config/activitypub.ts"]) {
     const target = join(directory, path);
     mkdirSync(dirname(target), { recursive: true });
     copyFileSync(join(root, path), target);
@@ -197,7 +197,9 @@ const dataCheckInputs = [
   "src/config/data.config.generated.mjs",
   "src/config/following.json",
   "src/content.config.ts",
-  "src/integrations/activitypub/store/schema.ts",
+  "src/integrations/activitypub/store/tables.ts",
+  "src/integrations/activitypub/store/schema-bootstrap.ts",
+  "src/integrations/activitypub/store/migration-runner.ts",
   "src/integrations/activitypub/store/migration-history.ts",
   "scripts/promote.mjs",
   "scripts/comments-store.mjs",
@@ -289,17 +291,24 @@ test("data-check rejects workflow path copies and unscoped Git commands", (t) =>
 });
 
 test("data-check scans every line of the table declarations and keeps the migration history to history", (t) => {
-  const schemaPath = "src/integrations/activitypub/store/schema.ts";
+  const schemaPath = "src/integrations/activitypub/store/tables.ts";
+  const bootstrapPath = "src/integrations/activitypub/store/schema-bootstrap.ts";
+  const runnerPath = "src/integrations/activitypub/store/migration-runner.ts";
   const historyPath = "src/integrations/activitypub/store/migration-history.ts";
   const schema = readFileSync(join(root, schemaPath), "utf8");
+  const bootstrap = readFileSync(join(root, bootstrapPath), "utf8");
+  const runner = readFileSync(join(root, runnerPath), "utf8");
   const history = readFileSync(join(root, historyPath), "utf8");
   const cwd = fixture(t, dataCheckInputs);
   const valid = dataCheck(cwd);
   assert.equal(valid.status, 0, valid.stderr);
 
   for (const [path, source, mutation, message] of [
-    [schemaPath, schema, (text) => `${text}\nexport const copy = () => "SELECT 1 FROM 'comments'";\n`, /store\/schema\.ts: repeats comments table comments/],
-    [schemaPath, schema, (text) => text.replace('import { MIGRATIONS } from "./migration-history.ts";\n', "const MIGRATIONS = [];\n"), /store\/schema\.ts: expected from "\.\/migration-history\.ts"/],
+    [schemaPath, schema, (text) => `${text}\nexport const copy = () => "SELECT 1 FROM 'comments'";\n`, /store\/tables\.ts: repeats comments table comments/],
+    [bootstrapPath, bootstrap, (text) => text.replace('import { MIGRATIONS } from "./migration-history.ts";\n', "const MIGRATIONS = [];\n"), /store\/schema-bootstrap\.ts: expected from "\.\/migration-history\.ts"/],
+    [runnerPath, runner, (text) => text.replace('import { MIGRATIONS } from "./migration-history.ts";\n', "const MIGRATIONS = [];\n"), /store\/migration-runner\.ts: expected from "\.\/migration-history\.ts"/],
+    [bootstrapPath, bootstrap, (text) => `${text}\nexport const copy = () => "SELECT 1 FROM 'migrations'";\n`, /store\/schema-bootstrap\.ts: repeats migrations table migrations/],
+    [runnerPath, runner, (text) => `${text}\nexport const copy = () => "SELECT 1 FROM 'migrations'";\n`, /store\/migration-runner\.ts: repeats migrations table migrations/],
     [historyPath, history, (text) => `import { sql } from "drizzle-orm";\n${text}`, /migration-history\.ts: holds more than the shipped migration list/],
     [historyPath, history, (text) => `${text}\nexport const live = (db) => db.run("SELECT 1");\n`, /migration-history\.ts: holds more than the shipped migration list/],
     [historyPath, history, (text) => text.replace("export const MIGRATIONS", "const MIGRATIONS"), /migration-history\.ts: expected export const MIGRATIONS/],
