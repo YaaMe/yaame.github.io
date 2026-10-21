@@ -1,10 +1,10 @@
-import { AUTH } from "../config/auth.ts";
-import { randomToken } from "../lib/encoding.ts";
-import type { Session, ActiveSession } from "../models/records/sessions.ts";
-import { sessionRecord } from "../persistence/records/sessions.ts";
-import { roleOf } from "./auth/roles.ts";
+import { AUTH } from "../../config/auth.ts";
+import { randomToken } from "../../lib/encoding.ts";
+import type { Session, ActiveSession } from "../../models/records/sessions.ts";
+import { sessionRecord } from "../../persistence/records/sessions.ts";
+import { roleOf } from "./roles.ts";
 
-export type { Role, ActiveSession } from "../models/records/sessions.ts";
+export type { Role, ActiveSession } from "../../models/records/sessions.ts";
 
 /**
  * `expired` carries the credential so cleanup removes that record and nothing

@@ -1,5 +1,5 @@
 import { exchangeToken, githubUser } from "../../gateways/github.ts";
-import { create } from "../session.ts";
+import { create } from "./session.ts";
 
 export async function loginWithGithub(
   code: string,

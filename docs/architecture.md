@@ -31,10 +31,11 @@ design layer — replaceable as a whole
   src/layouts/  src/components/  src/pages/  src/styles/
 ```
 
-Neither list covers the remaining ActivityPub backend and auth entrances under
-`src/integrations/`, or `src/platform/`, the host boundary. Auth now spans edges,
+Neither list covers the remaining ActivityPub backend under `src/integrations/`
+or `src/platform/`, the host boundary. Auth handlers live in `src/routes/auth/`;
+the temporary login page lives in `src/pages-extra/auth/`. Auth also spans edges,
 services, record persistence and a GitHub gateway; [interactions](interactions.md#the-write-entry-point)
-describes that split. The second architectural rule in `CLAUDE.md` governs
+describes their roles. The second architectural rule in `CLAUDE.md` governs
 `src/platform/`.
 
 ## The rule

@@ -1,6 +1,6 @@
 ---
 import { readSessionCookie } from "../../params/auth";
-import { current } from "../../services/session";
+import { current } from "../../services/auth/session";
 import Panel from "./panel.astro";
 
 Astro.response.headers.set("Cache-Control", "private, no-store");

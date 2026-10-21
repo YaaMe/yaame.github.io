@@ -8,6 +8,7 @@ import { readSessionCookie } from "../src/params/auth.ts";
 import { safeReturn } from "../src/services/auth/return.ts";
 import { AUTH } from "../src/config/auth.ts";
 import { roleOf } from "../src/services/auth/roles.ts";
+import auth from "../src/integrations/auth/index.ts";
 import {
   clearSessionCookie,
   clearStateCookie,
@@ -206,6 +207,46 @@ test("OAuth login redirect uses an S256 challenge for its verifier cookie", asyn
   assert.equal(location.searchParams.get("code_challenge_method"), "S256");
   assert.equal(location.searchParams.get("code_challenge"), challenge);
   assert.equal(location.searchParams.get("code_verifier"), null);
+});
+
+test("OAuth authorization and exchange use the registered callback URL", async (context) => {
+  const routes = [];
+  auth().hooks["astro:config:setup"]({
+    injectRoute: (route) => routes.push(route),
+    logger: { info() {} },
+  });
+  assert.deepEqual(routes.map(({ pattern }) => pattern), [
+    "/login", "/auth/github", "/auth/github/callback", "/auth/logout",
+  ]);
+  const callback = routes.find(({ pattern }) => pattern === "/auth/github/callback");
+
+  for (const requestOrigin of [origin, "https://preview.example:8443"]) {
+    const calls = [];
+    const service = await authRuntime();
+    const fetch = context.mock.method(globalThis, "fetch", githubFetcher(calls));
+    const start = await service.githubLogin({
+      request: new Request(`${requestOrigin}/auth/github?from=login`),
+    });
+    assert.equal(start.status, 302);
+    const authorize = new URL(start.headers.get("location"));
+    const redirectUri = authorize.searchParams.get("redirect_uri");
+    assert.equal(redirectUri, new URL(callback.pattern, requestOrigin).href);
+    const returnUrl = new URL(redirectUri);
+    returnUrl.searchParams.set("code", "code");
+    returnUrl.searchParams.set("state", authorize.searchParams.get("state"));
+
+    const response = await service.callbackResponse({
+      request: new Request(returnUrl, {
+        headers: { cookie: responseCookies(start).map(cookieValue).join("; ") },
+      }),
+    });
+    assert.equal(response.status, 302);
+    assert.equal(response.headers.get("location"), `${requestOrigin}/`);
+    assert.equal(calls.length, 2);
+    assert.equal(JSON.parse(calls[0].init.body).redirect_uri, redirectUri);
+    assert.equal(service.records.size, 1);
+    fetch.mock.restore();
+  }
 });
 
 test("logout destroys the session record and clears its cookie", async () => {

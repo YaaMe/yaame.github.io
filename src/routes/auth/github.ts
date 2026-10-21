@@ -1,8 +1,9 @@
 import type { APIRoute } from "astro";
-import { refererPath } from "../../../params/auth.ts";
-import { setStateCookie, setVerifierCookie } from "../../../schemas/auth-cookies.ts";
-import { beginLogin } from "../../../services/auth/oauth.ts";
-import { safeReturn } from "../../../services/auth/return.ts";
+import { refererPath } from "../../params/auth.ts";
+import { setStateCookie, setVerifierCookie } from "../../schemas/auth-cookies.ts";
+import { githubCallbackUrl } from "../../schemas/auth-urls.ts";
+import { beginLogin } from "../../services/auth/oauth.ts";
+import { safeReturn } from "../../services/auth/return.ts";
 
 export const prerender = false;
 
@@ -21,7 +22,7 @@ export const prerender = false;
  * browser withholds it, the login ends on the front page rather than failing.
  */
 export const GET: APIRoute = async ({ request }) => {
-  const flow = await beginLogin(new URL("/auth/github/callback", request.url).href);
+  const flow = await beginLogin(githubCallbackUrl(request.url));
   const from = safeReturn(refererPath(request));
   const headers = new Headers({ location: flow.url });
   headers.append("set-cookie", setStateCookie(flow.state, from));

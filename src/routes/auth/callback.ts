@@ -1,10 +1,14 @@
-import { callbackParams } from "../../../params/auth.ts";
-import { clearStateCookie, clearVerifierCookie, setSessionCookie } from "../../../schemas/auth-cookies.ts";
-import { checkCallback } from "../../../services/auth/oauth.ts";
-import { loginWithGithub } from "../../../services/auth/login.ts";
-import { safeReturn } from "../../../services/auth/return.ts";
+import type { APIRoute } from "astro";
+import { callbackParams } from "../../params/auth.ts";
+import { clearStateCookie, clearVerifierCookie, setSessionCookie } from "../../schemas/auth-cookies.ts";
+import { githubCallbackUrl } from "../../schemas/auth-urls.ts";
+import { checkCallback } from "../../services/auth/oauth.ts";
+import { loginWithGithub } from "../../services/auth/login.ts";
+import { safeReturn } from "../../services/auth/return.ts";
 
-export async function callbackResponse({ request }: { request: Request }): Promise<Response> {
+export const prerender = false;
+
+export const GET: APIRoute = async ({ request }) => {
   const input = callbackParams(request);
   /**
    * Where to go next.
@@ -32,7 +36,7 @@ export async function callbackResponse({ request }: { request: Request }): Promi
   const result = await loginWithGithub(
     checked.code,
     checked.verifier,
-    new URL("/auth/github/callback", request.url).href,
+    githubCallbackUrl(request.url),
   );
   if ("error" in result) return fail(result.error);
 
@@ -41,4 +45,4 @@ export async function callbackResponse({ request }: { request: Request }): Promi
   headers.append("set-cookie", clearStateCookie());
   headers.append("set-cookie", clearVerifierCookie());
   return new Response(null, { status: 302, headers });
-}
+};

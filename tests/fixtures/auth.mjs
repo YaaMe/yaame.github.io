@@ -10,14 +10,14 @@ export async function authRuntime({ render = false } = {}) {
   const bundle = await build({
     stdin: {
       contents: `
-        export { create, current, destroy, readSession } from "./src/services/session.ts";
+        export { create, current, destroy, readSession } from "./src/services/auth/session.ts";
         export { AUTH } from "./src/config/auth.ts";
-        export { GET as callbackResponse } from "./src/integrations/auth/routes/callback.ts";
-        export { GET as githubLogin } from "./src/integrations/auth/routes/github.ts";
-        export * as logoutRoute from "./src/integrations/auth/routes/logout.ts";
+        export { GET as callbackResponse } from "./src/routes/auth/callback.ts";
+        export { GET as githubLogin } from "./src/routes/auth/github.ts";
+        export * as logoutRoute from "./src/routes/auth/logout.ts";
         export { records, reads, writes, removed, faults, settings } from "virtual:platform";
         ${render ? `
-          export { default as Login } from "./src/integrations/auth/routes/login.astro";
+          export { default as Login } from "./src/pages-extra/auth/login.astro";
           export { default as Island } from "./src/components/session/server.astro";
         ` : ""}
       `,
