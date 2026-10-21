@@ -1,4 +1,5 @@
 import { readPosts, readKomorebi, renderContent, type Post, type Chapter } from "../persistence/content/posts";
+import { parsePostFilename } from "../models/content/post-filename";
 import type { Tag } from "../config/tags";
 
 /**
@@ -44,8 +45,7 @@ export function slice(posts: Post[], page: number) {
  * under a heading its own title contradicts. The filename records the period.
  */
 export function periodYear(p: Post): string {
-  const m = /^(\d{4})/.exec(p.id);
-  return m ? m[1] : p.data.date.y;
+  return parsePostFilename(p.id).yearPrefix ?? p.data.date.y;
 }
 
 /**
@@ -62,10 +62,12 @@ export function periodYear(p: Post): string {
  * the only source, so a mismatched tag cannot change the label.
  */
 export function period(p: Post): { label: string; datetime: string } {
-  const m = /^(\d{4})(?:-(\d{2}|year)(?:-(\d{2}))?)?$/.exec(p.id);
-  if (m?.[2] === "year") return { label: "年结", datetime: m[1] };
-  if (m?.[2] && m[3]) return { label: `${m[2]}-${m[3]}`, datetime: p.id };
-  if (m?.[2]) return { label: `${m[2]} 月`, datetime: p.id };
+  const match = parsePostFilename(p.id).period;
+  switch (match?.kind) {
+    case "year": return { label: "年结", datetime: match.year };
+    case "day": return { label: `${match.month}-${match.day}`, datetime: p.id };
+    case "month": return { label: `${match.month} 月`, datetime: p.id };
+  }
   return { label: `${p.data.date.mo}-${p.data.date.d}`, datetime: p.data.date.iso };
 }
 

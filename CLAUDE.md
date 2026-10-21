@@ -41,6 +41,13 @@ the site binds it to `src/astro.binding.ts`, and the consumer to
 The posts, notes and promoted-comment modules in `lib/` temporarily import content
 persistence. ADR 0018's step 7b moves those callers into selectors.
 
+Post filename grammar belongs to `src/models/content/post-filename.ts`; its
+matches and calendar facts leave acceptance, tags and fallbacks to each caller.
+The temporary import from `src/lib/posts.ts` closes in step 7b. Scripts reach
+the parser through `src/services/authoring/posts.ts`, which must import under
+plain Node without virtual aliases. Step 14 moves their authoring decisions
+behind that interface, preserving the commands' different acceptance rules.
+
 **Two — runtime host-specific code lives behind a platform entry point, one per tree.** In
 `src/`, nothing outside `src/platform/` may reach a host-specific runtime data
 service. Not only

@@ -83,6 +83,22 @@ step 7b moves these callers into selectors. Sorting, visibility, URLs and date
 formatting stay in those callers during this split. `noteHtml()` keeps its
 synchronous Marked conversion. Content reads retain their existing call counts.
 
+`parsePostFilename()` in `src/models/content/post-filename.ts` owns the filename
+grammar. It returns an optional four-digit `yearPrefix` and a complete `period` match, or
+`null` for the latter. A match has a shape-only `kind` (`bare`, `year`, `month`,
+or `day`), `year`, optional two-digit `month` and `day`, and
+`validMonth`/`validDay` facts. A year match keeps any day suffix but has no month.
+The day check retains the UTC round-trip behavior, including rejection of years
+0000–0099. Consumers choose which facts matter: grouping uses the prefix,
+display uses shape, creation validates dates, and frontmatter infers tags by shape.
+Publication-date fallbacks remain in `src/lib/posts.ts`.
+
+Scripts reach this model through the plain-Node forward at
+`src/services/authoring/posts.ts`. Step 14 adds authoring use cases there.
+`src/lib/posts.ts` temporarily imports the model directly; step 7b relocates that
+caller to selectors. The interactive and dedicated tag commands keep their
+different slug validation until B6.
+
 ## What belongs in the data layer
 
 Ask one question: **is this rule about the content, or about how it is shown?**

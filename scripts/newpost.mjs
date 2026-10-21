@@ -19,6 +19,7 @@ import { join } from "node:path";
 import { createInterface } from "node:readline/promises";
 import { readFileSync } from "node:fs";
 import { posts, tags as tagsLocation } from "../src/config/data.config.generated.mjs";
+import { parsePostFilename } from "../src/services/authoring/posts.ts";
 
 // Tags come from the registry in src/config/tags.ts, which is the only truth. The key
 // names are read out of the source rather than pulling in a TypeScript compiler.
@@ -90,28 +91,17 @@ function addToPool(slug, zh) {
   writeFileSync(f, src.replace(/\n\} as const;/, `\n  ${slug}: "${zh}",\n} as const;`));
 }
 
-/** A real calendar day, so 2026-02-30 is rejected rather than filed. */
-function isRealDay(y, m, d) {
-  const dt = new Date(Date.UTC(y, m - 1, d));
-  return dt.getUTCFullYear() === y && dt.getUTCMonth() === m - 1 && dt.getUTCDate() === d;
-}
-
 // Month and day are range-checked, not just shape-checked: the file is
 // written before anything else would notice a month 99.
 function kindOf(s) {
-  if (/^\d{4}-year$/.test(s)) return { kind: "year", tags: ["summaries", "year"] };
-
-  let m = /^(\d{4})-(\d{2})$/.exec(s);
-  if (m) {
-    const mo = Number(m[2]);
-    return mo >= 1 && mo <= 12 ? { kind: "month", tags: ["summaries", "month"] } : null;
-  }
-
-  m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s);
-  if (m) {
-    return isRealDay(Number(m[1]), Number(m[2]), Number(m[3]))
-      ? { kind: "post", tags: [] }
-      : null;
+  const match = parsePostFilename(s).period;
+  switch (match?.kind) {
+    case "year":
+      return match.day === undefined ? { kind: "year", tags: ["summaries", "year"] } : null;
+    case "month":
+      return match.validMonth ? { kind: "month", tags: ["summaries", "month"] } : null;
+    case "day":
+      return match.validDay ? { kind: "post", tags: [] } : null;
   }
 
   return null;

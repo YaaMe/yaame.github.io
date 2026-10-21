@@ -17,6 +17,7 @@
 import { readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { posts } from "../src/config/data.config.generated.mjs";
+import { parsePostFilename } from "../src/services/authoring/posts.ts";
 
 const DIR = posts.gitRoot;
 const FIELD = { desc: "description", tags: "tags" };
@@ -44,8 +45,11 @@ function makeDescription(body, fallback) {
 
 /** Tags from the filename: YYYY-year is a yearly summary, YYYY-MM a monthly. */
 function inferTags(slug) {
-  if (/^\d{4}-year$/.test(slug)) return ["summaries", "year"];
-  if (/^\d{4}-\d{2}$/.test(slug)) return ["summaries", "month"];
+  const match = parsePostFilename(slug).period;
+  switch (match?.kind) {
+    case "year": return match.day === undefined ? ["summaries", "year"] : null;
+    case "month": return ["summaries", "month"];
+  }
   return null;   // no guess for an unrecognised name; a person picks the tags
 }
 

@@ -38,6 +38,30 @@ test("the consumer graph imports, but content reads and renders fail explicitly"
   });
 });
 
+test("post periods preserve prefix grouping, shape-only labels and publication fallbacks", async () => {
+  const { posts } = await contentGraph({ tsconfig: resolve("worker/tsconfig.json") });
+  const date = { y: "2026", mo: "02", d: "01", iso: "2026-02-01T00:00:00.000Z" };
+  for (const [id, year, expected] of [
+    ["2025-year", "2025", { label: "年结", datetime: "2025" }],
+    ["2025-year-99", "2025", { label: "年结", datetime: "2025" }],
+    ["2023-07", "2023", { label: "07 月", datetime: "2023-07" }],
+    ["2024-02-29", "2024", { label: "02-29", datetime: "2024-02-29" }],
+    ["2025-02-30", "2025", { label: "02-30", datetime: "2025-02-30" }],
+    ["2025-99", "2025", { label: "99 月", datetime: "2025-99" }],
+    ["2025-00-00", "2025", { label: "00-00", datetime: "2025-00-00" }],
+    ["0099-01-01", "0099", { label: "01-01", datetime: "0099-01-01" }],
+    ...["2025", "2025essay", "20250", "2025-7", "2025-07-extra", "2025-year.md"].map((id) => [
+      id, "2025", { label: "02-01", datetime: date.iso },
+    ]),
+    ["essay", "2026", { label: "02-01", datetime: date.iso }],
+    ["x2025-07", "2026", { label: "02-01", datetime: date.iso }],
+  ]) {
+    const post = { id, data: { date, tags: ["year", "month"] } };
+    assert.equal(posts.periodYear(post), year, id);
+    assert.deepEqual(posts.period(post), expected, id);
+  }
+});
+
 test("content selectors preserve ordering, dates, URLs, render results and read counts", async () => {
   const { posts, notes, state } = await contentGraph({
     plugins: [{
