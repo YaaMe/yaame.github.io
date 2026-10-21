@@ -30,7 +30,10 @@ export async function inboxHarness(context, { databaseUrl = ":memory:", openStor
     format: "esm",
     platform: "node",
     packages: "external",
-    alias: { "virtual:platform": resolve("src/platform/node") },
+    alias: {
+      "virtual:astro": resolve("worker/astro.stub.ts"),
+      "virtual:platform": resolve("src/platform/node"),
+    },
     define: {
       "process.env.AP_DB_URL": JSON.stringify(databaseUrl),
       "process.env.AP_DATA_DIR": JSON.stringify(join(directory, "data")),

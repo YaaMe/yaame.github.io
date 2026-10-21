@@ -8,7 +8,11 @@ rewrite it, and the data does not change.**
 ```
 data layer — no line changes in a redesign
   src/content/            markdown. Data only
-  src/content.config.ts   field definitions and tag validation
+  src/content.config.ts   collection registration
+  src/models/content/    field definitions and tag validation
+  src/selectors/content/collections.ts  collection schema interface
+  src/persistence/content/  collection reads and Astro renders
+  src/astro.binding.ts    framework content access, through virtual:astro
   src/config/tags.ts      the tag registry (the single source)
   src/config/site.config.ts  site identity, navigation, social links
   src/lib/posts.ts        posts, tags, the novel
@@ -62,6 +66,23 @@ The interaction key scheme lives in `src/models/interactions/key-scheme.ts`.
 It owns the namespace, source names and input normalisation. Federated comment
 ids use the signing actor URL and Note object id.
 
+Collection schemas live in `src/models/content/{posts,notes,komorebi,comments}.ts`.
+Posts and komorebi share tags, stamped dates and common fields from
+`src/models/content/fields.ts`. `src/selectors/content/collections.ts` exposes all
+four schemas to `src/content.config.ts`, which holds only loaders and registration.
+The models and their schema selector also import under plain Node without aliases.
+
+Runtime reads follow `src/lib/` → `src/persistence/content/` → `virtual:astro`.
+The site resolves the alias to `src/astro.binding.ts`; the consumer resolves it to
+`worker/astro.stub.ts` through `worker/tsconfig.json`. Importing the stub succeeds.
+Calling a collection read or Astro render throws explicitly.
+
+`src/lib/posts.ts`, `src/lib/notes.ts` and `src/lib/interactions/comments.ts` keep
+their public exports and temporarily import content persistence. ADR 0018's
+step 7b moves these callers into selectors. Sorting, visibility, URLs and date
+formatting stay in those callers during this split. `noteHtml()` keeps its
+synchronous Marked conversion. Content reads retain their existing call counts.
+
 ## What belongs in the data layer
 
 Ask one question: **is this rule about the content, or about how it is shown?**
@@ -80,9 +101,8 @@ content rule. So `chapterCount()` counts chapters, and no page does.
 new design        rewrite layouts / components / pages / styles only
 add a CSS framework
                   a design-layer change. The data layer does not see it
-replace Astro     in the data layer, only content.config.ts and src/lib/**/*.ts
-                  know Astro. Content, the tag registry, the scripts and
-                  the Makefile stay as they are
+replace Astro     adapt src/astro.binding.ts and src/content.config.ts
+                  while preserving the persistence and collection contracts
 ```
 
 ## Exception: URL shapes

@@ -1,4 +1,4 @@
-import { getCollection } from "astro:content";
+import { readNotes } from "../persistence/content/notes";
 import { marked } from "marked";
 import { site } from "../config/site.config";
 
@@ -31,7 +31,7 @@ export type Note = {
 
 /** Newest first, which `OrderedCollection` requires (ActivityPub §5). */
 export async function allNotes(): Promise<Note[]> {
-  const years = await getCollection("notes");
+  const years = await readNotes();
   return years
     .flatMap((year) =>
       year.data.notes.map((n) => {
@@ -44,7 +44,7 @@ export async function allNotes(): Promise<Note[]> {
 
 /** The archive years, newest first. */
 export async function noteYears(): Promise<string[]> {
-  return (await getCollection("notes")).map((y) => y.id).sort((a, b) => b.localeCompare(a));
+  return (await readNotes()).map((y) => y.id).sort((a, b) => b.localeCompare(a));
 }
 
 /**

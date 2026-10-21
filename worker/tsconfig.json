@@ -2,6 +2,7 @@
   "extends": "../tsconfig.json",
   "compilerOptions": {
     "paths": {
+      "virtual:astro": ["./astro.stub.ts"],
       "virtual:platform": ["../src/platform/cloudflare"]
     }
   }

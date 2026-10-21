@@ -1,8 +1,8 @@
 /**
  * Which posts go to the followers, and when one counts as handed over.
  *
- * Apart from outbox.ts, which reads astro:content: this takes the database and
- * the send it is given, so it runs and is tested without an Astro build.
+ * Delivery receives its database and send operation, so it runs and is tested
+ * without content access or an Astro build.
  */
 import type { Database } from "../../platform/types";
 import type { Channel } from "../../models/interactions/key-scheme.ts";

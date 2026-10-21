@@ -9,8 +9,8 @@
  *
  * It imports the same federation as the site, so the actor, its keys and the
  * follower store are one definition rather than two that could drift. The
- * outbox is deliberately not imported: it reads the posts through
- * astro:content, which exists only inside an Astro build.
+ * content-backed registrations stay with the site: the consumer's virtual:astro
+ * binding refuses collection reads and renders.
  */
 import type { WorkersMessageQueue } from "@fedify/cfworkers";
 import { dropFollowersAt, federation } from "../src/integrations/activitypub/federation";

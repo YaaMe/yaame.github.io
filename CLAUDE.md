@@ -14,7 +14,10 @@ of the tree does not have to know it changed.
 ```
 data layer — untouched by a redesign
   src/content/            markdown
-  src/content.config.ts   field definitions, tag validation
+  src/content.config.ts   collection registration
+  src/models/content/    field definitions, tag validation
+  src/persistence/content/  collection reads and Astro renders
+  src/astro.binding.ts    framework content access, through virtual:astro
   src/config/tags.ts      the tag registry
   src/config/site.config.ts  identity, navigation, links
   src/lib/posts.ts        posts, tags, the novel
@@ -29,6 +32,14 @@ design layer — replaceable wholesale
 See `docs/architecture.md` for the first, `docs/configuration.md` for every
 switch and how they interact. When adding data a page needs, add it to
 `lib/posts.ts` first.
+
+Collection schemas reach `src/content.config.ts` through
+`src/selectors/content/collections.ts`. Keep the declaration file at Astro's fixed
+path, with only loaders and registration. Content persistence uses `virtual:astro`;
+the site binds it to `src/astro.binding.ts`, and the consumer to
+`worker/astro.stub.ts`. The stub throws on a read or render, while imports succeed.
+The posts, notes and promoted-comment modules in `lib/` temporarily import content
+persistence. ADR 0018's step 7b moves those callers into selectors.
 
 **Two — runtime host-specific code lives behind a platform entry point, one per tree.** In
 `src/`, nothing outside `src/platform/` may reach a host-specific runtime data
@@ -271,7 +282,7 @@ taken back. Notes may be added to a year; nothing already in one may move.
 See `docs/decisions/0009`.
 
 **A post has a title and a note does not** — that, not length, is the line
-between the two collections, and `content.config.ts` enforces it. A short
+between the two collections, declared by their schemas in `src/models/content/`. A short
 titled piece is a post.
 
 ## Not in version control

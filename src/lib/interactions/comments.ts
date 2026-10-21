@@ -1,8 +1,8 @@
-import { getCollection, type CollectionEntry } from "astro:content";
+import { readComments, type Comment } from "../../persistence/content/comments";
 import { visibleComments } from "./comment-view";
 import { SOURCES } from "../../models/interactions/key-scheme";
 
-export type Comment = CollectionEntry<"comments">["data"]["comments"][number];
+export type { Comment } from "../../persistence/content/comments";
 
 /**
  * The promoted comments under one post or note, oldest first. `withdrawn` is
@@ -13,7 +13,7 @@ export async function commentsFor(
   contentId: string,
   withdrawn: ReadonlyMap<string, string> = new Map(),
 ): Promise<Comment[]> {
-  const files = await getCollection("comments");
+  const files = await readComments();
   const under = files
     .flatMap((f) => f.data.comments)
     .filter((c) => c.root === contentId)

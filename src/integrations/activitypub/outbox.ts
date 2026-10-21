@@ -1,10 +1,8 @@
 /**
  * The outbox, kept apart from federation.ts.
  *
- * It reads the posts, which means astro:content, which exists only inside an
- * Astro build. The queue consumer is a plain Worker and cannot resolve it — so
- * everything the consumer needs stays in federation.ts, and everything that
- * needs the content lives here, imported only from the Astro side.
+ * Content-backed registrations run only in the site. The queue consumer's
+ * virtual:astro binding refuses collection reads and renders.
  */
 import type { Context } from "@fedify/fedify";
 import { Temporal } from "@js-temporal/polyfill";

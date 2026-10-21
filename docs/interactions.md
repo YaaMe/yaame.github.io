@@ -82,10 +82,17 @@ same model. The consumer reaches it through the interaction comment service.
 The collection selector and object selector are intentional forwards under
 ADR 0018's strict traversal rule.
 
+Promoted-comment reads go from `src/lib/interactions/comments.ts` through
+`src/persistence/content/comments.ts` to `virtual:astro`. The site binding supplies
+Astro's collection query; the consumer stub refuses it when called. Flattening,
+root filtering, ordering and visibility stay in the public reader. Each call still
+reads the collection, including each root in `liveCommentsForMany`.
+
 Temporary imports remain during the later steps of ADR 0018's plan:
 
 - Step 7 moves `lib/interactions/comments.ts`, `comment-runs.ts`, and
-  `comments-live.ts` into selectors, ending their model and selector imports from `lib/`.
+  `comments-live.ts` into selectors, ending their model, persistence and selector
+  imports from `lib/`.
 - Step 10 splits the remaining delivery orchestration in
   `integrations/activitypub/outbox.ts` and `delivery.ts`. Their direct model and
   persistence imports remain until that split.
