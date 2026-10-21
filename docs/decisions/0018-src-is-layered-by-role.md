@@ -2,6 +2,7 @@
 
 Status: accepted
 Date: 2026-10-21
+Revised: 2026-10-21
 
 ## Context
 
@@ -19,7 +20,8 @@ The approved proposal is
 ## Decision
 
 **`src/` is divided into bands by role, and imports point downward one band
-at a time.** Entrances and views sit side by side above the middle band.
+at a time.** Entrances, views and framework declarations sit side by side
+above the middle band.
 
 - Entrances are pages, handlers, the queue consumer and the root scripts. Input
   parameters and response schemas are their edges.
@@ -29,8 +31,14 @@ at a time.** Entrances and views sit side by side above the middle band.
   Services may call selectors. Selectors never call services.
 - The bottom band is persistence, models, migrations and gateways. Models own
   tables, row schemas and keys. Decisions across rows belong above them.
-- The boundary is the platform, the framework binding and Astro's content
-  schema file.
+- Framework declarations tell Astro what the application contains: routes,
+  integrations and collections. `astro.config.mjs` is one.
+  `src/content.config.ts` is another, at the path Astro fixes. A declaration is
+  neither a view nor the boundary. It sits above the middle band and may import
+  selectors.
+- The boundary is the platform and the framework binding. Content persistence
+  reads the git database through the binding, `src/astro.binding.ts`
+  (`virtual:astro`).
 - Configuration and `lib/` are available everywhere. `lib/` is abstract,
   neutral logic and imports none of the application bands.
 - The content files are the git database. Access to them follows the bands:
@@ -76,15 +84,14 @@ content reads.
 
 **A read path does not write.** If a read finds stale state, it reports it,
 and a separate service call cleans it up. Migration is its own operation,
-separate from serving requests. The application may provide and run it. No
-request triggers a migration. This replaces the provision of
+separate from serving requests. The application provides it. No request
+triggers a migration. This replaces the provision of
 [0007](0007-interactions-live-in-a-database-the-host-provides.md) that
-migrations run once per isolate. The owner's answer names CI as the executor,
-during operations. That would replace 0007's deliberate rule that a deploy
-holds no database credentials, and the owner has not yet weighed that rule. So
-who runs the operation, and with which credentials, is not settled here.
-0007's rule stands until the change that takes migration out of the request
-path settles it.
+migrations run once per isolate. A person runs a migration from an operations
+script. An ordinary migration may instead run in a separate CI job,
+independent of the deploy. The deploy still holds no database credentials, as
+0007 requires. Only that migration job may hold the database permission
+migrations need.
 
 **Raw data is kept, except where repository policy says otherwise.** Raw data
 is an authored input, a received value or an observed event. A derived value
@@ -123,8 +130,10 @@ is measurable and unambiguous.**
 
 Other placement rules:
 
-- Shared content schemas are defined once in models and registered with Astro
-  through explicit wiring. They are never copied.
+- A collection's schema is model-level, as an ORM model's parse function is.
+  Each content kind's model provides the schema its collection registers. A
+  selector exposes it, and `src/content.config.ts` registers it. This holds for
+  all four collections. A schema is never copied.
 - The SQL bound-parameter budget is one conservative, named persistence
   constant. If host limits must differ, the platform supplies it as a database
   capability.
@@ -178,6 +187,21 @@ proposal first recommended an explicit service-owned initialization step in
 runtime composition, including the consumer and recovery paths. The owner
 replaced both: migration and serving requests are two separate things.
 
+**Migration as a step of the deploy.** The deploy would then hold database
+credentials, which 0007 rules out. A separate CI job may run an ordinary
+migration instead, and only that job holds the permission.
+
+**`src/content.config.ts` as part of the boundary.** It declares collections
+to Astro, as `astro.config.mjs` declares routes and integrations. Placed in the
+boundary, it sits below the models, so registering a model's schema would be an
+upward import. It would need a named exception or a copy of the schema.
+
+**Collection schemas written inside `src/content.config.ts`.** The schemas of
+`posts`, `notes` and `komorebi` were written there: the tag list, the stamped
+date, the shared fields and the note id rule. Only the comment archive schema
+came from shared code. A schema is model-level, so it moves to its content
+kind's model, and the declaration file keeps registration only.
+
 ## Consequences
 
 - A redesign changes views. It may add a selector or wrap existing ones. It
@@ -190,7 +214,11 @@ replaced both: migration and serving requests are two separate things.
   record keys and content paths do not change. The fingerprint policy of
   [0003](0003-the-actor-announces-itself-when-it-is-built.md) is preserved.
   The re-layering adds no new external dependency.
-- Serving a request issues no schema statements.
+- Serving a request issues no schema statements. Migrations run from an
+  operations script or from a separate CI job, and the deploy holds no
+  database credentials.
+- `src/content.config.ts` holds registration only. Changing a collection's
+  schema changes its model.
 - Island and page placement depends on Astro serving islands through its own
   route. A framework that does not would reopen it.
 - A thin middle-band interface costs a forwarding module where a direct import

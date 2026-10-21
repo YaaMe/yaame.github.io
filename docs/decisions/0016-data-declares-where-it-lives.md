@@ -2,6 +2,7 @@
 
 Status: accepted
 Date: 2026-10-11
+Revised: 2026-10-21
 
 ## Context
 
@@ -51,8 +52,10 @@ owner outside any export.
 
 **Once a kind of data is registered, code within one runtime takes its location
 from the register and from nowhere else.** An entry may go unread; a second copy
-of a key or path may not exist. `content.config.ts` keeps the schemas and takes
-its loader paths from the register.
+of a key or path may not exist. `content.config.ts` registers each collection
+with the schema its content kind's model provides, through a selector
+([0018](0018-src-is-layered-by-role.md)). It takes its loader paths from the
+register.
 
 ## Rejected
 
@@ -69,6 +72,11 @@ credential of its own.
 `content.config.ts`, git-only content and configuration would be missing from
 the list, and what an instance consists of would again take several files to
 answer.
+
+**Collection schemas kept in `content.config.ts`.** Dropped by
+[0018](0018-src-is-layered-by-role.md): a collection's schema is model-level.
+The model provides it, a selector exposes it, and `content.config.ts` registers
+it.
 
 **A host's own backup as the unit of a move.** A store dump says nothing about
 which registered data it holds, how entries refer to each other, or how to

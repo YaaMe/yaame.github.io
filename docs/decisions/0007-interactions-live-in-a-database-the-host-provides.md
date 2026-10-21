@@ -54,8 +54,9 @@ separate from serving requests, and no request triggers it.
   count: D1 reports `rowsAffected` and `node:sqlite` reports `changes`, so
   reading the count makes every insert on node look like a duplicate while it
   quietly succeeds.
-- A deploy holds no database credentials, deliberately. This holds until the
-  change that takes migration out of the request path
-  ([0018](0018-src-is-layered-by-role.md)) settles who runs it.
-- `D1 Read` is the only database permission CI holds. Writing `promoted_at` is
-  local, under your own login.
+- A deploy holds no database credentials, deliberately. Migration runs outside
+  the deploy ([0018](0018-src-is-layered-by-role.md)): a person runs it from an
+  operations script, or a separate CI job runs an ordinary migration. Only that
+  migration job may hold the database permission migrations need.
+- Apart from that migration job, `D1 Read` is the only database permission CI
+  holds. Writing `promoted_at` is local, under your own login.
