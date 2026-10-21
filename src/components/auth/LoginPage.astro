@@ -1,0 +1,49 @@
+---
+import Base from "../../layouts/Base.astro";
+import type { LoginPageData } from "../../selectors/auth/login.ts";
+
+interface Props { data: LoginPageData }
+const { title, error, session } = Astro.props.data;
+---
+<Base title={title}>
+  <h1>login</h1>
+
+  {error && <p class="error">{error}</p>}
+
+  {session ? (
+    <div class="who">
+      <p>
+        <strong>@{session.login}</strong>
+        <span class="role">{session.role}</span>
+      </p>
+      <button id="logout" type="button">登出</button>
+    </div>
+  ) : (
+    <div class="who">
+      <a class="button" href="/auth/github">用 GitHub 登录</a>
+    </div>
+  )}
+
+  <style>
+    h1 { margin: 0 0 1.5em; font-size: 1.8em; }
+    .who p { margin: 0 0 .8em; }
+    .role { margin-inline-start: .8em; color: var(--fg-secondary); font-size: .9em; }
+    .error { margin: 0 0 1.5em; padding: .8em 1em; border: 1px solid var(--border-subtle);
+             color: var(--fg-secondary); }
+    .button, button { display: inline-block; margin-block-start: .5em;
+                      padding: .6em 1.1em; border: 1px solid var(--border-subtle);
+                      background: none; color: var(--fg-primary); font: inherit;
+                      text-decoration: none; cursor: pointer; }
+    .button:hover, button:hover { border-color: var(--active); color: var(--active); }
+  </style>
+  <script is:inline set:html={`
+    // POST, so that nothing issues it unasked. Then a reload rather than a
+    // redirect from the route: this page renders from the session, so
+    // re-rendering it is what shows the result.
+    document.getElementById("logout")?.addEventListener("click", async (e) => {
+      e.target.disabled = true;
+      try { await fetch("/auth/logout", { method: "POST" }); }
+      finally { location.reload(); }
+    });
+  `} />
+</Base>

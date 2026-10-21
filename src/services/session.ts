@@ -1,14 +1,37 @@
-import { platform } from "../platform";
-import { AUTH } from "../config/auth";
-import type { Role } from "./auth/roles";
-import {
-  readSession,
-  readSessionCookie,
-  sessionKey,
-  type Session,
-} from "../integrations/auth/session-core";
+import { AUTH } from "../config/auth.ts";
+import { randomToken } from "../lib/encoding.ts";
+import type { Session, ActiveSession } from "../models/records/sessions.ts";
+import { sessionRecord } from "../persistence/records/sessions.ts";
+import { roleOf } from "./auth/roles.ts";
 
-export type { Role } from "./auth/roles";
+export type { Role, ActiveSession } from "../models/records/sessions.ts";
+
+/**
+ * `expired` carries the credential so cleanup removes that record and nothing
+ * else, without reading it again.
+ */
+export type SessionRead =
+  | { state: "absent" }
+  | { state: "expired"; id: string }
+  | { state: "active"; session: ActiveSession };
+
+/**
+ * The session a request carries, and whether it still holds. Only reads.
+ *
+ * Expiry is checked here rather than trusted to the store: a host that cannot
+ * expire a key would otherwise keep answering with a session that should have
+ * ended.
+ */
+export async function readSession(
+  id: string | null,
+  now = Date.now(),
+): Promise<SessionRead> {
+  if (!id) return { state: "absent" };
+  const session = await sessionRecord(id).get();
+  if (!session) return { state: "absent" };
+  if (new Date(session.expiresAt).getTime() <= now) return { state: "expired", id };
+  return { state: "active", session: { ...session, role: roleOf(session.userId) } };
+}
 
 /**
  * Opaque, and from the runtime's cryptographic random generator.
@@ -17,16 +40,8 @@ export type { Role } from "./auth/roles";
  * nothing and a guessed one is the only way in — which is what the length is
  * for.
  */
-function token(): string {
-  const bytes = crypto.getRandomValues(new Uint8Array(32));
-  return btoa(String.fromCharCode(...bytes))
-    .replace(/\+/g, "-")
-    .replace(/\//g, "_")
-    .replace(/=+$/, "");
-}
-
 export async function create(user: { id: number; login: string }): Promise<string> {
-  const id = token();
+  const id = randomToken(32);
   const now = new Date();
   const expires = new Date(now.getTime() + AUTH.sessionDays * 86400_000);
   const session: Session = {
@@ -35,7 +50,7 @@ export async function create(user: { id: number; login: string }): Promise<strin
     createdAt: now.toISOString(),
     expiresAt: expires.toISOString(),
   };
-  await platform.put(sessionKey(id), session, { ttl: AUTH.sessionDays * 86400 });
+  await sessionRecord(id).put(session);
   return id;
 }
 
@@ -51,9 +66,9 @@ export async function create(user: { id: number; login: string }): Promise<strin
  * logged and the read goes on. The log names the error's kind only: a host's
  * message can quote the key, and the key carries the session id.
  */
-async function discardExpired(key: string): Promise<void> {
+async function discardExpired(id: string): Promise<void> {
   try {
-    await platform.remove(key);
+    await sessionRecord(id).remove();
   } catch (error) {
     console.warn("expired session not removed; reads still refuse it", {
       error: error instanceof Error ? error.name : typeof error,
@@ -62,14 +77,13 @@ async function discardExpired(key: string): Promise<void> {
   }
 }
 
-export async function current(req: Request): Promise<(Session & { role: Role }) | null> {
-  const read = await readSession(req, { get: (key) => platform.get<Session>(key) });
-  if (read.state === "expired") await discardExpired(read.key);
+export async function current(id: string | null, now = Date.now()): Promise<ActiveSession | null> {
+  const read = await readSession(id, now);
+  if (read.state === "expired") await discardExpired(read.id);
   return read.state === "active" ? read.session : null;
 }
 
 /** Revocation, which is the reason the record exists rather than a signature. */
-export async function destroy(req: Request): Promise<void> {
-  const id = readSessionCookie(req);
-  if (id) await platform.remove(sessionKey(id));
+export async function destroy(id: string | null): Promise<void> {
+  if (id) await sessionRecord(id).remove();
 }

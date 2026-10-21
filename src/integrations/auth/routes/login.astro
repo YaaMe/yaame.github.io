@@ -1,67 +1,12 @@
 ---
-import Base from "../../../layouts/Base.astro";
-import { site } from "../../../config/site.config";
-import { current, type Role } from "../../../services/session";
+import LoginPage from "../../../components/auth/LoginPage.astro";
+import { readSessionCookie } from "../../../params/auth.ts";
+import { loginPage } from "../../../selectors/auth/login.ts";
+import { current } from "../../../services/session.ts";
 
 export const prerender = false;
 
-const session = await current(Astro.request);
-const error = Astro.url.searchParams.get("error");
-
-const WHY: Record<string, string> = {
-  state: "请求没有带上我们发出的凭据，登录已中止。重新点一次即可。",
-  verifier: "登录凭据不完整，登录已中止。重新点一次即可。",
-  code: "GitHub 没有回传授权码。",
-  exchange: "跟 GitHub 换令牌失败，可能是授权码过期了。",
-  user: "换到了令牌，但读不到你的账号信息。",
-  config: "这一侧还没配置好，不是你的问题。",
-};
-
-const ROLE: Record<Role, string> = {
-  owner: "站长",
-  allowed: "名单内",
-  guest: "访客",
-};
+const session = await current(readSessionCookie(Astro.request));
+const data = loginPage(session, Astro.url.searchParams.get("error"));
 ---
-<Base title={`login · ${site.title}`}>
-  <h1>login</h1>
-
-  {error && <p class="error">{WHY[error] ?? "登录没有完成。"}</p>}
-
-  {session ? (
-    <div class="who">
-      <p>
-        <strong>@{session.login}</strong>
-        <span class="role">{ROLE[session.role]}</span>
-      </p>
-      <button id="logout" type="button">登出</button>
-    </div>
-  ) : (
-    <div class="who">
-      <a class="button" href="/auth/github">用 GitHub 登录</a>
-    </div>
-  )}
-
-  <style>
-    h1 { margin: 0 0 1.5em; font-size: 1.8em; }
-    .who p { margin: 0 0 .8em; }
-    .role { margin-inline-start: .8em; color: var(--fg-secondary); font-size: .9em; }
-    .error { margin: 0 0 1.5em; padding: .8em 1em; border: 1px solid var(--border-subtle);
-             color: var(--fg-secondary); }
-    .button, button { display: inline-block; margin-block-start: .5em;
-                      padding: .6em 1.1em; border: 1px solid var(--border-subtle);
-                      background: none; color: var(--fg-primary); font: inherit;
-                      text-decoration: none; cursor: pointer; }
-    .button:hover, button:hover { border-color: var(--active); color: var(--active); }
-  </style>
-  <script is:inline set:html={`
-    // POST, so that nothing issues it unasked. Then a reload rather than a
-    // redirect from the route: this page renders from the session, so
-    // re-rendering it is what shows the result.
-    document.getElementById("logout")?.addEventListener("click", async (e) => {
-      e.target.disabled = true;
-      try { await fetch("/auth/logout", { method: "POST" }); }
-      finally { location.reload(); }
-    });
-  `} />
-</Base>
+<LoginPage data={data} />

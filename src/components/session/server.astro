@@ -1,8 +1,9 @@
 ---
+import { readSessionCookie } from "../../params/auth";
 import { current } from "../../services/session";
 import Panel from "./panel.astro";
 
 Astro.response.headers.set("Cache-Control", "private, no-store");
-const session = await current(Astro.request);
+const session = await current(readSessionCookie(Astro.request));
 ---
 <Panel login={session?.login} />

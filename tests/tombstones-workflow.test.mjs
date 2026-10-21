@@ -218,7 +218,7 @@ const dataCheckInputs = [
   "scripts/tags.mjs",
   "src/integrations/activitypub/federation.ts",
   "src/integrations/activitypub/outbox.ts",
-  "src/integrations/auth/session-core.ts",
+  "src/persistence/records/sessions.ts",
   "worker/consumer.ts",
   ".github/workflows/promotions.yml",
   ".github/promotion-pr.md",

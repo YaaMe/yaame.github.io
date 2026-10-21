@@ -1,62 +1,11 @@
-import { AUTH } from "../../../config/auth.ts";
-import {
-  clearStateCookie,
-  clearVerifierCookie,
-  readStateCookie,
-  readVerifierCookie,
-  safeReturn,
-  setSessionCookie,
-} from "../session-core.ts";
+import { callbackParams } from "../../../params/auth.ts";
+import { clearStateCookie, clearVerifierCookie, setSessionCookie } from "../../../schemas/auth-cookies.ts";
+import { checkCallback } from "../../../services/auth/oauth.ts";
+import { loginWithGithub } from "../../../services/auth/login.ts";
+import { safeReturn } from "../../../services/auth/return.ts";
 
-type GithubUser = { id: number; login: string };
-
-export type OAuthStore = {
-  secret(name: string): string | undefined;
-  create(user: GithubUser): Promise<string>;
-};
-
-export type OAuthFetcher = (
-  input: RequestInfo | URL,
-  init?: RequestInit,
-) => Promise<Response>;
-
-/**
- * Finish the login.
- *
- * The state check comes first and is unconditional. It proves that this
- * callback carries the state value issued for the login flow, but state is
- * held in a client cookie: clearing it cannot stop a copied, still-live cookie
- * from being presented again. PKCE binds the code exchange to the verifier in
- * the companion cookie.
- */
-export async function callbackResponse({
-  request,
-  store,
-  fetcher = globalThis.fetch,
-}: {
-  request: Request;
-  store: OAuthStore;
-  fetcher?: OAuthFetcher;
-}): Promise<Response> {
-  const url = new URL(request.url);
-  const code = url.searchParams.get("code");
-  const state = url.searchParams.get("state");
-  // The cookie carries the state and the page to return to, in that order.
-  const carried = readStateCookie(request);
-  const seam = carried ? carried.indexOf(".") : -1;
-  const expected = seam < 0 ? carried : carried!.slice(0, seam);
-  let carriedFrom = "/";
-  if (seam >= 0) {
-    // One decode, undoing the one encode the start route applied. What comes
-    // out is still a percent-encoded path, which is what `safeReturn` wants.
-    try {
-      carriedFrom = decodeURIComponent(carried!.slice(seam + 1));
-    } catch {
-      carriedFrom = "/";
-    }
-  }
-  const from = safeReturn(carriedFrom);
-
+export async function callbackResponse({ request }: { request: Request }): Promise<Response> {
+  const input = callbackParams(request);
   /**
    * Where to go next.
    *
@@ -78,58 +27,17 @@ export async function callbackResponse({
     return new Response(null, { status: 302, headers });
   };
 
-  if (!state || !expected || state !== expected) return fail("state");
-  if (!code) return fail("code");
-  const verifier = readVerifierCookie(request);
-  if (!verifier) return fail("verifier");
+  const checked = checkCallback(input);
+  if ("error" in checked) return fail(checked.error);
+  const result = await loginWithGithub(
+    checked.code,
+    checked.verifier,
+    new URL("/auth/github/callback", request.url).href,
+  );
+  if ("error" in result) return fail(result.error);
 
-  // The client id is a literal in this repository; the secret is placed by
-  // hand on the Worker and is the half that can actually be missing.
-  const secret = store.secret("GITHUB_CLIENT_SECRET");
-  if (!secret) return fail("config");
-
-  let token: string | undefined;
-  try {
-    const res = await fetcher("https://github.com/login/oauth/access_token", {
-      method: "POST",
-      headers: { accept: "application/json", "content-type": "application/json" },
-      body: JSON.stringify({
-        client_id: AUTH.clientId,
-        client_secret: secret,
-        code,
-        code_verifier: verifier,
-        redirect_uri: new URL("/auth/github/callback", request.url).href,
-      }),
-    });
-    // GitHub answers 200 with `{"error": …}` for a spent or forged code, so
-    // the status says nothing on its own.
-    const body = (await res.json()) as { access_token?: string };
-    token = body.access_token;
-  } catch {
-    return fail("exchange");
-  }
-  if (!token) return fail("exchange");
-
-  let user: GithubUser;
-  try {
-    const res = await fetcher("https://api.github.com/user", {
-      headers: {
-        authorization: `Bearer ${token}`,
-        accept: "application/vnd.github+json",
-        // GitHub rejects an API request without one.
-        "user-agent": "blogu",
-      },
-    });
-    if (!res.ok) return fail("user");
-    user = await res.json();
-  } catch {
-    return fail("user");
-  }
-  if (typeof user.id !== "number" || !user.login) return fail("user");
-
-  const id = await store.create({ id: user.id, login: user.login });
-  const headers = new Headers({ location: back(from) });
-  headers.append("set-cookie", setSessionCookie(id));
+  const headers = new Headers({ location: back(safeReturn(input.from)) });
+  headers.append("set-cookie", setSessionCookie(result.id));
   headers.append("set-cookie", clearStateCookie());
   headers.append("set-cookie", clearVerifierCookie());
   return new Response(null, { status: 302, headers });

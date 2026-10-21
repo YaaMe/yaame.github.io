@@ -1,6 +1,7 @@
 import { AUTH } from "../../config/auth.ts";
+import type { Role } from "../../models/records/sessions.ts";
 
-export type Role = "owner" | "allowed" | "guest";
+export type { Role, ActiveSession } from "../../models/records/sessions.ts";
 
 /**
  * What a logged-in user is allowed to be.

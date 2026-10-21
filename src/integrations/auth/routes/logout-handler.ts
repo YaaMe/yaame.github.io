@@ -1,3 +1,5 @@
+import { readSessionCookie } from "../../../params/auth.ts";
+
 /**
  * POST only, answering 204.
  *
@@ -24,13 +26,13 @@ export async function logoutResponse({
   clearCookie,
 }: {
   request: Request;
-  destroy(request: Request): Promise<void>;
+  destroy(id: string | null): Promise<void>;
   clearCookie: string;
 }): Promise<Response> {
   // The record goes, not just the cookie. Clearing the cookie alone leaves a
   // copy of it — one taken from a shared machine, say — working until it
   // expires on its own.
-  await destroy(request);
+  await destroy(readSessionCookie(request));
   const headers = new Headers();
   headers.append("set-cookie", clearCookie);
   return new Response(null, { status: 204, headers });
