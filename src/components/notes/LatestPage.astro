@@ -1,0 +1,33 @@
+---
+import Base from "../../layouts/Base.astro";
+import NoteList from "../NoteList.astro";
+import type { latestNotesPage } from "../../selectors/notes";
+interface Props { view: Awaited<ReturnType<typeof latestNotesPage>> }
+const { view } = Astro.props;
+
+// Permalinks point into year archives. Adding anchors here would give a note
+// a second address whose presence depends on the latest window.
+---
+<Base title={view.title}>
+  <h1>notes</h1>
+
+  {view.empty
+    ? <p class="empty">还没有。</p>
+    : <NoteList notes={view.notes} />}
+
+  {view.archived && (
+    <nav class="years" aria-label="归档">
+      {view.years.map((year) => <a href={year.href}>{year.label}</a>)}
+    </nav>
+  )}
+
+  <style>
+    h1 { margin: 0 0 1.5em; font-size: 1.8em; }
+    .empty { color: var(--fg-secondary); }
+    .years { display: flex; flex-wrap: wrap; gap: 1.2em; margin-block-start: 2.5em;
+             font-variant-numeric: tabular-nums; }
+    .years a { color: var(--fg-secondary); text-decoration: none;
+               border-bottom: 1px solid var(--border-subtle); }
+    .years a:hover { color: var(--active); border-color: var(--active); }
+  </style>
+</Base>

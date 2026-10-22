@@ -1,14 +1,12 @@
 ---
-import Base from "../../../../layouts/Base.astro";
-import PostList from "../../../../components/PostList.astro";
-import { allPosts, allTags, pages, slice } from "../../../../selectors/posts";
+import TagPage from "../../../../components/tags/TagPage.astro";
+import { allPosts, allTags, tagArchive, tagPage } from "../../../../selectors/posts";
 
 export async function getStaticPaths() {
   const posts = await allPosts();
   const out = [];
   for (const tag of await allTags()) {
-    const tagged = posts.filter((p) => p.data.tags.includes(tag));
-    const total = pages(tagged.length);
+    const { tagged, total } = tagArchive(posts, tag);
     for (let n = 2; n <= total; n++) {
       out.push({ params: { tag, page: String(n) }, props: { tag, tagged, page: n, total } });
     }
@@ -17,8 +15,6 @@ export async function getStaticPaths() {
 }
 
 const { tag, tagged, page, total } = Astro.props;
+const view = tagPage(tag, tagged, page, total);
 ---
-<Base title={`标签：${tag} · 第 ${page} 页`}>
-  <h1>标签：{tag}</h1>
-  <PostList posts={slice(tagged, page)} page={page} total={total} base={`/tags/${tag}/`} />
-</Base>
+<TagPage view={view} />

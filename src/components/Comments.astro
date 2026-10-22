@@ -1,7 +1,6 @@
 ---
-import { handle, type Comment } from "../selectors/interactions/promoted";
-import { runLabel } from "../selectors/interactions/comment-runs";
-import { safeHref, stamp } from "../selectors/interactions/comment-display";
+import type { Comment } from "../selectors/interactions/promoted";
+import { commentDisplay } from "../selectors/interactions/comment-display";
 
 interface Props {
   comments: Comment[];
@@ -11,6 +10,7 @@ interface Props {
   forId?: string;
 }
 const { comments, state, forId } = Astro.props;
+const entries = state === "pending" ? [] : comments.map(commentDisplay);
 ---
 {(comments.length > 0 || state !== undefined) && (
   <section
@@ -27,27 +27,27 @@ const { comments, state, forId } = Astro.props;
       <>
         <h2>回应</h2>
         <ol>
-          {comments.map((c) => (
+          {entries.map((c) => (
             <li>
               <p class="who">
-                <a href={safeHref(c.author.identifier)} rel="nofollow ugc">
-                  {c.author.name ?? handle(c.author)}
+                <a href={c.author.href} rel="nofollow ugc">
+                  {c.author.label}
                 </a>
-                {c.author.name && <span class="at">{handle(c.author)}</span>}
-                <a class="when" href={safeHref(c.objectId)} rel="nofollow ugc">
-                  <time datetime={c.published}>{stamp(c.published)}</time>
+                {c.author.handle !== undefined && <span class="at">{c.author.handle}</span>}
+                <a class="when" href={c.href} rel="nofollow ugc">
+                  <time datetime={c.published}>{c.date}</time>
                 </a>
               </p>
               {c.content === undefined ? (
                 <p class="gone">
-                  已由作者删除{c.deletedAt && <> · {stamp(c.deletedAt)}</>}
+                  已由作者删除{c.deletedDate && <> · {c.deletedDate}</>}
                 </p>
               ) : (
                 c.content.map((paragraph) => (
                   <p class="body">
                     {paragraph.map((run) =>
                       run.type === "text" ? run.text : (
-                        <a href={safeHref(run.href)} rel="nofollow ugc">{runLabel(run)}</a>
+                        <a href={run.href} rel="nofollow ugc">{run.label}</a>
                       ),
                     )}
                   </p>

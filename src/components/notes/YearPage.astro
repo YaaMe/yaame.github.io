@@ -1,0 +1,25 @@
+---
+import Base from "../../layouts/Base.astro";
+import NoteList from "../NoteList.astro";
+import { features } from "../../config/site.config";
+import NoteComments from "virtual:note-comments";
+import type { noteYearPage } from "../../selectors/notes";
+interface Props { view: ReturnType<typeof noteYearPage> }
+const { view } = Astro.props;
+---
+<Base title={view.title}>
+  <h1>notes <span>{view.year}</span></h1>
+  {features.comments ? (
+    <NoteComments year={view.year} notes={view.notes} anchors />
+  ) : (
+    <NoteList notes={view.notes} anchors />
+  )}
+  <p class="back"><a href={view.backHref}>← 全部</a></p>
+  <style>
+    h1 { margin: 0 0 1.5em; font-size: 1.8em; }
+    h1 span { color: var(--fg-secondary); font-variant-numeric: tabular-nums; }
+    .back { margin-block-start: 2.5em; }
+    .back a { color: var(--fg-secondary); text-decoration: none; }
+    .back a:hover { color: var(--active); }
+  </style>
+</Base>

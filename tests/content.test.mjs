@@ -11,6 +11,8 @@ async function contentGraph(options = {}, exports = "") {
         export * as posts from "./src/selectors/posts.ts";
         export * as notes from "./src/selectors/notes.ts";
         export * as comments from "./src/selectors/interactions/promoted.ts";
+        export { rssFeed } from "./src/selectors/feed.ts";
+        export { siteShell, notFoundPage } from "./src/selectors/site.ts";
         ${exports}
       `,
       resolveDir: process.cwd(),
@@ -189,4 +191,125 @@ test("content selectors preserve ordering, dates, URLs, render results and read 
     await assert.rejects(read, (error) => error === state.error);
   }
   await assert.rejects(() => posts.content(entries[0]), (error) => error === state.error);
+});
+
+
+test("page projections preserve archive order, date labels, tag titles and pagination", async () => {
+  const { posts, notes, siteShell, notFoundPage } = await contentGraph({ tsconfig: resolve("worker/tsconfig.json") });
+  const date = { y: "2026", mo: "02", d: "01", iso: "2026-02-01T00:00:00.000Z" };
+  const entries = ["2025-06-15", "2025-year", "2025-06", "2024-year"].map((id) => ({
+    id, data: { title: id, description: id === "2025-year" ? "Year summary" : "", date, tags: ["summaries"] },
+  }));
+  const original = structuredClone(entries);
+  const home = posts.homePage(entries);
+  assert.deepEqual(home.years.map((group) => group.year), ["2025", "2024"]);
+  assert.deepEqual(home.years[0].entries, [
+    { href: "/posts/2025-year/", title: "Year summary", period: { label: "年结", datetime: "2025" } },
+    { href: "/posts/2025-06/", title: "2025-06", period: { label: "06 月", datetime: "2025-06" } },
+    { href: "/posts/2025-06-15/", title: "2025-06-15", period: { label: "06-15", datetime: "2025-06-15" } },
+  ]);
+  assert.deepEqual(entries, original);
+  assert.deepEqual(posts.homePage([]).years, []);
+  assert.deepEqual(posts.postDisplay(entries[1]), {
+    id: "2025-year", href: "/posts/2025-year/", title: "2025-year", description: "Year summary",
+    datetime: date.iso, date: "2026-02-01", tags: [{ href: "/tags/summaries/", label: "#summaries" }],
+  });
+  const many = Array.from({ length: 21 }, (_, index) => ({ ...entries[0], id: `post-${index}` }));
+  assert.deepEqual(posts.tagArchive(many, "summaries"), { tagged: many, total: 3 });
+  assert.deepEqual(posts.tagArchive(many, "gugu"), { tagged: [], total: 1 });
+  const first = posts.tagPage("summaries", many, 1, 3);
+  const second = posts.tagPage("summaries", many, 2, 3);
+  assert.equal(first.title, "小结 · 标签");
+  assert.equal(first.heading, "小结");
+  assert.equal(second.title, "标签：summaries · 第 2 页");
+  assert.equal(second.heading, "标签：summaries");
+  assert.deepEqual(second.posts, many.slice(10, 20));
+  assert.deepEqual(posts.postList(first.posts, 1, 3, first.base).pagination, {
+    visible: true, previous: undefined, next: "/tags/summaries/page/2/", label: "1 / 3",
+  });
+  assert.deepEqual(posts.postList(second.posts, 2, 3, second.base).pagination, {
+    visible: true, previous: "/tags/summaries/", next: "/tags/summaries/page/3/", label: "2 / 3",
+  });
+  assert.deepEqual(posts.postList([], 3, 3, first.base).pagination, {
+    visible: true, previous: "/tags/summaries/page/2/", next: undefined, label: "3 / 3",
+  });
+  assert.equal(posts.postList([], 1, 1, first.base).pagination.visible, false);
+
+  const note = { id: "abc123", year: "2025", published: "2025-12-31T16:30:00Z", date, content: "**Note**" };
+  assert.deepEqual(notes.noteDisplay(note), {
+    id: "abc123", href: "/notes/2025/#abc123", published: note.published, date: "2026-02-01", html: "<p><strong>Note</strong></p>\n",
+  });
+  const stream = [note, { ...note, id: "def456", year: "2026" }];
+  assert.deepEqual(notes.noteYearPage(stream, "2025"), { title: "notes 2025", year: "2025", notes: [note], backHref: "/notes/" });
+  assert.deepEqual(notes.notesForYear(stream, "missing"), []);
+  assert.equal(notes.noteYearHref("2025"), "/notes/2025/");
+
+  const shell = siteShell("/tags/summaries");
+  assert.ok(shell.canonical.endsWith("/tags/summaries/"));
+  assert.equal(siteShell("/tags/summaries/").canonical, shell.canonical);
+  assert.equal(siteShell("/", "").description, "");
+  assert.equal(siteShell("/", "A description").description, "A description");
+  assert.equal(shell.fingerprint, "AD14 E098 99EC A2C4 0D51 8CCB 279F 27B4 6C46 47E3");
+  assert.deepEqual(shell.nav.map((link) => link.href), ["/komorebi/", "/notes/"]);
+  assert.equal(new URL(shell.other.href).pathname, "/tags/summaries");
+  assert.equal(new URL(shell.other.href).host, shell.other.label);
+  assert.equal(notFoundPage().title, "404 · Blogu");
+  assert.equal(notFoundPage().nav[0].href, "/");
+});
+
+test("latest notes keep their window and archive links; RSS keeps publication order and dates", async () => {
+  const { posts, notes, rssFeed, state } = await contentGraph({
+    plugins: [{
+      name: "page-projection-fixture",
+      setup(builder) {
+        builder.onResolve({ filter: /^virtual:astro$/ }, () => ({ path: "content", namespace: "fixture" }));
+        builder.onLoad({ filter: /.*/, namespace: "fixture" }, () => ({
+          contents: `
+            export const state = { reads: [], collections: { notes: [], posts: [] } };
+            export async function getCollection(name) {
+              state.reads.push(name);
+              return state.collections[name];
+            }
+            export async function render(entry) { return { Content: entry.id }; }
+          `,
+        }));
+      },
+    }],
+  }, 'export { state } from "virtual:astro";');
+  const empty = await notes.latestNotesPage();
+  assert.deepEqual({ empty: empty.empty, archived: empty.archived, notes: empty.notes, years: empty.years }, {
+    empty: true, archived: false, notes: [], years: [],
+  });
+  const archive = { id: "2025", data: { notes: Array.from({ length: 21 }, (_, index) => ({
+    id: `note${index}`, published: new Date(Date.UTC(2025, 11, 31, 16, index)).toISOString(), content: `Note ${index}`,
+  })) } };
+  state.collections.notes = [archive];
+  const latest = await notes.latestNotesPage();
+  assert.equal(latest.empty, false);
+  assert.equal(latest.archived, true);
+  assert.equal(latest.notes.length, 20);
+  assert.equal(latest.notes[0].id, "note20");
+  assert.equal(latest.notes.at(-1).id, "note1");
+  assert.equal(notes.noteDisplay(latest.notes[0]).date, "2026-01-01");
+  assert.deepEqual(latest.years, [{ label: "2025", href: "/notes/2025/" }]);
+  archive.data.notes = archive.data.notes.slice(0, 20);
+  assert.equal((await notes.latestNotesPage()).archived, false);
+  state.collections.notes.push({ id: "2024", data: { notes: [] } });
+  assert.equal((await notes.latestNotesPage()).archived, true);
+  assert.deepEqual(state.reads, Array(8).fill("notes"));
+
+  const entry = (id, date) => ({ id, data: { title: id, tags: ["month"], date: { at: new Date(date) } } });
+  const older = entry("2025-01", "2025-02-01T00:00:00Z");
+  const newer = entry("2025-02", "2025-03-01T00:00:00Z");
+  state.collections.posts = [older, newer];
+  const feed = await rssFeed();
+  assert.deepEqual(feed, {
+    title: "Blogu", description: "yaame 的随笔与故事", customData: "<language>zh-Hans</language>",
+    items: [
+      { title: "2025-02", pubDate: newer.data.date.at, link: "/posts/2025-02/", categories: ["month"] },
+      { title: "2025-01", pubDate: older.data.date.at, link: "/posts/2025-01/", categories: ["month"] },
+    ],
+  });
+  assert.deepEqual(state.reads.slice(8), ["posts"]);
+  assert.deepEqual(await posts.chapterPage({ id: "novel", data: { title: "Story" } }), { title: "Story", Content: "novel" });
 });

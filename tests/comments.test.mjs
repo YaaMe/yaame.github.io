@@ -386,6 +386,14 @@ test("Comments checks hrefs at the rendered boundary", async (context) => {
     assert.equal(attribute(authorLink, "href"), undefined);
   });
 
+  await context.test("a named non-federated author retains its empty handle span", async () => {
+    const nodes = await render({ comments: [{ ...comment, author: { ...author, source: SOURCES.github, name: "Friend" } }] });
+    const who = nodes.find((node) => node.tagName === "p");
+    const span = descendants(who).find((node) => node.tagName === "span");
+    assert.ok(span);
+    assert.equal(text(span), "");
+  });
+
   await context.test("a withdrawn comment keeps its date and notice without rejected hrefs", async () => {
     const nodes = await render({ comments: [{ ...entry, author: { ...entry.author, identifier: "ftp://example.test/reference" }, objectId: "ftp://example.test/reference", content: undefined, deletedAt: "2026-10-11T00:00:00Z" }] });
     assert.ok(nodes.filter((node) => node.tagName === "a").every((node) => attribute(node, "href") === undefined));

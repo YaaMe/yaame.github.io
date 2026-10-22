@@ -9,8 +9,19 @@ Two, and they are the same shape: put what changes behind one door, so the rest
 of the tree does not have to know it changed.
 
 **One — the design layer reaches application data through the middle band.**
-Views may call services and selectors. They import result types through selectors,
+A view takes data as props or calls services and selectors. Selectors prepare
+what a view prints. A page parses, delegates and renders; its template only passes
+data to a view. Route paths and `getStaticPaths` stay in pages. Page markup and
+styles live in feature directories under `src/components/`, even for one page.
+
+Views import result types through selectors,
 never models or the framework binding, and never `astro:content`, including types.
+
+Keep server islands, full/static wrappers, component aliases and note-slot placement
+in components. Each post or year archive has one comments island in the full
+profile. Its deferred response sets `private, no-store`; prerendered HTML contains
+neither personal identity nor live comments. `Base.astro` may compose
+`virtual:session-bar`. Session resolution belongs to the renderer that needs it.
 
 ```
 data layer — untouched by a redesign
@@ -52,7 +63,8 @@ validity, frontmatter infers tags by shape, and interactive tag creation has
 wider slug and duplicate rules than the dedicated command.
 
 `calendarDate()` in `src/models/content/fields.ts` owns the site-timezone calendar
-split used by post stamps and the notes selector. Note archive years still come
+split used by post stamps and the notes selector. Its `calendarDateLabel()` owns
+the `y-mo-d` label, which views receive through selectors. Note archive years still come
 from their files; changing the display timezone must not change a note's URL.
 
 **Two — runtime host-specific code lives behind a platform entry point, one per tree.** In

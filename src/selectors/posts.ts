@@ -1,6 +1,8 @@
 import { readPosts, readKomorebi, renderContent, type Post, type Chapter } from "../persistence/content/posts";
 import { parsePostFilename } from "../models/content/post-filename";
-import type { Tag } from "../config/tags";
+import { label, type Tag } from "../config/tags";
+import { calendarDateLabel } from "../models/content/fields";
+import { site, hero } from "../config/site.config";
 
 /**
  * The data layer.
@@ -105,4 +107,84 @@ export async function chapterCount(): Promise<number> {
 /** Render one entry. Wrapped so the design layer depends only on this module. */
 export async function content(entry: Post | Chapter) {
   return renderContent(entry);
+}
+
+export function tagHref(tag: string) {
+  return `/tags/${tag}/`;
+}
+
+export function pageHref(base: string, page: number) {
+  return page === 1 ? base : `${base}page/${page}/`;
+}
+
+export function postDisplay(post: Post) {
+  return {
+    id: post.id,
+    href: href(post),
+    title: post.data.title,
+    description: post.data.description,
+    datetime: post.data.date.iso,
+    date: calendarDateLabel(post.data.date),
+    tags: post.data.tags.map((tag) => ({ href: tagHref(tag), label: `#${tag}` })),
+  };
+}
+
+export function postList(posts: Post[], page: number, total: number, base: string) {
+  return {
+    posts: posts.map(postDisplay),
+    pagination: {
+      visible: total > 1,
+      previous: page > 1 ? pageHref(base, page - 1) : undefined,
+      next: page < total ? pageHref(base, page + 1) : undefined,
+      label: `${page} / ${total}`,
+    },
+  };
+}
+
+export async function postPage(entry: Post) {
+  const { Content } = await content(entry);
+  return { ...postDisplay(entry), Content };
+}
+
+export function homePage(posts: Post[]) {
+  // A month summary must lead its days; reverse filename order puts a longer
+  // day filename first. The filename's year also keeps late summaries in place.
+  const coarseFirst = (a: string, b: string) =>
+    a.startsWith(b) ? 1 : b.startsWith(a) ? -1 : b.localeCompare(a);
+  const byYear = new Map<string, { href: string; title: string; period: ReturnType<typeof period> }[]>();
+  for (const post of [...posts].sort((a, b) => coarseFirst(a.id, b.id))) {
+    const year = periodYear(post);
+    if (!byYear.has(year)) byYear.set(year, []);
+    byYear.get(year)!.push({
+      href: href(post),
+      title: post.data.description || post.data.title,
+      period: period(post),
+    });
+  }
+  return {
+    title: site.title,
+    greeting: hero.greeting,
+    years: [...byYear].map(([year, entries]) => ({ year, entries })),
+  };
+}
+
+export function tagArchive(posts: Post[], tag: Tag) {
+  const tagged = posts.filter((post) => post.data.tags.includes(tag));
+  return { tagged, total: pages(tagged.length) };
+}
+
+export function tagPage(tag: Tag, tagged: Post[], page: number, total: number) {
+  return {
+    title: page === 1 ? `${label(tag)} · 标签` : `标签：${tag} · 第 ${page} 页`,
+    heading: page === 1 ? label(tag) : `标签：${tag}`,
+    posts: slice(tagged, page),
+    page,
+    total,
+    base: tagHref(tag),
+  };
+}
+
+export async function chapterPage(entry: Chapter) {
+  const { Content } = await content(entry);
+  return { title: entry.data.title, Content };
 }

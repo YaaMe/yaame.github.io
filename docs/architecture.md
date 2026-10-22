@@ -74,6 +74,18 @@ offset and size. Followers return the full list for unpaged delivery fan-out.
 ## The rule
 
 **Views reach application data through the middle band: services and selectors.**
+They receive data as props or call that band directly. Selectors prepare what views
+print. Pages keep route paths and `getStaticPaths`; their templates pass values to
+feature components. Those components own markup and styles, including when only one
+page uses them. Home, posts, notes, tags, the novel and the not-found view each have
+a feature directory under `src/components/`.
+
+Server islands, full/static wrappers, aliases and note-slot placement remain view
+composition. Each full-profile post or year archive has one comments island.
+Deferred responses use `private, no-store`; prerendered pages contain no personal
+identity or live comment text. The shell composes `virtual:session-bar`, whose
+renderer resolves its own session through the middle band.
+
 They import result types through selectors, never models or the binding.
 They never import `astro:content`, including types. Configuration and neutral
 `src/lib/` helpers remain available across the tree. See [ADR 0018](decisions/0018-src-is-layered-by-role.md).
@@ -104,7 +116,16 @@ The content selector interfaces under `src/selectors/`:
 | `interactions/comments-live.ts` | `liveCommentsFor(slug)` / `liveCommentsForMany(slugs)` | the full profile's current withdrawal view |
 
 These interfaces preserve their output contracts across a redesign. New display
-projections can wrap them. `interactions/comments.ts` retains SQL thread, withdrawal
+projections wrap them: `posts.ts` prepares home year groups, post and chapter views,
+tag archives and pagination; `notes.ts` prepares note rows, latest notes and year
+archives. `tagHref`, `pageHref` and `noteYearHref` own their link shapes, and
+`notesForYear` selects archive membership for pages and the notes island.
+`feed.ts` prepares RSS data, `site.ts` prepares shell and not-found data, and
+`interactions/comment-display.ts` prepares safe comment links, labels and dates.
+The reusable `Comments`, `NoteList`, `PostList` and `Progress` components retain
+their paths.
+
+`interactions/comments.ts` retains SQL thread, withdrawal
 and reply reads; its `Comment` type describes a stored row. The promoted reader
 has a separate module and result type so static views do not load the SQL graph.
 
@@ -126,7 +147,8 @@ Calling a collection read or Astro render throws explicitly.
 The post, note and promoted-comment selectors own sorting, visibility and URLs.
 `noteHtml()` keeps its synchronous Marked conversion. Content reads retain their
 existing call counts. `calendarDate()` in `src/models/content/fields.ts` supplies
-the site-timezone date parts for both post stamps and note reads. The note's
+the site-timezone date parts for both post stamps and note reads. The same model's
+`calendarDateLabel()` formats their `y-mo-d` labels through selectors. The note's
 archive year still comes from its file and determines its permanent URL.
 
 `parsePostFilename()` in `src/models/content/post-filename.ts` owns the filename
