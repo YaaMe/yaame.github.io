@@ -30,7 +30,7 @@ build-consumer: data ## [部署] 构建队列消费者（使用 worker/ 自己�
 		node scripts/wrangler-config.mjs worker/wrangler.jsonc worker/wrangler.generated.jsonc >/dev/null
 	@cd worker && npx wrangler deploy -c wrangler.generated.jsonc --dry-run >/dev/null
 
-# Both Workers are built from src/integrations/activitypub/, so they deploy
+# Both Workers use src/routes/activitypub/shared.ts, so they deploy
 # together. Shipping only the site leaves the inbox listeners running the old
 # code while the endpoints that report on them run the new one — every
 # diagnostic then describes a world nobody is executing.

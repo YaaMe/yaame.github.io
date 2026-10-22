@@ -216,8 +216,13 @@ const dataCheckInputs = [
   "scripts/pin.mjs",
   "scripts/follow.mjs",
   "scripts/tags.mjs",
-  "src/integrations/activitypub/federation.ts",
-  "src/integrations/activitypub/outbox.ts",
+  "src/services/activitypub/following.ts",
+  "src/persistence/records/actor-digest.ts",
+  "src/persistence/records/note-digests.ts",
+  "src/persistence/records/following.ts",
+  "src/persistence/records/follow-ledger.ts",
+  "src/persistence/records/departures.ts",
+  "src/persistence/records/delivery-failures.ts",
   "src/persistence/records/sessions.ts",
   "worker/consumer.ts",
   ".github/workflows/promotions.yml",
@@ -280,14 +285,29 @@ test("data-check rejects workflow path copies and unscoped Git commands", (t) =>
   assert.equal(invalidWrangler.status, 1);
   assert.match(invalidWrangler.stderr, /host-specific Wrangler reference/);
 
+  const failuresPath = join(cwd, "src/persistence/records/delivery-failures.ts");
+  const failures = readFileSync(failuresPath, "utf8");
+  const changedFailures = failures.replace("deliveryFailures.key", "deliveryFailures.records");
+  assert.notEqual(changedFailures, failures, "the failure-record mutation must change the source");
+  writeFileSync(failuresPath, changedFailures);
+  const invalidFailures = check();
+  assert.equal(invalidFailures.status, 1);
+  assert.match(invalidFailures.stderr, /data register consumer src\/persistence\/records\/delivery-failures\.ts:/);
+});
+
+test("data-check rejects direct platform storage access in the consumer", (t) => {
+  const cwd = fixture(t, dataCheckInputs);
   const workerPath = join(cwd, "worker/consumer.ts");
   const worker = readFileSync(workerPath, "utf8");
-  const changedWorker = worker.replace("deliveryFailures.key", "deliveryFailures.records");
-  assert.notEqual(changedWorker, worker, "the worker mutation must change the source");
-  writeFileSync(workerPath, changedWorker);
-  const invalidWorker = check();
-  assert.equal(invalidWorker.status, 1);
-  assert.match(invalidWorker.stderr, /data register consumer worker\/consumer\.ts:/);
+  assert.equal(dataCheck(cwd).status, 0);
+  for (const access of ['platform.get("fixture")', 'platform.put("fixture", {})', 'platform["get"]("fixture")']) {
+    writeFileSync(workerPath, `${worker}\n${access};\n`);
+    const invalid = dataCheck(cwd);
+    assert.equal(invalid.status, 1);
+    assert.match(invalid.stderr, /worker\/consumer\.ts: direct platform access must use queue transport only/);
+  }
+  writeFileSync(workerPath, worker);
+  assert.equal(dataCheck(cwd).status, 0);
 });
 
 test("data-check scans every line of the table declarations and keeps the migration history to history", (t) => {

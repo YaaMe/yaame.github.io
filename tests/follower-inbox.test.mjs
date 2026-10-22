@@ -8,6 +8,7 @@ import assert from "node:assert/strict";
 import { Delete, Endpoints, Follow, Person, Undo } from "@fedify/fedify/vocab";
 import { SOURCES, identityId } from "../src/models/interactions/key-scheme.ts";
 import { inboxHarness } from "./fixtures/inbox.mjs";
+import { departures, following } from "../src/config/data.config.generated.mjs";
 
 const ownActor = "https://yaame.dev/users/yaame";
 const actorOf = (name) => `https://remote.example/users/${name}`;
@@ -75,6 +76,7 @@ test("Follow, Undo and Delete keep one follower row per actor", async (t) => {
     await deliver(await follow("mover"));
     await deliver(await follow("mover", { id: "https://remote.example/follows/mover-2", inbox: `${actorOf("mover")}/moved` }));
     assert.deepEqual(await stored(), [[actorOf("mover"), `${actorOf("mover")}/moved`]]);
+    assert.equal((await inbox.database.select().from(inbox.followers))[0].followId, "https://remote.example/follows/mover-2");
     assert.equal(sent.length, 2);
   });
 
@@ -130,6 +132,36 @@ test("Follow, Undo and Delete keep one follower row per actor", async (t) => {
     assert.deepEqual(await inbox.dropFollowersAt(`${actorOf("dead")}/inbox`, [actorOf("dead")]), [actorOf("dead")]);
     assert.deepEqual(await inbox.dropFollowersAt("https://remote.example/inbox", [actorOf("staying")]), []);
     assert.deepEqual(await stored(), [[actorOf("staying"), `${actorOf("staying")}/inbox`]]);
+  });
+
+  await t.test("permanent failure prunes only named personal inboxes and caps departure diagnostics", async () => {
+    await fresh();
+    for (const name of ["dead", "staying"]) await deliver(await follow(name));
+    await inbox.platform.put(departures.key, Array.from({ length: 50 }, (_, i) => ({ id: `older-${i}`, reason: "unfollowed", at: "2026-01-01T00:00:00Z" })));
+    await inbox.federation.outboxPermanentFailureHandler(context, {
+      reason: "gone", inbox: new URL(`${actorOf("dead")}/inbox`),
+      actorIds: [new URL(actorOf("dead")), new URL(actorOf("staying"))],
+      activity: new Delete({ id: new URL("https://yaame.dev/activities/1") }),
+    });
+    assert.deepEqual(await stored(), [[actorOf("staying"), `${actorOf("staying")}/inbox`]]);
+    const log = await inbox.platform.get(departures.key);
+    assert.equal(log.length, 50);
+    assert.deepEqual({ ...log[0], at: "stamp" }, { id: actorOf("dead"), reason: "unreachable", detail: "gone", at: "stamp" });
+    assert.equal(log.at(-1).id, "older-48");
+  });
+
+  await t.test("a departure failure still rejects after follower removal and before following removal", async (st) => {
+    await fresh();
+    await deliver(await follow("deleted"));
+    await inbox.platform.put(following.key, [actorOf("deleted"), actorOf("staying")]);
+    const put = inbox.platform.put;
+    st.mock.method(inbox.platform, "put", async (key, value) => {
+      if (key === departures.key) throw new Error("departure failed");
+      return put(key, value);
+    });
+    await assert.rejects(deliver(new Delete({ actor: new URL(actorOf("deleted")), object: new URL(actorOf("deleted")) })), /departure failed/);
+    assert.deepEqual(await stored(), []);
+    assert.deepEqual(await inbox.platform.get(following.key), [actorOf("deleted"), actorOf("staying")]);
   });
 
   await t.test("fan-out and the collection read every federated follower and no other source", async () => {

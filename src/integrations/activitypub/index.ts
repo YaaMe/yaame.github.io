@@ -1,4 +1,7 @@
 import type { AstroIntegration } from "astro";
+import { OBJECT_PATH_TEMPLATE } from "../../selectors/activitypub/object-id.ts";
+
+const objectPath = OBJECT_PATH_TEMPLATE.replace("{identifier}", "[user]").replace("{slug}", "[slug]");
 
 /**
  * The paths Fedify answers for.
@@ -19,8 +22,8 @@ const PATHS = [
   "/users/[user]/followers",
   "/users/[user]/following",
   "/users/[user]/outbox",
-  "/users/[user]/notes/[slug]",
-  "/users/[user]/notes/[slug]/replies",
+  objectPath,
+  `${objectPath}/replies`,
   "/inbox",
 ];
 

@@ -2,11 +2,16 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { NAMESPACE, SOURCES, identityId, commentId, reactionId } from "../src/models/interactions/key-scheme.ts";
-import { contentIdentifierOf } from "../src/models/activitypub/object-id.ts";
+import { contentIdentifierOf as decode } from "../src/models/activitypub/object-id.ts";
+
+const contentIdentifierOf = (url) => decode(url, "yaame.dev", "yaame");
 
 test("content object ids decode by prefix and format without a content lookup", () => {
   assert.equal(contentIdentifierOf("https://yaame.dev/users/yaame/notes/not-in-the-archive"), "not-in-the-archive");
   assert.equal(contentIdentifierOf("HTTPS://YAAME.DEV:443/users/yaame/notes/%E6%9C%AA%E5%8F%91%E8%A1%A8.1"), "未发表.1");
+  assert.equal(contentIdentifierOf("https://yaame.dev/users/yaame/notes/%65xample"), "example");
+  assert.equal(contentIdentifierOf("https://yaame.dev/users/yaame/notes/2026-10-18"), "2026-10-18");
+  assert.equal(contentIdentifierOf("https://yaame.dev/users/yaame/notes/8nicubmr"), "8nicubmr");
   for (const url of [
     "https://other.test/users/yaame/notes/example",
     "http://yaame.dev/users/yaame/notes/example",
@@ -14,9 +19,40 @@ test("content object ids decode by prefix and format without a content lookup", 
     "https://yaame.dev/users/yaame/notes/",
     "https://yaame.dev/users/yaame/notes/example?query",
     "https://yaame.dev/users/yaame/notes/example#fragment",
+    "https://yaame.dev/users/yaame/notes/example?",
+    "https://yaame.dev/users/yaame/notes/example#",
+    "https://yaame.dev/users/%79aame/notes/example",
+    "https://user@yaame.dev/users/yaame/notes/example",
+    "https://yaame.dev/users/yaame/notes/example/",
     "https://yaame.dev/users/yaame/notes/example%2Fchild",
     "https://yaame.dev/users/yaame/notes/%ZZ",
   ]) assert.equal(contentIdentifierOf(url), null, url);
+});
+
+test("content object decoding agrees with the prefix-based baseline", () => {
+  const baseline = (input) => {
+    try {
+      const url = new URL(input);
+      if (!/^https?:$/.test(url.protocol)) return null;
+      const prefix = "https://yaame.dev/users/yaame/notes/";
+      if (!url.href.startsWith(prefix)) return null;
+      const identifier = decodeURIComponent(url.href.slice(prefix.length));
+      return /^[\p{L}\p{N}_-]+(?:\.[\p{L}\p{N}_-]+)*$/u.test(identifier) ? identifier : null;
+    } catch {
+      return null;
+    }
+  };
+  for (const origin of ["https://yaame.dev", "HTTPS://YAAME.DEV:443", "https://yaame.dev:443", "https://user@yaame.dev", "http://yaame.dev", "ftp://yaame.dev", "https://other.test"])
+    for (const route of ["/users/yaame/notes/", "/users/%79aame/notes/", "/users/other/notes/", "/users/yaame/notes/../notes/"])
+      for (const id of [
+        "2026-10-18", "8nicubmr", "未发表.1", "%E6%9C%AA%E5%8F%91%E8%A1%A8.1", "%65xample", "%ZZ",
+        ".", "..", "a..b", "_", "-", "%2F", "%3F", "%23", "%252E", "a/b", "",
+        "a!b", "a'b", "a(b", "a)b", "a*b", "a%21b", "a%27b", "a%28b", "a%29b", "a%2Ab",
+      ])
+        for (const suffix of ["", "/", "?", "#", "?q", "#f", "%00"]) {
+          const url = origin + route + id + suffix;
+          assert.equal(contentIdentifierOf(url), baseline(url), url);
+        }
 });
 
 test("stored v5 ids remain stable across builds", () => {

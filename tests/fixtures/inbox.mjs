@@ -7,19 +7,32 @@ import { build } from "esbuild";
 // The bundle configures logging globally, so it can be loaded once per test process.
 // Durable records go to a temporary directory; `databaseUrl` replaces the in-memory
 // database, and `openStore: false` leaves a store that is expected to fail unopened.
-export async function inboxHarness(context, { databaseUrl = ":memory:", openStore = true } = {}) {
+export async function inboxHarness(context, { databaseUrl = ":memory:", openStore = true, site = false, content = false, consumer = false, reload = false } = {}) {
   const directory = mkdtempSync(join(process.cwd(), ".tmp-inbox-"));
   context.after(() => rmSync(directory, { recursive: true, force: true }));
   const bundle = join(directory, "inbox.mjs");
-  await build({
+  const built = await build({
     stdin: {
       contents: `
-        export { dropFollowersAt, federation } from "./src/integrations/activitypub/federation.ts";
+        ${site ? 'export { GET, POST } from "./src/integrations/activitypub/routes/federated.ts";' : ""}
+        ${consumer ? 'export { default as consumer } from "./worker/consumer.ts";' : ""}
+        ${site ? 'export { installSite } from "./src/routes/activitypub/site.ts";' : ""}
+        ${reload && site ? 'export { installSite as reinstallSite } from "./src/routes/activitypub/site.ts?reload";' : ""}
+        ${reload ? 'export { installShared as reinstallShared } from "./src/routes/activitypub/shared.ts?reload";' : ""}
+        ${content ? 'export { collections, reads } from "./tests/fixtures/activitypub-content.mjs";' : ""}
+        import { installShared } from "./src/routes/activitypub/shared.ts";
+        installShared();
+        export { installShared };
+        export { reconcileFollowing } from "./src/services/activitypub/following.ts";
+        export { followIntent } from "./src/config/data.config.generated.mjs";
+        export { AP } from "./src/config/activitypub.ts";
+        export { dropFollowersAt } from "./src/services/activitypub/followers.ts";
+        export { federation } from "./src/services/activitypub/runtime.ts";
         export { platform } from "./src/platform/index.ts";
         export { record } from "./src/services/interactions/comments.ts";
         export { replies, replyCounts, withdrawnMany } from "./src/selectors/interactions/comments.ts";
         export { store } from "./src/persistence/interactions/database.ts";
-        export { comments, followers, reactions, visitorIdentities } from "./src/models/interactions/tables.ts";
+        export { comments, followers, reactions, visitorIdentities, deliveries } from "./src/models/interactions/tables.ts";
         export { counts as reactionCounts } from "./src/selectors/interactions/reactions.ts";
         export { insertComment } from "./src/persistence/interactions/write-comment.ts";
       `,
@@ -30,8 +43,9 @@ export async function inboxHarness(context, { databaseUrl = ":memory:", openStor
     format: "esm",
     platform: "node",
     packages: "external",
+    metafile: true,
     alias: {
-      "virtual:astro": resolve("worker/astro.stub.ts"),
+      "virtual:astro": resolve(content ? "tests/fixtures/activitypub-content.mjs" : "worker/astro.stub.ts"),
       "virtual:platform": resolve("src/platform/node"),
     },
     define: {
@@ -47,6 +61,7 @@ export async function inboxHarness(context, { databaseUrl = ":memory:", openStor
   });
   return {
     ...inbox,
+    inputs: Object.keys(built.metafile.inputs),
     database,
     async receive(activity, stored = []) {
       await database.delete(inbox.comments);
