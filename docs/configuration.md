@@ -70,8 +70,12 @@ Both implementations exist:
   (default `.data/interactions.sqlite`). It reads secrets from `process.env`.
   It has no queue, so delivery is synchronous and a failed delivery is final.
 
-No Makefile target and no CI job builds or deploys `DEPLOY_TARGET=node`. So
-nothing checks that this target still builds.
+`DEPLOY_TARGET=node make build` selects the Node build through the shared target.
+The ADR 0018 acceptance matrix exercises both Node profiles locally. CI does not
+run those Node builds; they remain self-checks under O7.
+Node has recovery entry points, but no `promote.sh`, `unpromote.sh` or
+`tombstone.sh` under `scripts/platform/node/`. The corresponding Make commands
+cannot run with `DEPLOY_TARGET=node`; the Cloudflare implementations exist.
 
 The queue consumer in `worker/` does not read `DEPLOY_TARGET`. Its own
 `worker/wrangler.jsonc` selects `worker/tsconfig.json`, which aliases
@@ -119,6 +123,12 @@ islands and for ActivityPub and auth routes; the rest of each page remains a
 static file. In `static`, the build-time alias selects the inline comment
 implementation, so no database module enters its graph.
 
+The integration factories, injected route entrypoints and dynamic-route hook live
+in `astro.config.mjs`. Its component aliases select `src/components/session/` and
+`src/components/comments/` full/static wrappers. `virtual:astro` selects
+`src/astro.binding.ts`; the consumer instead selects `worker/astro.stub.ts`.
+The stub imports successfully and throws if asked to read or render content.
+
 ## `site.*`
 
 `title`, `author`, `lang` and `description` are plain information. Three fields
@@ -147,6 +157,9 @@ have constraints:
 
 The file also sets `discoverable`, `indexable`, `published`, `since` and
 `manuallyApprovesFollowers`. The comments in the file explain each one.
+`published` currently also limits delivery candidates because the outbox passes
+its selected window to publication. B2 separately implements O5's collection-only
+policy; this migration preserves the current behavior.
 
 Once the actor has followers, **`actorHost` cannot change.** The actor id is
 stored in every follower's database. Changing it is an account migration.
@@ -181,7 +194,7 @@ server.
 | `BUILD_PROFILE=full` with a wrong `CF_KV_ID` | `make deploy` succeeds. The Worker reads another namespace. **Nothing reports it** |
 | `activitypub=true` but a route is not injected | the actor advertises an endpoint that answers 404. The registrations in `src/routes/activitypub/{shared,site}.ts` and `PATHS` in `astro.config.mjs` must match. Object and reply paths share the model's template through a selector |
 | `platform.queue === false` | delivery is sent synchronously, and a failed delivery is not retried. This happens on Cloudflare when the `AP_QUEUE` binding is absent, and always under `DEPLOY_TARGET=node` |
-| `DEPLOY_TARGET=node` | the build uses `src/platform/node/index.ts` and the Node adapter. No make target or CI job builds it |
+| `DEPLOY_TARGET=node` | the build uses `src/platform/node/index.ts` and the Node adapter. The shared `make build` target builds it; CI does not exercise it |
 
 ## Not in this repository
 

@@ -12,10 +12,11 @@ them yet.
 ## Two layers
 
 ```
-git              The durable layer and the single source of truth.
+git              Authored content, owner intent and the selected public archive.
                  Reviewable, revertible, indexed at build time.
-runtime storage  What arrived from outside and is not in git. Disposable.
-commands         Carry chosen runtime records into git.
+runtime storage  Received interactions, identities and operational records.
+                 Each kind follows the data register's recovery policy.
+commands         Carry chosen runtime comments into git.
 ```
 
 The split makes keeping something an explicit decision. By default nothing
@@ -57,12 +58,13 @@ still writes its identity and follower atomically.
 an explicitly supplied database. Both operational host adapters import that
 service. It calls `src/migrations/index.ts`, which combines bootstrap and runner
 over the unchanged statements in `src/migrations/history.ts`.
-The cached runtime store still migrates on first access; B13 removes that behavior.
+See the implementation record for [the remaining B13 read-path effect](implementation/0018-relayering.md#read-path-status-b13).
 
-`src/models/activitypub/object-id.ts` holds the content prefix and decoder apart
-from row schemas. It uses the existing URL prefix and identifier format without
-reading Astro content. The federation entrance reaches the decoder through
-`src/selectors/activitypub/objects.ts`. Step 10 adds the shared template codec.
+`src/models/activitypub/object-id.ts` owns the object-path template, URL builder
+and decoder. It uses the neutral `src/lib/path-template.ts` codec and preserves
+published identifiers without reading Astro content. Federation entrances reach
+that scheme through `src/selectors/activitypub/objects.ts`. Build wiring uses the
+narrower `src/selectors/activitypub/object-id.ts` forward.
 `src/selectors/interactions/comments-live.ts` combines promoted reads with the
 withdrawal selectors in `src/selectors/interactions/comments.ts`.
 
@@ -114,8 +116,7 @@ ActivityPub publication and delivery now live in
 `src/services/activitypub/{publish,delivery}.ts`. Outbound calls and shared object
 constructors live in `src/gateways/activitypub/`. Actor and content announcements,
 plus departure diagnostics, live in `src/signals/activitypub/`.
-The actor and outbox entrances still await them in the same order. Digests are
-written before announcements; first-run delivery marks the archive without sending.
+First-run delivery marks the archive without sending.
 Delivery marking failures retain the process-local suppression set.
 
 `worker/consumer.ts` installs the shared registrations directly. It owns queue
@@ -130,14 +131,16 @@ failure throws; the delivery-failure path then runs, pruning included.
 `updateFollowing` in `src/services/activitypub/following.ts` handles accepted
 following additions and all removals. The resolved follow-intent ledger remains
 a separate record. The five AP record modules bind registered locations through
-`recordAt`; departure records retain their cap of 50. This split changes neither
-GET triggers nor request-time schema initialization. B1, B2, B3 and B13 remain
-separate behavior changes.
+`recordAt`.
+
+See the implementation record for [GET-trigger policy under O15](implementation/0018-relayering.md#get-triggers-o15).
+See the implementation record for [retention and fingerprint policies](implementation/0018-relayering.md#retention-and-fingerprints).
 
 Comment visibility, run labels and text, and link/date preparation live in
 `src/selectors/interactions/{comment-view,comment-runs,comment-display}.ts`.
 `Comments.astro` obtains safe links and date labels through `comment-display.ts`;
-it has no model import. Step 15 adds the broader page display projections.
+it has no model import. Post, note, feed and site selectors prepare the page
+display projections documented in the [selector inventory](architecture.md#the-rule).
 
 SQLite was not chosen for being better. The constraints left nothing else:
 
@@ -183,15 +186,16 @@ Safeguards:
 - **Times are ISO 8601 strings.** SQLite has no date type, and every dialect
   reads an ISO string the same way. A numeric timestamp is smaller, but every
   reader would have to decode it by hand.
-- **Application code holds no SQL text.** Queries are builder calls, and
-  Drizzle renders the dialect.
+- **SQL is built in two places.** Runtime queries use Drizzle builders and
+  explicit statements in `src/persistence/interactions/`; comment operations and
+  recovery use that directory's statement builders through service interfaces.
+  Migrations own the rest: shipped migration SQL in `src/migrations/history.ts`,
+  and the runner's ledger bootstrap, ledger inserts and version queries in
+  `src/migrations/index.ts`, which also run on the request path until B13.
 
-Exceptions to the second rule:
-
-- The migrations in `src/migrations/history.ts` are hand-written SQL.
-- `scripts/platform/cloudflare/` contains the D1-only Bash entry points for
-  promotion, tombstones and unpromotion. They call `wrangler d1 execute` and
-  pass rows to host-free JavaScript logic.
+Host adapters execute the statements. The Cloudflare comment entry points under
+`scripts/platform/cloudflare/` call `wrangler d1 execute` and pass rows to the
+operation services. Recovery readers use their host's platform module.
 
 ## Search stays out of the database
 
@@ -438,8 +442,8 @@ and redirects. `src/schemas/auth-urls.ts` owns the callback path and URL builder
 The route declaration, authorization request and token exchange share that path.
 No middleware resolves sessions.
 
-All auth services live under `src/services/auth/`. The auth integration contains
-only route wiring, which step 16 moves to `astro.config.mjs`. The login page
+All auth services live under `src/services/auth/`. The auth integration in
+`astro.config.mjs` contains route wiring only. The login page
 renders `src/components/auth/LoginPage.astro` with labels from
 `src/selectors/auth/login.ts`. B11 removes these temporary login modules and the
 empty `src/pages-extra/auth/` directory after O14 chooses the replacement failure
