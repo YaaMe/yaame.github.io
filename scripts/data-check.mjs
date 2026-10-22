@@ -143,24 +143,23 @@ for (const field of Object.keys(migrations.columns)) {
   requires(migrationPath, `migrationsColumns.quotedColumns.${field}`);
 }
 
-const promote = requires("scripts/promote.mjs", 'from "./comments-rows.mjs"');
-requires("scripts/promote.mjs", "promotedComments.writeBack");
-requires("scripts/promote.mjs", "FROM ${table}");
-requires("scripts/promote.mjs", "WHERE ${column(\"deletedAt\")} IS NULL");
-const promoteFilter = requires("scripts/promote-filter.mjs", 'from "../src/config/data.config.generated.mjs"');
-requires("scripts/promote-filter.mjs", "followIntent");
-
-const unpromote = requires("scripts/unpromote.mjs", 'from "./comments-rows.mjs"');
-requires("scripts/unpromote.mjs", "DELETE FROM ${table}");
-
-const tombstone = requires("scripts/tombstone.mjs", 'from "./comments-rows.mjs"');
-requires("scripts/tombstone.mjs", "promotedComments.writeBack");
-requires("scripts/tombstone.mjs", "FROM ${table}");
-const commentsRows = requires("scripts/comments-rows.mjs", 'from "../src/config/data.config.generated.mjs"');
-requires("scripts/comments-rows.mjs", "comments.quotedColumns");
-requires("scripts/comments-rows.mjs", "commentsColumns");
-requires("scripts/comments-rows.mjs", "comments.table");
-requires("scripts/comments-rows.mjs", "rowValue");
+const promote = requires("scripts/promote.mjs", 'from "../src/services/interactions/promote.ts"');
+const promoteService = requires("src/services/interactions/promote.ts", "promotedComments.writeBack");
+const promoteFilter = requires("scripts/promote-filter.mjs", 'from "../src/services/interactions/promote-filter.ts"');
+const filterService = requires("src/services/interactions/promote-filter.ts", 'from "../../config/data.config.generated.mjs"');
+requires("src/services/interactions/promote-filter.ts", "followIntent");
+const unpromote = requires("scripts/unpromote.mjs", 'from "../src/services/interactions/unpromote.ts"');
+const tombstone = requires("scripts/tombstone.mjs", 'from "../src/services/interactions/tombstone.ts"');
+const tombstoneService = requires("src/services/interactions/tombstone.ts", "promotedComments.writeBack");
+const commentsRows = requires("src/persistence/interactions/comment-rows.ts", 'from "../../config/data.config.generated.mjs"');
+requires("src/persistence/interactions/comment-rows.ts", "commentsLocation.quotedColumns");
+requires("src/persistence/interactions/comment-rows.ts", "commentsColumns");
+requires("src/persistence/interactions/comment-rows.ts", "commentsLocation.table");
+requires("src/persistence/interactions/comment-rows.ts", "rowValue");
+const commentSql = requires("src/persistence/interactions/comment-operation-sql.ts", 'from "./comment-rows.ts"');
+requires("src/persistence/interactions/comment-operation-sql.ts", "FROM ${table}");
+requires("src/persistence/interactions/comment-operation-sql.ts", 'WHERE ${column("deletedAt")} IS NULL');
+requires("src/persistence/interactions/comment-operation-sql.ts", "DELETE FROM ${table}");
 const commentsStore = requires("scripts/comments-store.mjs", 'from "../src/config/data.config.generated.mjs"');
 requires("scripts/comments-store.mjs", "promotedComments.gitRoot");
 requires("scripts/comments-store.mjs", "notes.gitRoot");
@@ -253,9 +252,13 @@ requires(
 
 const pathConsumers = [
   ["src/content.config.ts", content],
+  ["src/services/interactions/promote.ts", promoteService],
+  ["src/services/interactions/tombstone.ts", tombstoneService],
+  ["src/services/interactions/promote-filter.ts", filterService],
   ["scripts/promote.mjs", promote],
   ["scripts/promote-filter.mjs", promoteFilter],
-  ["scripts/comments-rows.mjs", commentsRows],
+  ["src/persistence/interactions/comment-rows.ts", commentsRows],
+  ["src/persistence/interactions/comment-operation-sql.ts", commentSql],
   ["scripts/unpromote.mjs", unpromote],
   ["scripts/tombstone.mjs", tombstone],
   ["scripts/comments-store.mjs", commentsStore],
@@ -316,7 +319,8 @@ for (const [path, source] of [
   ["scripts/promote.mjs", promote],
   ["scripts/unpromote.mjs", unpromote],
   ["scripts/tombstone.mjs", tombstone],
-  ["scripts/comments-rows.mjs", commentsRows],
+  ["src/persistence/interactions/comment-rows.ts", commentsRows],
+  ["src/persistence/interactions/comment-operation-sql.ts", commentSql],
 ]) {
   if (new RegExp(`(?:FROM|UPDATE|INTO|JOIN)\\s+["']?${commentsSql.sql}\\b`, "i").test(source)) {
     console.error(`  data register consumer ${path}: repeats comments table ${commentsSql.sql}`);

@@ -1,0 +1,16 @@
+export const commentOperationFiles = [
+  "src/models/content/comments.ts",
+  "src/models/interactions/tables.ts",
+  "src/persistence/interactions/comment-rows.ts",
+  "src/persistence/interactions/comment-operation-sql.ts",
+  "src/persistence/interactions/query-batches.ts",
+  "src/persistence/interactions/sql-text.ts",
+  "src/services/interactions/promote.ts",
+  "src/services/interactions/promote-text.ts",
+  "src/services/interactions/promote-filter.ts",
+  "src/services/interactions/tombstone.ts",
+  "src/services/interactions/unpromote.ts",
+  "src/services/interactions/comment-archive.ts",
+  "src/selectors/interactions/comment-archive.ts",
+  "src/gateways/activitypub/actor-profile.ts",
+];

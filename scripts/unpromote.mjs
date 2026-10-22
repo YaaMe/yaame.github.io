@@ -4,20 +4,9 @@
  * The platform entry point supplies rows and deletes the returned comment id
  * after the file write, so a failed database command leaves a retryable source.
  */
-import { column, rowValue, table } from "./comments-rows.mjs";
-import { DIR, locate, readDocuments, writeDocument } from "./comments-store.mjs";
+import { DIR, readDocuments, writeDocument } from "./comments-store.mjs";
 import { runCommand } from "./comments-cli.mjs";
-import { sqlValue } from "../src/persistence/interactions/sql-text.ts";
-
-export function selectSql(id) {
-  return `SELECT ${column("id")}, ${column("root")}, ${column("identifier")},
-            ${column("content")} FROM ${table}
-   WHERE ${column("id")} = ${sqlValue(String(id))}`;
-}
-
-export function deleteSql(id) {
-  return `DELETE FROM ${table} WHERE ${column("id")} = ${sqlValue(String(id))}`;
-}
+import { deleteSql, planUnpromotion, rowValue, selectSql } from "../src/services/interactions/unpromote.ts";
 
 function textOf(value) {
   if (typeof value === "string") return value.replace(/<[^>]*>/g, " ");
@@ -46,19 +35,10 @@ function commentSummary(entry, row) {
 export function main({ id, dir = DIR, apply = false, rows } = {}) {
   if (!id) throw new Error("unpromote requires a comment id");
   if (!Array.isArray(rows)) throw new Error("unpromote requires rows on stdin");
-  const row = rows.find((candidate) => rowValue(candidate, "id") === id);
-  const located = locate(readDocuments(dir), id);
-  const entry = located?.document.comments[located.index];
-
-  if (!row && !located) {
-    throw new Error(`Not a promoted comment: ${id} is in neither the archive nor D1`);
-  }
-  const archive = located
-    ? { present: true, path: located.path, entry }
-    : { present: false };
-  const d1 = row ? { present: true, id } : { present: false };
-  console.error(located
-    ? `  archive: ${located.path}, entry ${apply ? "removed" : "will be removed"} (${commentSummary(entry, row)})`
+  const plan = planUnpromotion({ id, rows, documents: readDocuments(dir) });
+  const { archive, d1, entry, row } = plan;
+  console.error(archive.present
+    ? `  archive: ${archive.path}, entry ${apply ? "removed" : "will be removed"} (${commentSummary(entry, row)})`
     : "  archive: not present");
   console.error(row
     ? `  D1: row ${id} ${apply ? "deleted" : "will be deleted"} (${commentSummary(entry, row)})`
@@ -66,18 +46,13 @@ export function main({ id, dir = DIR, apply = false, rows } = {}) {
 
   if (!apply) return { changed: true, archive, d1 };
 
-  if (located) {
-    writeDocument(located.path, {
-      ...located.document,
-      comments: located.document.comments.filter((_, index) => index !== located.index),
-    });
-  }
+  if (plan.write) writeDocument(plan.write.path, plan.write.after);
   const result = {
     changed: true,
     archive,
     d1,
   };
-  if (row) result.deleteId = id;
+  if (plan.deleteId !== undefined) result.deleteId = plan.deleteId;
   return result;
 }
 

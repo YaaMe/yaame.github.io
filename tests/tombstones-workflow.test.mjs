@@ -5,6 +5,7 @@ import { chmodSync, copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, 
 import { dirname, join } from "node:path";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
+import { commentOperationFiles } from "./fixtures/comment-operation-files.mjs";
 import { interactionRecordFiles } from "./fixtures/interaction-record-files.mjs";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
@@ -203,7 +204,7 @@ const dataCheckInputs = [
   "src/migrations/history.ts",
   "scripts/promote.mjs",
   "scripts/comments-store.mjs",
-  "scripts/comments-rows.mjs",
+  ...commentOperationFiles,
   "scripts/comments-cli.mjs",
   "scripts/promote-filter.mjs",
   "scripts/unpromote.mjs",

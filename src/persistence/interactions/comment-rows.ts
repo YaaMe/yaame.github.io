@@ -4,6 +4,7 @@
  * Reads use Drizzle so host-specific database access stays in the platform.
  */
 import { and, asc, count, eq, inArray, isNotNull, isNull } from "drizzle-orm";
+import { comments as commentsLocation } from "../../config/data.config.generated.mjs";
 import { SOURCES } from "../../models/interactions/key-scheme.ts";
 import type { Database } from "../../platform/types.ts";
 import { queryBatches } from "./query-batches.ts";
@@ -74,3 +75,16 @@ export async function listReplies(db: Database, root: string): Promise<Comment[]
     .where(and(eq(comments.root, root), eq(comments.source, SOURCES.activitypub), isNull(comments.deletedAt)))
     .orderBy(asc(comments.published));
 }
+
+export const commentsColumns = commentsLocation.columns;
+export const table = commentsLocation.table;
+
+export function column(name: keyof typeof commentsColumns) {
+  return commentsLocation.quotedColumns[name];
+}
+
+export function rowValue<K extends keyof Comment>(row: CommentRow, field: K): Comment[K] {
+  return (row[commentsColumns[field]] ?? row[field]) as Comment[K];
+}
+
+export type CommentRow = Record<string, string | null>;

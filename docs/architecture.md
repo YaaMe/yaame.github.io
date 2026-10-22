@@ -22,6 +22,10 @@ data layer — no line changes in a redesign
   src/selectors/interactions/comment-runs.ts typed run labels and text
   src/selectors/interactions/comment-display.ts safe links and date labels
   src/selectors/interactions/comments-live.ts full-profile withdrawal view
+  src/selectors/interactions/comment-archive.ts archive snapshot reads and placement
+  src/services/interactions/{promote,tombstone,unpromote}.ts comment operation plans
+  src/services/interactions/promote-text.ts typed-content conversion
+  src/persistence/interactions/comment-operation-sql.ts comment operation SQL
   src/services/recovery/ portable recovery contract, selection and plans
   src/persistence/interactions/recovery-sql.ts recovery SQL construction
   scripts/*.mjs           the commands the Makefile runs
@@ -43,6 +47,12 @@ describes their roles. The second architectural rule in `CLAUDE.md` governs
 Under ADR 0018 and O8, each host's recovery module in `src/platform/<target>/`
 uses host-neutral rules in `src/services/recovery/`, and the host's script entry
 points call that module.
+
+Comment commands supply snapshots to interaction services and selectors, then
+execute their plans. These entries import under plain Node without a platform or
+content alias. Scripts retain file/ref handling, command output and apply mode.
+The shared proposal-ref reader keeps proposals separate from main. Promotion
+remains add-only; unpromotion writes the archive before requesting SQL deletion.
 
 ActivityPub has one runtime per process. Both entrances install the registrations
 in `src/routes/activitypub/shared.ts`; the site also installs `site.ts`, which reads

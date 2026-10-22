@@ -2,9 +2,28 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { computeStates, main, rewrite } from "../scripts/tombstone.mjs";
+import { computeStates, rewrite } from "../src/services/interactions/tombstone.ts";
+import { main } from "../scripts/tombstone.mjs";
 import { writeDocument } from "../scripts/comments-store.mjs";
 import { archivedComment as comment } from "./fixtures/interactions.mjs";
+
+test("archive writes validate the collection before changing a file", (t) => {
+  const dir = mkdtempSync(join(process.cwd(), ".tmp-archive-collection-"));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const path = join(dir, "comments.json");
+  writeDocument(path, { comments: [comment("valid")] });
+  const saved = readFileSync(path, "utf8");
+  assert.throws(() => writeDocument(path, { comments: new Set([comment("valid")]) }), /array/);
+  assert.equal(readFileSync(path, "utf8"), saved);
+});
+
+test("archive rewriting preserves an existing tombstone's time and fields", () => {
+  const parent = comment("parent", { content: undefined, deletedAt: "2026-10-09T00:00:00Z", retained: "value" });
+  const reply = comment("reply", { replyTo: parent.id, inReplyTo: parent.objectId });
+  const result = rewrite([parent, reply], new Map([[parent.id, "2026-10-10T00:00:00Z"]]));
+  assert.equal(result[0], parent);
+  assert.deepEqual(result, [parent, reply]);
+});
 
 test("withdrawals are computed from main and an injected open-PR state", () => {
   const withdrawn = [

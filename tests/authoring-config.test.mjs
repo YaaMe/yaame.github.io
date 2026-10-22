@@ -18,6 +18,7 @@ function fixture(context) {
     "src/lib/key-pattern.ts", "src/services/recovery/sql-text.ts", "src/services/recovery/errors.ts", "src/persistence/interactions/sql-text.ts",
     "src/models/content/post-filename.ts", "src/services/authoring/posts.ts",
     ...interactionRecordFiles, "src/models/content/comments.ts",
+    "src/selectors/interactions/comment-archive.ts", "src/services/interactions/comment-archive.ts",
   ]) {
     const target = join(cwd, path);
     mkdirSync(dirname(target), { recursive: true });

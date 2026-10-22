@@ -78,8 +78,8 @@ src/content.config.ts
 
 The comment model exports both the entry schema and the collection schema.
 Its dependencies use Zod, the key scheme, and ActivityPub configuration; none
-requires Astro or a platform alias. Plain Node comment operations import that
-same model. The consumer reaches it through the interaction comment service.
+requires Astro or a platform alias. Plain Node comment operations reach that
+model through interaction services. The consumer uses the interaction comment service.
 The collection selector and object selector are intentional forwards under
 ADR 0018's strict traversal rule.
 
@@ -93,9 +93,25 @@ Temporary imports remain during the later steps of ADR 0018's plan:
 
 - Step 16 removes the injected handler forward at
   `src/integrations/activitypub/routes/federated.ts` when framework wiring moves.
-- Step 13 redirects `scripts/promote.mjs`, `scripts/comments-store.mjs`, and
-  `scripts/promote-filter.mjs` through operation interfaces. It also replaces
-  `scripts/unpromote.mjs`'s direct persistence import of `sqlValue`.
+
+Comment commands use `src/services/interactions/{promote,tombstone,unpromote}.ts`
+for validation, selection and plans. `promote-text.ts` converts typed runs, and
+`promote-filter.ts` supplies the filter mechanics. The owner still edits
+`scripts/promote-filter.mjs`; its default remains `byFollowing` while O6 is undecided.
+The archive selector at `src/selectors/interactions/comment-archive.ts` chooses
+post or note placement from supplied snapshots. The archive write service checks
+non-empty documents with the same collection schema that Astro registers.
+
+`src/persistence/interactions/comment-rows.ts` owns column and row access.
+`comment-operation-sql.ts` builds operation statements, including unpromotion's
+quoted id. Scripts reach both through services. Optional actor-name lookup lives
+in `src/gateways/activitypub/actor-profile.ts`. These operation entries import
+under plain Node without either runtime alias.
+
+Scripts retain file writes, summaries and apply mode. `scripts/comments-store.mjs`
+keeps the shared proposal-ref reader: promotion preloads it, and tombstones read
+each document when first needed. Only main proves write-back. Unpromotion returns
+the SQL deletion request only after the archive write succeeds.
 
 ActivityPub publication and delivery now live in
 `src/services/activitypub/{publish,delivery}.ts`. Outbound calls and shared object

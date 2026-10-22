@@ -120,6 +120,12 @@ stdin. Deployment configuration and its generators, including
 `scripts/wrangler-config.mjs` and `scripts/wrangler-routes.mjs`, are outside
 this rule.
 
+Script-facing comment operations under `src/services/interactions/` must import
+under plain Node without either virtual alias. Keep their snapshot plans separate
+from services that load runtime stores. The typed-content converter keeps its own
+URL predicate until B12; archive rewriting keeps its timestamp precedence until B5.
+O6 is undecided, so the editable filter remains `scripts/promote-filter.mjs`.
+
 ## Rules that live in the data layer, not in pages
 
 - **`periodYear`** takes the year from the *filename*, not the publication
