@@ -19,15 +19,12 @@ import { join } from "node:path";
 import { createInterface } from "node:readline/promises";
 import { readFileSync } from "node:fs";
 import { posts, tags as tagsLocation } from "../src/config/data.config.generated.mjs";
-import { parsePostFilename } from "../src/services/authoring/posts.ts";
+import { preparePost, postStamp } from "../src/services/authoring/posts.ts";
+import { readTags, validTagInput, prepareTagAddition } from "../src/services/authoring/tags.ts";
 
-// Tags come from the registry in src/config/tags.ts, which is the only truth. The key
-// names are read out of the source rather than pulling in a TypeScript compiler.
-const POOL = [...readFileSync(tagsLocation.file, "utf8")
-  .matchAll(/^\s{2}(\w+):\s*"([^"]+)"/gm)].map((m) => ({ slug: m[1], label: m[2] }));
+const POOL = readTags(readFileSync(tagsLocation.file, "utf8"));
 
 const DIR = posts.gitRoot;
-const TZ = "+08:00";
 
 const args = process.argv.slice(2);
 
@@ -75,39 +72,8 @@ if (rest.length > 1) {
   console.error(`  只接受一个日期参数，收到 ${rest.length} 个：${rest.join(" ")}`);
   process.exit(2);
 }
-const spec = rest[0] ?? lastMonth();
-
-function lastMonth() {
-  const d = new Date();
-  d.setDate(1);
-  d.setMonth(d.getMonth() - 1);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-}
-
-/** Append to the registry, before `} as const;` so the structure holds. */
-function addToPool(slug, zh) {
-  const f = tagsLocation.file;
-  const src = readFileSync(f, "utf8");
-  writeFileSync(f, src.replace(/\n\} as const;/, `\n  ${slug}: "${zh}",\n} as const;`));
-}
-
-// Month and day are range-checked, not just shape-checked: the file is
-// written before anything else would notice a month 99.
-function kindOf(s) {
-  const match = parsePostFilename(s).period;
-  switch (match?.kind) {
-    case "year":
-      return match.day === undefined ? { kind: "year", tags: ["summaries", "year"] } : null;
-    case "month":
-      return match.validMonth ? { kind: "month", tags: ["summaries", "month"] } : null;
-    case "day":
-      return match.validDay ? { kind: "post", tags: [] } : null;
-  }
-
-  return null;
-}
-
-const k = kindOf(spec);
+const k = preparePost(rest[0], new Date(), title);
+const spec = k?.spec ?? rest[0];
 if (!k) {
   console.error(`  认不出 "${spec}"。可用形式：2026-year / 2026-09 / 2026-09-15`);
   process.exit(2);
@@ -119,13 +85,7 @@ if (existsSync(path)) {
   process.exit(1);
 }
 
-// Published now. A summary's identity is the period in its filename, so this
-// is metadata and nothing more.
-const n = new Date();
-const p = (x) => String(x).padStart(2, "0");
-const stamp =
-  `${n.getFullYear()}-${p(n.getMonth() + 1)}-${p(n.getDate())} ` +
-  `${p(n.getHours())}:${p(n.getMinutes())}:${p(n.getSeconds())}${TZ}`;
+const stamp = postStamp(new Date());
 
 // A summary's tags follow from its name. An essay's are chosen interactively,
 // which is what keeps a typo out of the registry.
@@ -150,8 +110,11 @@ if (!tags.length && (process.stdin.isTTY || args.includes("--pick")) && !args.in
       // The registry is still the only truth; this only saves a trip to edit it
       const slug = (await rl.question("    新标签的英文 slug: ")).trim();
       const zh = (await rl.question("    显示名（中文）: ")).trim();
-      if (/^\w+$/.test(slug) && zh) {
-        addToPool(slug, zh);
+      const addition = validTagInput(slug, zh, "interactive")
+        ? prepareTagAddition(readFileSync(tagsLocation.file, "utf8"), slug, zh, "interactive")
+        : { status: "invalid" };
+      if (addition.status === "write") {
+        writeFileSync(tagsLocation.file, addition.document);
         picked.push(slug);
         console.log(`    已写入 ${tagsLocation.file}：${slug} → ${zh}`);
       } else {
@@ -166,7 +129,7 @@ if (!tags.length && (process.stdin.isTTY || args.includes("--pick")) && !args.in
   tags = [...new Set(picked)];
 }
 
-let fm = `---\ntitle: "${title ?? spec}"\ndate: ${stamp}\n`;
+let fm = `---\ntitle: "${k.title}"\ndate: ${stamp}\n`;
 fm += tags.length
   ? `tags:\n${tags.map((t) => `  - ${t}`).join("\n")}\n`
   : `tags:\n  # 从 ${tagsLocation.file} 的常量池里选；不在池子里的会让构建失败\n`;

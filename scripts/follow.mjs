@@ -15,6 +15,7 @@
  */
 import { readFileSync, writeFileSync } from "node:fs";
 import { followIntentLocation } from "../src/config/data.config.generated.mjs";
+import { validFollowHandle, prepareFollowIntent } from "../src/services/authoring/following.ts";
 
 const FILE = followIntentLocation.file;
 // `--remove` rather than a leading `-` on the handle: make reads a leading
@@ -28,29 +29,20 @@ if (!handle) {
   process.exit(1);
 }
 
-if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(handle)) {
+if (!validFollowHandle(handle)) {
   console.error(`  不像一个 handle：${handle}`);
   process.exit(1);
 }
 
-const doc = JSON.parse(readFileSync(FILE, "utf8"));
-const had = doc.follow.includes(handle);
-
-if (remove) {
-  if (!had) {
-    console.log(`  本来就没关注 ${handle}`);
-    process.exit(0);
-  }
-  doc.follow = doc.follow.filter((h) => h !== handle);
-} else {
-  if (had) {
-    console.log(`  已经在名单里了：${handle}`);
-    process.exit(0);
-  }
-  doc.follow.push(handle);
-  doc.follow.sort();
+const result = prepareFollowIntent(readFileSync(FILE, "utf8"), handle, remove);
+if (result.status === "absent") {
+  console.log(`  本来就没关注 ${handle}`);
+  process.exit(0);
 }
-
-writeFileSync(FILE, `${JSON.stringify(doc, null, 2)}\n`);
+if (result.status === "present") {
+  console.log(`  已经在名单里了：${handle}`);
+  process.exit(0);
+}
+writeFileSync(FILE, result.document);
 console.log(`  ${remove ? "移出" : "写入"} ${FILE}：${handle}`);
 console.log("\n  提交并部署之后运行时会对账，真正发出 Follow。");

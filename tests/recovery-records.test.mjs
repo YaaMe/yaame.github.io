@@ -4,13 +4,13 @@ import assert from "node:assert/strict";
 import {
   exportRecordRecovery,
   importRecordRecovery,
-} from "../scripts/recovery-records.mjs";
+} from "../src/services/recovery/records.ts";
 import {
   InMemoryRecoveryFacility,
   RECOVERY_FORMAT_VERSION,
   exportRecovery,
   importRecovery,
-} from "../src/lib/recovery.ts";
+} from "../src/services/recovery/index.ts";
 
 const register = {
   followers: {

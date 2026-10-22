@@ -1,32 +1,11 @@
 import { chmodSync, existsSync, lstatSync, mkdtempSync, renameSync, rmSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import { database as nodeDatabase } from "../../../src/platform/node/database.ts";
-import registerData from "../../../src/config/data.config.json" with { type: "json" };
-import { registerForLayerKinds } from "../../../src/lib/recovery.ts";
-import { databaseFile } from "../../../src/platform/node/sqlite.ts";
-import { migrate } from "../../../src/services/interactions/schema.ts";
-import {
-  exportSqlRecovery, sqlSnapshotStatements, sqlInsertStatements, sqlClearStatements, sqlUserSchemaStatement, validateSqlPlan,
-} from "../../recovery-sql.mjs";
+import { databaseFile, readSqlSnapshot, restoreSqlPlan, prepareSqlPlan } from "../../../src/platform/node/recovery.ts";
+import { sqlUserSchemaStatement } from "../../../src/services/recovery/sql.ts";
+import { requireEmptyDestination } from "../../../src/services/recovery/plan.ts";
 import { runIfMain } from "../../run-cli.mjs";
 import { runRecoveryReader } from "../../recovery-plan.mjs";
-
-const register = registerForLayerKinds(registerData, ["sql"]);
-
-export function readSqlSnapshot(database, selectedRegister = register) {
-  return sqlSnapshotStatements(selectedRegister).map(({ kind, layer, sql, parameters }) => ({
-    kind,
-    layer,
-    rows: database.prepare(sql).all(...parameters),
-  }));
-}
-
-export function writeSqlPlan(database, plan, selectedRegister = register) {
-  for (const { sql, parameters } of sqlInsertStatements(selectedRegister, plan)) {
-    database.prepare(sql).run(...parameters);
-  }
-}
 
 function requireFile(path, required) {
   const stat = lstatSync(path, { throwIfNoEntry: false });
@@ -55,54 +34,25 @@ function destinationExists(path) {
   }
 }
 
-async function populate(database, plan) {
-  database.exec("BEGIN IMMEDIATE");
-  try {
-    await migrate(nodeDatabase(database));
-    for (const { sql, parameters } of sqlClearStatements(register)) database.prepare(sql).run(...parameters);
-    writeSqlPlan(database, plan);
-    database.exec("COMMIT");
-  } catch (error) {
-    database.exec("ROLLBACK");
-    throw error;
-  }
-}
-
-async function preparePlan(value) {
-  const { document, plan } = await validateSqlPlan(register, value);
-  const database = new DatabaseSync(":memory:");
-  try {
-    await populate(database, plan);
-    const restored = await exportSqlRecovery({ register, snapshot: readSqlSnapshot(database) });
-    if (JSON.stringify(restored) !== JSON.stringify(document)) {
-      throw new Error("recovery rows cannot be restored without SQLite type conversion");
-    }
-  } finally {
-    database.close();
-  }
-  return plan;
-}
-
 async function applyPlan(path, plan) {
-  if (destinationExists(path)) throw new Error("cannot import into a non-empty store");
+  requireEmptyDestination(destinationExists(path));
   const stage = mkdtempSync(join(dirname(path), ".blogu-recovery-sqlite-"));
   const stagedFile = join(stage, "database.sqlite");
   try {
     const database = new DatabaseSync(stagedFile);
     try {
-      await populate(database, plan);
+      await restoreSqlPlan(database, plan);
     } finally {
       database.close();
     }
     chmodSync(stagedFile, 0o600);
-    if (destinationExists(path)) throw new Error("cannot import into a non-empty store");
+    requireEmptyDestination(destinationExists(path));
     if (process.env.RECOVERY_TEST_KILL_AT_COMMIT === "before") process.kill(process.pid, "SIGKILL");
     renameSync(stagedFile, path);
     if (process.env.RECOVERY_TEST_KILL_AT_COMMIT === "after") process.kill(process.pid, "SIGKILL");
   } finally {
     rmSync(stage, { recursive: true, force: true });
   }
-  return { ...plan, applied: true };
 }
 
 function snapshot(path, importMode) {
@@ -125,7 +75,7 @@ function cli() {
   return runRecoveryReader({
     label: "node SQLite reader",
     snapshot: (importMode) => snapshot(path, importMode),
-    prepare: preparePlan,
+    prepare: (value) => prepareSqlPlan(value, () => new DatabaseSync(":memory:")),
     apply: (plan) => applyPlan(path, plan),
   });
 }

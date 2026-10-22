@@ -5,6 +5,7 @@ import { chmodSync, copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, 
 import { dirname, join } from "node:path";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
+import { commentOperationFiles } from "./fixtures/comment-operation-files.mjs";
 import { interactionRecordFiles } from "./fixtures/interaction-record-files.mjs";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
@@ -14,7 +15,7 @@ const workflow = readFileSync(join(root, workflowPath), "utf8");
 function fixture(t, paths) {
   const directory = mkdtempSync(join(root, ".tmp-tombstones-"));
   t.after(() => rmSync(directory, { recursive: true, force: true }));
-  for (const path of [...paths, ...interactionRecordFiles, "src/services/recovery/interaction-references.ts"]) {
+  for (const path of [...paths, ...interactionRecordFiles]) {
     const target = join(directory, path);
     mkdirSync(dirname(target), { recursive: true });
     copyFileSync(join(root, path), target);
@@ -33,7 +34,7 @@ function osFixture(paths) {
 }
 
 test("the data generator validates the register and emits resolved values", (t) => {
-  const cwd = fixture(t, ["scripts/data-config.mjs", "src/config/data.config.ts", "src/config/data.config.json", "src/lib/key-pattern.ts", "src/lib/recovery.ts", "src/config/following.json"]);
+  const cwd = fixture(t, ["scripts/data-config.mjs", "src/config/data.config.ts", "src/config/data.config.json", "src/lib/key-pattern.ts", "src/services/recovery/sql-text.ts", "src/services/recovery/errors.ts", "src/persistence/interactions/sql-text.ts", "src/config/following.json"]);
   const registerPath = join(cwd, "src/config/data.config.json");
   const register = JSON.parse(readFileSync(registerPath, "utf8"));
   register["promoted-comments"].layers[0].git = "archive/promoted comments/{posts,notes}/*.json";
@@ -64,7 +65,7 @@ test("the data generator validates the register and emits resolved values", (t) 
 });
 
 test("generated follow intent resolves from the module directory and generation is repeatable", (context) => {
-  const cwd = fixture(context, ["scripts/data-config.mjs", "src/config/data.config.ts", "src/config/data.config.json", "src/lib/key-pattern.ts", "src/lib/recovery.ts"]);
+  const cwd = fixture(context, ["scripts/data-config.mjs", "src/config/data.config.ts", "src/config/data.config.json", "src/lib/key-pattern.ts", "src/services/recovery/sql-text.ts", "src/services/recovery/errors.ts", "src/persistence/interactions/sql-text.ts"]);
   const registerPath = join(cwd, "src/config/data.config.json");
   const register = JSON.parse(readFileSync(registerPath, "utf8"));
   for (const location of ["src/config/following.json", "owner choices/following.json"]) {
@@ -97,7 +98,7 @@ test("the tombstone workflow scopes both Git operations to the relocated registe
     "src/config/data.config.ts",
     "src/config/data.config.json",
     "src/lib/key-pattern.ts",
-    "src/lib/recovery.ts",
+    "src/services/recovery/sql-text.ts", "src/services/recovery/errors.ts", "src/persistence/interactions/sql-text.ts",
     "src/config/following.json",
   ]);
   const registerPath = join(cwd, "src/config/data.config.json");
@@ -203,13 +204,14 @@ const dataCheckInputs = [
   "src/migrations/history.ts",
   "scripts/promote.mjs",
   "scripts/comments-store.mjs",
-  "scripts/comments-rows.mjs",
+  ...commentOperationFiles,
   "scripts/comments-cli.mjs",
   "scripts/promote-filter.mjs",
   "scripts/unpromote.mjs",
   "scripts/tombstone.mjs",
   "scripts/note.mjs",
   "scripts/notes-store.mjs",
+  "src/services/authoring/notes.ts",
   "scripts/newpost.mjs",
   "scripts/newtag.mjs",
   "scripts/frontmatter.mjs",
@@ -238,8 +240,13 @@ test("data-check rejects wrong configuration locations in consumers", (context) 
     ["scripts/tags.mjs", "readFileSync(tags.file,", 'readFileSync("wrong/tags.ts",'],
     ["scripts/newtag.mjs", "const FILE = tags.file", 'const FILE = "wrong/tags.ts"'],
     ["scripts/newpost.mjs", "readFileSync(tagsLocation.file,", 'readFileSync("wrong/tags.ts",'],
-    ["scripts/newpost.mjs", "const f = tagsLocation.file", 'const f = "wrong/tags.ts"'],
+    ["scripts/newpost.mjs", "writeFileSync(tagsLocation.file,", 'writeFileSync("wrong/tags.ts",'],
     ["scripts/note.mjs", "readFileSync(apConfig.file,", 'readFileSync("wrong/activitypub.ts",'],
+    ["scripts/tags.mjs", "../src/services/authoring/tags.ts", "./tag-copy.mjs"],
+    ["scripts/newtag.mjs", "../src/services/authoring/tags.ts", "./tag-copy.mjs"],
+    ["scripts/newpost.mjs", "../src/services/authoring/tags.ts", "./tag-copy.mjs"],
+    ["scripts/note.mjs", "../src/services/authoring/notes.ts", "./note-copy.mjs"],
+    ["src/services/authoring/notes.ts", "objectUrl(host, user, slug)", 'new URL("https://wrong.test")'],
     ["src/content.config.ts", "./config/data.config.generated.mjs", "./data.config.generated.mjs"],
     [workflowPath, "./src/config/data.config.generated.mjs", "./src/data.config.generated.mjs"],
     [".github/workflows/promotions.yml", "./src/config/data.config.generated.mjs", "./src/data.config.generated.mjs"],

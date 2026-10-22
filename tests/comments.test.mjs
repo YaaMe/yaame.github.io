@@ -6,7 +6,7 @@ import { transform } from "@astrojs/compiler-rs";
 import { build } from "esbuild";
 import { experimental_AstroContainer as AstroContainer } from "astro/container";
 import { parseFragment } from "parse5";
-import { promotedComment } from "../scripts/promote.mjs";
+import { promotedComment } from "../src/services/interactions/promote.ts";
 import { fileFor } from "../scripts/comments-store.mjs";
 import { promotedComments } from "../src/config/data.config.generated.mjs";
 import { commentSchema } from "../src/models/content/comments.ts";

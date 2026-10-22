@@ -1,30 +1,5 @@
-import { RecoveryError, importRecovery } from "../src/lib/recovery.ts";
-
-function requireExisting(existing) {
-  if (typeof existing !== "boolean") {
-    throw new RecoveryError("INVALID_RECOVERY_RECORDS", "recovery input existing must be a boolean");
-  }
-}
-
-export async function planRecoveryImport({ register, document, kind, facility, existing, existingReason }) {
-  requireExisting(existing);
-  if (existing) {
-    throw new RecoveryError("RECOVERY_IMPORT_FAILED", `cannot import into a non-empty store${existingReason ? `: ${existingReason}` : ""}`);
-  }
-  const writes = [];
-  const result = await importRecovery({
-    register,
-    document,
-    facilities: {
-      [kind]: {
-        async import(request) {
-          writes.push(...await facility(request));
-        },
-      },
-    },
-  });
-  return { ...result, writes };
-}
+import { RecoveryError } from "../src/services/recovery/errors.ts";
+import { requireExisting } from "../src/services/recovery/plan.ts";
 
 export async function runRecoveryAdapter({ exportFn, importFn }) {
   let text = "";
@@ -57,7 +32,12 @@ export async function runRecoveryReader({ label, snapshot, prepare, apply }) {
     let text = "";
     for await (const chunk of process.stdin) text += chunk;
     const plan = await prepare(JSON.parse(text));
-    result = modes[0] === "--apply-plan" ? await apply(plan) : plan;
+    if (modes[0] === "--apply-plan") {
+      await apply(plan);
+      result = { ...plan, applied: true };
+    } else {
+      result = plan;
+    }
   }
   process.stdout.write(`${JSON.stringify(result)}\n`);
 }

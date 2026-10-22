@@ -3,7 +3,8 @@ import assert from "node:assert/strict";
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { deleteSql, main, selectSql } from "../scripts/unpromote.mjs";
+import { deleteSql, selectSql } from "../src/services/interactions/unpromote.ts";
+import { main } from "../scripts/unpromote.mjs";
 import { comments } from "../src/config/data.config.generated.mjs";
 import { archivedComment as entry, physicalComment } from "./fixtures/interactions.mjs";
 
@@ -77,4 +78,16 @@ test("unpromote's statements carry the id as one quoted SQL string", () => {
   const where = `WHERE ${comments.quotedColumns.id} = 'o''brien'`;
   assert.equal(deleteSql("o'brien"), `DELETE FROM ${comments.table} ${where}`);
   assert.ok(selectSql("o'brien").endsWith(`\n   ${where}`));
+});
+
+test("unpromote leaves the archive intact when validation prevents its write", (t) => {
+  const dir = mkdtempSync(join(process.cwd(), ".tmp-unpromote-failed-write-"));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const path = join(dir, "comments.json");
+  const target = entry("target");
+  const invalid = entry("invalid", { id: entry("other").id });
+  const saved = `${JSON.stringify({ comments: [target, invalid] })}\n`;
+  writeFileSync(path, saved);
+  assert.throws(() => main({ id: target.id, dir, rows: [physicalComment("target")], apply: true }), /inputs do not compute/);
+  assert.equal(readFileSync(path, "utf8"), saved);
 });

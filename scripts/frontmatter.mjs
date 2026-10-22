@@ -9,89 +9,33 @@
  *
  * Only what is missing, by default: a written description is never overwritten
  * by a generated one, which is good enough to be a placeholder and no more.
- *
- * Frontmatter is handled with regular expressions rather than parsed as YAML.
- * Only the `description` and `tags` lines are touched, so everything else — a
- * +08:00 offset, a quoted title — survives exactly as written.
  */
 import { readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { posts } from "../src/config/data.config.generated.mjs";
-import { parsePostFilename } from "../src/services/authoring/posts.ts";
+import { prepareFrontmatter } from "../src/services/authoring/posts.ts";
 
 const DIR = posts.gitRoot;
-const FIELD = { desc: "description", tags: "tags" };
-
-const MAX = 30;              // description length cap, in characters
-const SENTENCE_END = /[。！？]/;
-
 const argv = new Set(process.argv.slice(2));
 const dry = argv.has("--dry-run");
 const check = argv.has("--check");
 const force = argv.has("--force");
-
-/** One sentence from the body: cut at sentence punctuation, else truncate. */
-function makeDescription(body, fallback) {
-  for (const raw of body.split("\n")) {
-    const line = raw.trim();
-    // Skip images, headings, lists, quotes, tables and rules
-    if (!line || /^([!#>|]|[-+*]\s|-{3,}|\d+\.\s)/.test(line)) continue;
-    const m = line.match(new RegExp(`^(.{4,${MAX}}?${SENTENCE_END.source})`));
-    if (m) return m[1];
-    return line.length > MAX - 2 ? line.slice(0, MAX - 2) + "…" : line;
-  }
-  return fallback;
-}
-
-/** Tags from the filename: YYYY-year is a yearly summary, YYYY-MM a monthly. */
-function inferTags(slug) {
-  const match = parsePostFilename(slug).period;
-  switch (match?.kind) {
-    case "year": return match.day === undefined ? ["summaries", "year"] : null;
-    case "month": return ["summaries", "month"];
-  }
-  return null;   // no guess for an unrecognised name; a person picks the tags
-}
-
-const has = (fm, key) => new RegExp(`^${key}:\\s*\\S`, "m").test(fm);
 
 let changed = 0, missing = 0;
 for (const name of readdirSync(DIR).filter((f) => f.endsWith(".md")).sort()) {
   const path = join(DIR, name);
   const slug = name.replace(/\.md$/, "");
   const src = readFileSync(path, "utf8");
-  const m = src.match(/^---\n([\s\S]*?)\n---\n([\s\S]*)$/);
-  if (!m) { console.warn(`  跳过 ${name}：没有 frontmatter`); continue; }
-
-  let [, fm, body] = m;
-  const before = fm;
-  const title = (fm.match(/^title:\s*"?(.*?)"?\s*$/m) || [, slug])[1];
-
-  if (force || !has(fm, FIELD.desc)) {
-    const d = makeDescription(body, title).replace(/"/g, "'");
-    const line = `${FIELD.desc}: "${d}"`;
-    fm = has(fm, FIELD.desc) || /^description:/m.test(fm)
-      ? fm.replace(/^description:.*$/m, line)
-      : `${fm}\n${line}`;
+  const result = prepareFrontmatter(src, slug, force);
+  if (result.status === "no-frontmatter") { console.warn(`  跳过 ${name}：没有 frontmatter`); continue; }
+  if (result.missingTags) {
+    missing++;
+    console.log(`  ? ${name} 缺 tags，文件名认不出类型 —— 需要人工`);
   }
-
-  if (force || !has(fm, FIELD.tags)) {
-    const t = inferTags(slug);
-    if (t) {
-      const line = `${FIELD.tags}:\n${t.map((x) => `  - ${x}`).join("\n")}`;
-      fm = /^tags:/m.test(fm)
-        ? fm.replace(/^tags:(\n(  - .*|\s*))*$/m, line)
-        : `${fm}\n${line}`;
-    } else {
-      missing++;
-      console.log(`  ? ${name} 缺 tags，文件名认不出类型 —— 需要人工`);
-    }
-  }
-
-  if (fm !== before) {
+  if (result.changed) {
     changed++;
     console.log(`  ${dry || check ? "会改" : "已改"} ${name}`);
-    if (!dry && !check) writeFileSync(path, `---\n${fm}\n---\n${body}`);
+    if (!dry && !check) writeFileSync(path, result.document);
   }
 }
 

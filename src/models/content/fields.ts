@@ -39,8 +39,7 @@ export const base = {
    * remote outbox, but it fetches `featured` when it processes the actor.
    */
   pinned: z.boolean().default(false),
-  // Filled in by scripts/frontmatter.mjs. A hand-written value is kept unless
-  // that script runs with --force.
+  // Authoring keeps a hand-written description unless the owner requests --force.
   description: z.string().optional(),
   tags,
 };

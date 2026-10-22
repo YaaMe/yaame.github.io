@@ -3,9 +3,9 @@ import assert from "node:assert/strict";
 import { DatabaseSync } from "node:sqlite";
 import {
   exportSqlRecovery, importSqlRecovery, sqlSnapshotStatements, sqlInsertStatements, sqlClearStatements, sqlUserSchemaStatement,
-} from "../scripts/recovery-sql.mjs";
-import { InMemoryRecoveryFacility, exportRecovery, importRecovery } from "../src/lib/recovery.ts";
-import { planRecoveryImport } from "../scripts/recovery-plan.mjs";
+} from "../src/services/recovery/sql.ts";
+import { InMemoryRecoveryFacility, exportRecovery, importRecovery } from "../src/services/recovery/index.ts";
+import { planRecoveryImport } from "../src/services/recovery/plan.ts";
 import { storedComment, storedReaction } from "./fixtures/interactions.mjs";
 
 const register = {

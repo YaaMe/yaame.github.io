@@ -22,8 +22,12 @@ data layer — no line changes in a redesign
   src/selectors/interactions/comment-runs.ts typed run labels and text
   src/selectors/interactions/comment-display.ts safe links and date labels
   src/selectors/interactions/comments-live.ts full-profile withdrawal view
-  src/lib/recovery.ts portable recovery contract and selection
-  scripts/recovery-records.mjs host-free JSON-record recovery adapter
+  src/selectors/interactions/comment-archive.ts archive snapshot reads and placement
+  src/services/interactions/{promote,tombstone,unpromote}.ts comment operation plans
+  src/services/interactions/promote-text.ts typed-content conversion
+  src/persistence/interactions/comment-operation-sql.ts comment operation SQL
+  src/services/recovery/ portable recovery contract, selection and plans
+  src/persistence/interactions/recovery-sql.ts recovery SQL construction
   scripts/*.mjs           the commands the Makefile runs
   Makefile                the entry point for every operation
 
@@ -39,6 +43,16 @@ the temporary login page lives in `src/pages-extra/auth/`. Auth also spans edges
 services, record persistence and a GitHub gateway; [interactions](interactions.md#the-write-entry-point)
 describes their roles. The second architectural rule in `CLAUDE.md` governs
 `src/platform/`.
+
+Under ADR 0018 and O8, each host's recovery module in `src/platform/<target>/`
+uses host-neutral rules in `src/services/recovery/`, and the host's script entry
+points call that module.
+
+Comment commands supply snapshots to interaction services and selectors, then
+execute their plans. These entries import under plain Node without a platform or
+content alias. Scripts retain file/ref handling, command output and apply mode.
+The shared proposal-ref reader keeps proposals separate from main. Promotion
+remains add-only; unpromotion writes the archive before requesting SQL deletion.
 
 ActivityPub has one runtime per process. Both entrances install the registrations
 in `src/routes/activitypub/shared.ts`; the site also installs `site.ts`, which reads
@@ -125,10 +139,26 @@ The day check retains the UTC round-trip behavior, including rejection of years
 display uses shape, creation validates dates, and frontmatter infers tags by shape.
 Publication-date fallbacks remain in `src/selectors/posts.ts`.
 
-Scripts reach this model through the plain-Node forward at
-`src/services/authoring/posts.ts`. Step 14 adds authoring use cases there.
-The post selector imports the model directly. The interactive and dedicated tag
-commands keep their different slug validation until B6.
+Authoring commands call `src/services/authoring/posts.ts` for period defaults,
+post timestamps, missing frontmatter and pin edits. The post selector imports
+the filename model directly.
+
+`src/services/authoring/tags.ts` reads the registered tag source, prepares additions
+and counts usage. Interactive creation keeps its wider slug grammar and accepts
+duplicates; the dedicated command rejects duplicates. B6 owns any unification.
+`src/services/authoring/following.ts` prepares follow-intent document edits.
+
+`src/services/authoring/notes.ts` prepares identifiers, UTC archive years, note
+entries and conversion decisions. It takes configuration source and file snapshots
+from scripts. Its publication probe uses the object-id model and
+`src/gateways/activitypub/publication-probe.ts`, with an injected request function.
+Explicit-path conversion retains its existing behavior pending B4. Post timestamps
+retain local calendar fields with a fixed `+08:00` suffix pending B7.
+
+These services import under plain Node without virtual aliases. Scripts retain
+filesystem access, process execution, prompts, dry-run handling and Chinese output.
+`scripts/notes-store.mjs` reads and writes the archive files; its service prepares
+the documents.
 
 ## What belongs in the data layer
 

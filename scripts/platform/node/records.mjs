@@ -12,9 +12,10 @@ import {
 } from "node:fs";
 import { dirname, join } from "node:path";
 import registerData from "../../../src/config/data.config.json" with { type: "json" };
-import { recordFile } from "../../../src/platform/node/records.ts";
-import { recordLayerDescriptors } from "../../recovery-records.mjs";
-import { registerForLayerKinds } from "../../../src/lib/recovery.ts";
+import { recordFile, nodeRecordDescriptors, validateRecordPlan } from "../../../src/platform/node/recovery-records.ts";
+import { restoreRecordRecovery } from "../../../src/services/recovery/records.ts";
+import { requireEmptyDestination } from "../../../src/services/recovery/plan.ts";
+import { registerForLayerKinds } from "../../../src/services/recovery/index.ts";
 import { runRecoveryReader } from "../../recovery-plan.mjs";
 import { runIfMain } from "../../run-cli.mjs";
 
@@ -47,7 +48,7 @@ function destinationConflict(path) {
 function readSnapshot() {
   const register = registerForLayerKinds(registerData, ["records"]);
   existingDirectory(dataDir, "AP_DATA_DIR");
-  const descriptors = recordLayerDescriptors(register, { allowRecordKeyPatterns: false });
+  const descriptors = nodeRecordDescriptors(register);
   const records = descriptors.map(({ kind, layer, key }) => {
     const path = recordFile(dataDir, key);
     if (!existsSync(path)) return { kind, layer, key, present: false };
@@ -65,29 +66,13 @@ function snapshot(importMode) {
     : { records: readSnapshot(), existing: destinationConflict(dataDir) !== null };
 }
 
-function validatePlan(plan) {
-  if (!plan || typeof plan !== "object" || !Array.isArray(plan.writes)) {
-    fail("recovery write plan is malformed");
-  }
-  const keys = new Set();
-  for (const [index, write] of plan.writes.entries()) {
-    if (!write || write.action !== "write" || typeof write.key !== "string" || !Object.hasOwn(write, "value")) {
-      fail("recovery write plan item " + index + " is not a keyed write");
-    }
-    const path = recordFile(dataDir, write.key);
-    if (keys.has(path)) fail("recovery write plan contains the same physical file twice: " + path);
-    keys.add(path);
-  }
-  return plan;
-}
-
-function applyPlan(plan) {
+function replaceRecords(writes) {
   const parent = requireParent(dataDir);
   const conflict = destinationConflict(dataDir);
-  if (conflict) fail(`cannot import into a non-empty store: ${conflict}`);
+  requireEmptyDestination(Boolean(conflict), conflict);
   const stage = mkdtempSync(join(parent, ".blogu-recovery-stage-"));
   try {
-    for (const write of plan.writes) {
+    for (const write of writes) {
       writeFileSync(recordFile(stage, write.key), JSON.stringify(write.value));
     }
     if (process.env.RECOVERY_TEST_KILL_AT_COMMIT === "before") process.kill(process.pid, "SIGKILL");
@@ -97,11 +82,10 @@ function applyPlan(plan) {
     if (existsSync(stage)) rmSync(stage, { recursive: true, force: true });
     throw error;
   }
-  return { ...plan, applied: true };
 }
 
 function cli() {
-  return runRecoveryReader({ label: "node records reader", snapshot, prepare: validatePlan, apply: applyPlan });
+  return runRecoveryReader({ label: "node records reader", snapshot, prepare: (plan) => validateRecordPlan(dataDir, plan), apply: (plan) => restoreRecordRecovery(plan, { replace: replaceRecords }) });
 }
 
 await runIfMain(import.meta.url, cli);

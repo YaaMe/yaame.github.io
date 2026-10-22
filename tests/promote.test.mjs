@@ -5,12 +5,30 @@ import { join } from "node:path";
 import {
   actorName,
   computeStates,
-  main,
   promotedComment,
   validatePromotedComment,
-} from "../scripts/promote.mjs";
+} from "../src/services/interactions/promote.ts";
+import { main } from "../scripts/promote.mjs";
 import { byFollowing } from "../scripts/promote-filter.mjs";
+import { toContent } from "../src/services/interactions/promote-text.ts";
+import { commentSchema } from "../src/models/content/comments.ts";
+import { httpUrl } from "../src/models/interactions/records.ts";
 import { archivedComment as comment, physicalComment } from "./fixtures/interactions.mjs";
+
+test("conversion keeps its link predicate separate from later model validation", () => {
+  for (const [href, accepted] of [
+    ["https://example.test/reference", true],
+    ["http:x", false],
+    ["https:/x", false],
+  ]) {
+    const content = toContent(`<p><a href=" ${href} ">reference</a></p>`);
+    assert.deepEqual(content, [[{ type: "link", href, label: "reference" }]]);
+    assert.equal(httpUrl.safeParse(href).success, accepted, href);
+    assert.equal(commentSchema.safeParse(comment("link-policy", { content })).success, accepted, href);
+    assert.equal(validatePromotedComment(comment("link-policy", { content })).ok, accepted, href);
+  }
+  assert.deepEqual(toContent('<a href="javascript:alert(1)">reference</a>'), [[{ type: "text", text: "reference" }]]);
+});
 
 test("actor names use an HTTP(S) URL without following redirects", async (t) => {
   const requests = [];
@@ -80,6 +98,7 @@ test("promotion computes pending, proposed and written-back states", () => {
   );
   assert.equal(result.pending.length, 1);
   assert.equal(result.writes.length, 1);
+  assert.deepEqual(new Set(result.writes[0].after.comments.map(({ id }) => id)), new Set(selected.map(({ id }) => id)));
 });
 
 test("promotion regenerates an open proposal when its entry is no longer selected", async () => {

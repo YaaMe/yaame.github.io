@@ -15,8 +15,8 @@ import {
 } from "node:fs";
 import { dirname, join } from "node:path";
 import { notes, promotedComments } from "../src/config/data.config.generated.mjs";
-import { commentSchema } from "../src/models/content/comments.ts";
-import { contentIdentifier } from "../src/models/interactions/records.ts";
+import { archivePath, entryFor, postArchivePath as postPath } from "../src/selectors/interactions/comment-archive.ts";
+import { archiveWrite } from "../src/services/interactions/comment-archive.ts";
 
 export const DIR = promotedComments.gitRoot;
 const NOTES = notes.gitRoot;
@@ -63,10 +63,6 @@ export function readRefDocuments(ref, dir = DIR) {
     .filter(({ document }) => document !== undefined);
 }
 
-export function entryFor(document, id) {
-  return document?.comments?.find((entry) => entry.id === id);
-}
-
 /**
  * Archive entries as a git ref holds them; each document is read from git once.
  * With `preload`, every archive document is read now, so `documents()` lists
@@ -82,15 +78,7 @@ export function refEntries(ref, { preload = false } = {}) {
   return entry;
 }
 
-export function locate(documents, id) {
-  for (const { path, document } of documents) {
-    const index = document?.comments?.findIndex((entry) => entry.id === id) ?? -1;
-    if (index >= 0) return { path, document, index };
-  }
-  return undefined;
-}
-
-function noteYear(id) {
+function* noteDocuments() {
   let filesInNotes;
   try {
     filesInNotes = readdirSync(NOTES);
@@ -100,28 +88,23 @@ function noteYear(id) {
   for (const name of filesInNotes) {
     if (!name.endsWith(".json")) continue;
     const document = JSON.parse(readFileSync(join(NOTES, name), "utf8"));
-    if (document.notes.some((note) => note.id === id)) return name.slice(0, -5);
+    yield { name, document };
   }
   return null;
 }
 
 export function fileFor(root) {
-  if (!contentIdentifier.safeParse(root).success) return null;
-  const year = noteYear(root);
-  return year === null
-    ? postArchivePath(root)
-    : join(DIR, "notes", `${year}.json`);
+  const path = archivePath(root, noteDocuments());
+  return path === null ? null : join(DIR, ...path);
 }
 
 export function postArchivePath(slug) {
-  contentIdentifier.parse(slug);
-  return join(DIR, "posts", `${slug}.json`);
+  return join(DIR, ...postPath(slug));
 }
 
 export function writeDocument(path, document) {
-  for (const entry of document.comments ?? []) commentSchema.parse(entry);
-  if ((document.comments ?? []).length === 0) {
-    // An empty file describes a conversation that is not there.
+  const plan = archiveWrite(document);
+  if (plan.remove) {
     rmSync(path, { force: true });
     return;
   }

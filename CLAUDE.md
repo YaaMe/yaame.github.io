@@ -41,15 +41,15 @@ path, with only loaders and registration. Content persistence uses `virtual:astr
 the site binds it to `src/astro.binding.ts`, and the consumer to
 `worker/astro.stub.ts`. The stub throws on a read or render, while imports succeed.
 Posts, notes and promoted-comment selectors reach content through persistence.
-`src/lib/` holds neutral logic. Its remaining recovery imports of models and a
-service close in ADR 0018's step 12.
+`src/lib/` holds neutral logic.
 
 Post filename grammar belongs to `src/models/content/post-filename.ts`; its
 matches and calendar facts leave acceptance, tags and fallbacks to each caller.
-The post selector uses the model directly. Scripts reach the parser through
-`src/services/authoring/posts.ts`, which must import under
-plain Node without virtual aliases. Step 14 moves their authoring decisions
-behind that interface, preserving the commands' different acceptance rules.
+The post selector uses the model directly. Authoring commands reach services in
+`src/services/authoring/`, which must import under plain Node without virtual
+aliases. Keep their acceptance modes separate: post creation checks calendar
+validity, frontmatter infers tags by shape, and interactive tag creation has
+wider slug and duplicate rules than the dedicated command.
 
 `calendarDate()` in `src/models/content/fields.ts` owns the site-timezone calendar
 split used by post stamps and the notes selector. Note archive years still come
@@ -109,6 +109,10 @@ different schedule.
 target, because Wrangler's own alias table does not accept an extensionless
 path.
 
+Under ADR 0018 and O8, each host's recovery module in `src/platform/<target>/`
+uses host-neutral rules in `src/services/recovery/`, and the host's script entry
+points call that module.
+
 Scripts follow the same boundary for runtime data operations. Host-specific
 script work lives in bash entry points under `scripts/platform/<target>/`; the
 Makefile and CI choose the target from `DEPLOY_TARGET`. The JavaScript logic
@@ -116,6 +120,12 @@ those entry points call is host-free and receives its data through files or
 stdin. Deployment configuration and its generators, including
 `scripts/wrangler-config.mjs` and `scripts/wrangler-routes.mjs`, are outside
 this rule.
+
+Script-facing comment operations under `src/services/interactions/` must import
+under plain Node without either virtual alias. Keep their snapshot plans separate
+from services that load runtime stores. The typed-content converter keeps its own
+URL predicate until B12; archive rewriting keeps its timestamp precedence until B5.
+O6 is undecided, so the editable filter remains `scripts/promote-filter.mjs`.
 
 ## Rules that live in the data layer, not in pages
 

@@ -9,6 +9,7 @@ import { main as tombstoneMain } from "../scripts/tombstone.mjs";
 import { main as unpromoteMain } from "../scripts/unpromote.mjs";
 import { byFollowing } from "../scripts/promote-filter.mjs";
 import { storedComment } from "./fixtures/interactions.mjs";
+import { commentOperationFiles } from "./fixtures/comment-operation-files.mjs";
 import { interactionRecordFiles } from "./fixtures/interaction-record-files.mjs";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
@@ -25,9 +26,9 @@ function fixture(t) {
   const cwd = mkdtempSync(join(root, ".tmp-comments-cli-"));
   t.after(() => rmSync(cwd, { recursive: true, force: true }));
   for (const path of [
-    "scripts/promote.mjs", "scripts/promote-filter.mjs", "scripts/promote-text.mjs",
+    "scripts/promote.mjs", "scripts/promote-filter.mjs",
     "scripts/tombstone.mjs", "scripts/unpromote.mjs", "scripts/comments-store.mjs",
-    "scripts/comments-rows.mjs",
+    ...commentOperationFiles,
     "scripts/comments-cli.mjs", "src/models/content/comments.ts", "src/config/data.config.generated.mjs",
     ...interactionRecordFiles,
     "src/persistence/interactions/sql-text.ts",
@@ -153,4 +154,28 @@ test("JSON commands load their schema dependencies and accept valid input", (t) 
   assert.equal(result.archive.present, false);
   assert.equal(result.deleteId, undefined);
   assert.equal(existsSync(archive), false);
+});
+
+test("the editable filter keeps every combinator available for its default export", (t) => {
+  const { cwd } = fixture(t);
+  const path = join(cwd, "scripts/promote-filter.mjs");
+  const source = readFileSync(path, "utf8");
+  const alice = { author: { source: "activitypub", identifier: "https://social.test/users/alice" } };
+  const bob = { author: { source: "activitypub", identifier: "https://social.test/users/bob" } };
+  for (const [selection, expected] of [
+    ['byAuthor(["https://social.test/users/alice"])', [alice]],
+    ['wholeThread((comment) => comment.author.identifier.endsWith("alice"))', [alice, bob]],
+    ["nothing", []],
+    ["byFollowing()", [alice]],
+  ]) {
+    const edited = source.replace("export default byFollowing();", `export default ${selection};`);
+    assert.ok(source.includes("export default byFollowing();"));
+    writeFileSync(path, edited);
+    const result = spawnSync(process.execPath, ["--experimental-strip-types", "--input-type=module", "--eval", `
+      import filter from "./scripts/promote-filter.mjs";
+      console.log(JSON.stringify(filter(${JSON.stringify([alice, bob])})));
+    `], { cwd, encoding: "utf8" });
+    assert.equal(result.status, 0, result.stderr);
+    assert.deepEqual(JSON.parse(result.stdout), expected);
+  }
 });

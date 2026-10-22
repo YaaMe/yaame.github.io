@@ -10,6 +10,7 @@
  */
 import { createInterface } from "node:readline/promises";
 import { spawnSync } from "node:child_process";
+import { lastMonth } from "../src/services/authoring/posts.ts";
 
 if (!process.stdin.isTTY) {
   console.error("  make new 需要交互式终端。非交互场景用 make newpost / make newtag");
@@ -43,13 +44,10 @@ console.log("    q. 退出");
 const what = await ask("  选: ");
 
 if (what === "1") {
-  const d = new Date();
-  d.setDate(1);
-  d.setMonth(d.getMonth() - 1);
-  const lastMonth = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+  const previousMonth = lastMonth(new Date());
 
   console.log(`\n  时段：2026-year 年结 / 2026-09 月结 / 2026-09-15 单篇`);
-  const spec = (await ask(`  时段（回车=${lastMonth}，q 退出）: `)) || lastMonth;
+  const spec = (await ask(`  时段（回车=${previousMonth}，q 退出）: `)) || previousMonth;
   const title = await ask("  标题（回车=同时段）: ");
   run("newpost.mjs", title ? [spec, "--title", title] : [spec]);
 } else if (what === "2") {

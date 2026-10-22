@@ -3,9 +3,12 @@
  * module owns the document shape and the register's selection rule.
  */
 
-import { validateInteractionRows } from "../models/interactions/records.ts";
-import { validateInteractionReferences } from "../services/recovery/interaction-references.ts";
-import { recordKeyMatches } from "./key-pattern.ts";
+import { validateInteractionRows } from "../../models/interactions/records.ts";
+import { validateInteractionReferences } from "./interaction-references.ts";
+import { recordKeyMatches } from "../../lib/key-pattern.ts";
+
+import { RecoveryError } from "./errors.ts";
+export { RecoveryError } from "./errors.ts";
 
 export const RECOVERY_FORMAT = "blogu-recovery" as const;
 export const RECOVERY_FORMAT_VERSION = 4 as const;
@@ -63,18 +66,7 @@ export interface RecoveryFacility {
   import(request: RecoveryImportRequest): void | Promise<void>;
 }
 
-export type RecoveryFacilities = Partial<Record<LayerKind, RecoveryFacility>>;
-
-export class RecoveryError extends Error {
-  code: string;
-
-  constructor(code: string, message: string, properties: Record<string, unknown> = {}) {
-    super(message);
-    this.name = "RecoveryError";
-    this.code = code;
-    Object.assign(this, properties);
-  }
-}
+export type RecoveryFacilities<Operation extends keyof RecoveryFacility = keyof RecoveryFacility> = Partial<Record<LayerKind, Pick<RecoveryFacility, Operation>>>;
 
 export function layerKind(layer: RecoveryLayer): LayerKind | null {
   if (!layer || typeof layer !== "object") return null;
@@ -125,13 +117,6 @@ function jsonScalar(value: unknown): boolean {
 
 function sameKeys(actual: string[], expected: string[]): boolean {
   return actual.length === expected.length && expected.every((key) => actual.includes(key));
-}
-
-export function quoteSqlIdentifier(value: string): string {
-  if (typeof value !== "string" || !value || value.includes("\u0000")) {
-    throw new RecoveryError("INVALID_RECOVERY_REGISTER", "SQL identifiers must be non-empty strings without NUL");
-  }
-  return `"${value.replaceAll('"', '""')}"`;
 }
 
 function validateSqlRecords(layer: RecoveryLayer, records: unknown, label: string): unknown[] {
@@ -248,7 +233,7 @@ export async function exportRecovery({
   facilities = {},
 }: {
   register: RecoveryRegister;
-  facilities: RecoveryFacilities;
+  facilities: RecoveryFacilities<"export">;
 }): Promise<RecoveryDocument> {
   const selection = selectRecovery(register);
   const entries: RecoveryDocument["entries"] = {};
@@ -361,7 +346,7 @@ export async function importRecovery({
 }: {
   document: unknown;
   register: RecoveryRegister;
-  facilities: RecoveryFacilities;
+  facilities: RecoveryFacilities<"import">;
 }): Promise<{ imported: string[] }> {
   assertDocumentShape(document);
   const selection = selectRecovery(register);
@@ -378,7 +363,7 @@ export async function importRecovery({
     throw new RecoveryError("INVALID_RECOVERY_DOCUMENT", "recovery exclusions or git base do not match the register");
   }
 
-  const work: Array<{ request: RecoveryImportRequest; facility: RecoveryFacility }> = [];
+  const work: Array<{ request: RecoveryImportRequest; facility: Pick<RecoveryFacility, "import"> }> = [];
   const failures: Array<{ kind: string; layer: number; reason: string }> = [];
   for (const { kind, entry } of selection.keep) {
     const supplied = document.entries[kind];

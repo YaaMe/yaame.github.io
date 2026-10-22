@@ -4,21 +4,14 @@ import { spawn, spawnSync } from "node:child_process";
 import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { interactionRecordFiles } from "./fixtures/interaction-record-files.mjs";
+import { authoringFiles } from "./fixtures/authoring-files.mjs";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
 
 function fixture(context) {
   const cwd = mkdtempSync(join(root, ".tmp-authoring-config-"));
   context.after(() => rmSync(cwd, { recursive: true, force: true }));
-  for (const path of [
-    "scripts/data-config.mjs", "scripts/tags.mjs", "scripts/newtag.mjs", "scripts/newpost.mjs", "scripts/frontmatter.mjs",
-    "scripts/note.mjs", "scripts/notes-store.mjs", "scripts/comments-store.mjs",
-    "src/config/data.config.ts", "src/config/data.config.json", "src/config/following.json",
-    "src/lib/key-pattern.ts", "src/lib/recovery.ts",
-    "src/models/content/post-filename.ts", "src/services/authoring/posts.ts",
-    ...interactionRecordFiles, "src/services/recovery/interaction-references.ts", "src/models/content/comments.ts",
-  ]) {
+  for (const path of authoringFiles) {
     const target = join(cwd, path);
     mkdirSync(dirname(target), { recursive: true });
     copyFileSync(join(root, path), target);
