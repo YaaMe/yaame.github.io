@@ -7,7 +7,7 @@ rewrite it, and the data does not change.**
 
 ```
 data layer — no line changes in a redesign
-  src/content/            markdown. Data only
+  src/content/            Markdown and JSON. Data only
   src/content.config.ts   collection registration
   src/models/content/    field definitions and tag validation
   src/selectors/content/collections.ts  collection schema interface
@@ -62,10 +62,14 @@ content. The consumer graph contains no content loader. The HTTP handler in
 The object-id model in `src/models/activitypub/object-id.ts` uses the neutral
 `src/lib/path-template.ts` codec. `src/selectors/activitypub/objects.ts` exposes
 the scheme and constructors under ADR 0018's strict traversal rule (O1).
-Configuration uses the narrower `object-id.ts` selector so it does not load Fedify
+`astro.config.mjs` uses the narrower `object-id.ts` selector so it does not load Fedify
 constructors (O2). The integration maps `{identifier}` to Astro's `[user]` and
 `{slug}` to `[slug]`. Constructors receive content URLs from the post/note selectors;
 they import under plain Node without a platform or content alias.
+
+The ActivityPub and auth integration factories and dynamic-route manifest hook
+live in `astro.config.mjs`. Features control which routes it injects. The manifest
+uses Astro's resolved route table, including the framework's island routes.
 
 `src/params/activitypub-paging.ts` owns AP cursor decoding, page size and the first
 cursor. Dispatchers combine it with `src/lib/page.ts`, which takes an explicit
@@ -90,7 +94,8 @@ They import result types through selectors, never models or the binding.
 They never import `astro:content`, including types. Configuration and neutral
 `src/lib/` helpers remain available across the tree. See [ADR 0018](decisions/0018-src-is-layered-by-role.md).
 
-The content selector interfaces under `src/selectors/`:
+The selector export inventory below covers every module under `src/selectors/`,
+including result types and forwards. Paths are relative to that directory.
 
 | Module | Export | |
 |---|---|---|
@@ -103,17 +108,41 @@ The content selector interfaces under `src/selectors/`:
 | | `komorebi()` / `novel()` / `chapterCount()` | the novel |
 | | `content(entry)` | rendering |
 | | `Post` / `Chapter` | result types for posts and novel entries |
+| | `tagHref()` / `pageHref()` | tag and pagination URLs |
+| | `postDisplay()` / `postList()` / `postPage()` | post rows, pagination and rendered post data |
+| | `homePage()` / `tagArchive()` / `tagPage()` / `chapterPage()` | feature page data |
 | `notes.ts` | `allNotes()` / `noteYears()` | notes, newest first, and their archive years |
 | | `noteHref(note)` | the note's URL |
 | | `noteHtml(note)` | the note's markup |
 | | `Note` | note result type |
+| | `noteYearHref()` / `notesForYear()` | archive URL and membership |
+| | `noteDisplay()` / `noteYearPage()` / `latestNotesPage()` | note rows and page data |
+| `feed.ts` | `rssFeed()` | RSS metadata and items |
+| `site.ts` | `siteShell()` / `notFoundPage()` | shell links, footer and not-found data |
+| `auth/login.ts` | `loginPage()` / `LoginPageData` | temporary login display, pending B11/O14 |
+| `content/collections.ts` | `commentCollectionSchema` / `postCollectionSchema` / `noteCollectionSchema` / `komorebiCollectionSchema` | model schemas exposed for framework registration; intentional O1 forward |
 | `interactions/promoted.ts` | `commentsFor(slug, withdrawn?)` | the promoted comments under one post or note |
 | | `handle(author)` | the handle derived from an ActivityPub identity's actor URL |
 | | `Comment` | promoted comment result type |
 | `interactions/comment-view.ts` | `visibleComments()` / `CommentLike` | withdrawal and fixed-point tombstone visibility keyed by comment id |
 | `interactions/comment-runs.ts` | `runLabel()` / `renderedText()` / `CommentRun` | typed comment runs, prepared for display |
-| `interactions/comment-display.ts` | `safeHref()` / `stamp()` | validated comment links and existing date labels |
-| `interactions/comments-live.ts` | `liveCommentsFor(slug)` / `liveCommentsForMany(slugs)` | the full profile's current withdrawal view |
+| `interactions/comment-display.ts` | `safeHref()` / `stamp()` / `commentDisplay()` | validated links, dates and complete comment display data |
+| `interactions/comments-live.ts` | `liveCommentsFor(slug)` / `liveCommentsForMany(slugs)` / `liveNoteCommentsForYear(year)` | the full profile's current withdrawal view and note-year projection |
+| `interactions/comment-archive.ts` | `entryFor()` / `locate()` / `archivePath()` / `postArchivePath()` | reads and paths from supplied archive snapshots |
+| | `ArchivedComment` / `ArchiveDocument` / `ArchiveSnapshot` / `ArchiveWrite` / `NoteSnapshot` | archive operation input and result types |
+| `interactions/comments.ts` | `rootOf()` / `thread()` / `withdrawn()` / `withdrawnMany()` / `replyCounts()` / `replies()` / `Comment` | stored comment reads and parent interpretation |
+| `interactions/reactions.ts` | `counts()` | reaction counts by content identifier |
+| `interactions/followers.ts` | `all()` / `FederatedFollower` | federated follower rows |
+| `interactions/counts.ts` | `interactionCounts()` | combined reply, like and share tallies |
+| `activitypub/actor.ts` | `actorData()` / `keyPairs()` / `actorKeys()` | actor data and gateway key access |
+| `activitypub/delivery.ts` | `deliveredTargets()` | stored delivery marks |
+| `activitypub/followers.ts` | `allFollowers()` | full follower list through the interaction selector |
+| `activitypub/following.ts` | `readFollowing()` | accepted following record |
+| `activitypub/object-id.ts` | `OBJECT_PATH_TEMPLATE` | template-only forward for configuration-time imports |
+| `activitypub/objects.ts` | `OBJECT_PATH_TEMPLATE` / `objectUrl()` / `contentIdentifierOf()` | scheme forwarded through the intentional O1 interface |
+| | `note()` / `create()` / `Item` / `Tally` | protocol constructors and their value types |
+| | `resolveActor()` / `resolveObject()` / `embeddedObject()` | protocol resolution through gateways |
+| `activitypub/outbox.ts` | `timeline()` / `publishedItems()` / `pinnedItems()` / `pinnedCount()` | content projections for federation |
 
 These interfaces preserve their output contracts across a redesign. New display
 projections wrap them: `posts.ts` prepares home year groups, post and chapter views,
@@ -128,6 +157,15 @@ their paths.
 `interactions/comments.ts` retains SQL thread, withdrawal
 and reply reads; its `Comment` type describes a stored row. The promoted reader
 has a separate module and result type so static views do not load the SQL graph.
+
+The step 17 audit found no direct selector writes or imports of services, and no
+service imports of entrance schemas or routes. `src/lib/` contains neutral encoding,
+key-pattern, page-window and path-template helpers. This is a source inspection,
+not a CI gate or proof of complete read purity.
+See the implementation record for [the remaining B13 read-path effect](implementation/0018-relayering.md#read-path-status-b13).
+
+See the implementation record for [GET-trigger policy under O15](implementation/0018-relayering.md#get-triggers-o15).
+It also records the audit's limits, [retention and fingerprint policies](implementation/0018-relayering.md#retention-and-fingerprints), and validation.
 
 The interaction key scheme lives in `src/models/interactions/key-scheme.ts`.
 It owns the namespace, source names and input normalisation. Federated comment

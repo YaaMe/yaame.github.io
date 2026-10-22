@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { parsePostFilename } from "../src/models/content/post-filename.ts";
-import { parsePostFilename as parseAuthoringFilename } from "../src/services/authoring/posts.ts";
 
 test("filename prefixes are independent of complete period matches", () => {
   for (const [filename, yearPrefix] of [
@@ -42,11 +41,4 @@ test("period matches expose calendar facts without rejecting filename shapes", (
       period: { year, kind, month, day, validMonth, validDay },
     }, filename);
   }
-});
-
-test("the authoring forward imports under plain Node and exposes the parser", () => {
-  assert.deepEqual(parseAuthoringFilename("2025-99"), {
-    yearPrefix: "2025",
-    period: { year: "2025", kind: "month", month: "99", day: undefined, validMonth: false, validDay: false },
-  });
 });

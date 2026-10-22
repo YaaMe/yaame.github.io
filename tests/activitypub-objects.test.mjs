@@ -5,7 +5,7 @@ import { parsePrerenderExport } from "../node_modules/astro/dist/core/routing/pr
 import { Note } from "@fedify/fedify/vocab";
 import * as scheme from "../src/models/activitypub/object-id.ts";
 import { AP } from "../src/config/activitypub.ts";
-import activitypub from "../src/integrations/activitypub/index.ts";
+import { activitypub } from "../astro.config.mjs";
 import { note, create } from "../src/selectors/activitypub/objects.ts";
 import { page } from "../src/lib/page.ts";
 import { matchUrl } from "../src/lib/path-template.ts";
@@ -50,7 +50,7 @@ test("neutral page windowing uses the supplied size and offset", () => {
   assert.deepEqual(page(items, 8, 2), { items: [], next: null });
 });
 
-test("Astro recognizes the temporary route forward as an on-demand entrance", () => {
+test("Astro recognizes the injected handler as an on-demand entrance", () => {
   const routes = [];
   activitypub().hooks["astro:config:setup"]({ injectRoute: (route) => routes.push(route), logger: { info() {} } });
   for (const { entrypoint } of routes) {

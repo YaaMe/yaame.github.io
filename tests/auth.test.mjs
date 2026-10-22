@@ -8,7 +8,7 @@ import { readSessionCookie } from "../src/params/auth.ts";
 import { safeReturn } from "../src/services/auth/return.ts";
 import { AUTH } from "../src/config/auth.ts";
 import { roleOf } from "../src/services/auth/roles.ts";
-import auth from "../src/integrations/auth/index.ts";
+import { auth } from "../astro.config.mjs";
 import {
   clearSessionCookie,
   clearStateCookie,

@@ -1,5 +1,4 @@
 import { parsePostFilename } from "../../models/content/post-filename.ts";
-export { parsePostFilename };
 
 export function lastMonth(now: Date) {
   const d = new Date(now);

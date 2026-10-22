@@ -1,11 +1,97 @@
 // @ts-check
+import { writeFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { defineConfig } from "astro/config";
 import cloudflare from "@astrojs/cloudflare";
 import node from "@astrojs/node";
-import { features, site } from "./src/config/site.config";
-import activitypub from "./src/integrations/activitypub";
-import auth from "./src/integrations/auth";
-import dynamicRoutes from "./src/integrations/dynamic-routes";
+import { features, site } from "./src/config/site.config.ts";
+import { OBJECT_PATH_TEMPLATE } from "./src/selectors/activitypub/object-id.ts";
+import { GITHUB_CALLBACK_PATH } from "./src/schemas/auth-urls.ts";
+
+const objectPath = OBJECT_PATH_TEMPLATE.replace("{identifier}", "[user]").replace("{slug}", "[slug]");
+
+// Every Fedify dispatcher needs a matching route: static assets answer first,
+// so an unmatched path returns 404 without reaching the Worker. A missing route
+// is silent — the actor advertises the endpoint and the endpoint 404s.
+const PATHS = [
+  "/.well-known/webfinger",
+  "/.well-known/nodeinfo",
+  "/nodeinfo/[version]",
+  "/users/[user]",
+  "/users/[user]/inbox",
+  "/users/[user]/featured",
+  "/users/[user]/followers",
+  "/users/[user]/following",
+  "/users/[user]/outbox",
+  objectPath,
+  `${objectPath}/replies`,
+  "/inbox",
+];
+
+const ROUTES = [
+  { pattern: "/login", file: "./src/pages-extra/auth/login.astro" },
+  { pattern: "/auth/github", file: "./src/routes/auth/github.ts" },
+  { pattern: GITHUB_CALLBACK_PATH, file: "./src/routes/auth/callback.ts" },
+  { pattern: "/auth/logout", file: "./src/routes/auth/logout.ts" },
+];
+
+// Astro's directory scan skips dot-prefixed names, so WebFinger needs injection.
+/** @returns {import("astro").AstroIntegration} */
+export function activitypub() {
+  return {
+    name: "activitypub",
+    hooks: {
+      "astro:config:setup": ({ injectRoute, logger }) => {
+        const entrypoint = new URL("./src/routes/activitypub/federated.ts", import.meta.url).pathname;
+        for (const pattern of PATHS) injectRoute({ pattern, entrypoint });
+        logger.info(`${PATHS.length} federated routes injected`);
+      },
+    },
+  };
+}
+
+/** @returns {import("astro").AstroIntegration} */
+export function auth() {
+  return {
+    name: "auth",
+    hooks: {
+      "astro:config:setup": ({ injectRoute, logger }) => {
+        for (const { pattern, file } of ROUTES) {
+          injectRoute({
+            pattern,
+            entrypoint: new URL(file, import.meta.url).pathname,
+          });
+        }
+        logger.info(`${ROUTES.length} auth routes injected`);
+      },
+    },
+  };
+}
+
+// The link checker needs Astro's resolved routes, including its own island routes.
+// Routes resolve before the build; the output directory is known only afterward.
+// A missing manifest means every route is prerendered.
+/** @returns {import("astro").AstroIntegration} */
+export function dynamicRoutes() {
+  /** @type {string[]} */
+  let dynamic = [];
+  return {
+    name: "dynamic-routes",
+    hooks: {
+      "astro:routes:resolved": ({ routes }) => {
+        dynamic = routes.filter((r) => !r.isPrerendered).map((r) => r.patternRegex.source);
+      },
+      "astro:build:done": ({ dir, logger }) => {
+        if (dynamic.length === 0) return;
+        writeFileSync(
+          fileURLToPath(new URL("dynamic-routes.json", dir)),
+          `${JSON.stringify(dynamic, null, 2)}\n`,
+        );
+        logger.info(`${dynamic.length} dynamic routes recorded`);
+      },
+    },
+  };
+}
 
 // Chosen before the build, not branched on at runtime: the other target's
 // implementation never enters the module graph, so its host-only imports never

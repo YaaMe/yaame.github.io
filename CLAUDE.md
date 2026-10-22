@@ -25,7 +25,7 @@ neither personal identity nor live comments. `Base.astro` may compose
 
 ```
 data layer — untouched by a redesign
-  src/content/            markdown
+  src/content/            Markdown and JSON
   src/content.config.ts   collection registration
   src/models/content/    field definitions, tag validation
   src/persistence/content/  collection reads and Astro renders
@@ -126,10 +126,11 @@ uses host-neutral rules in `src/services/recovery/`, and the host's script entry
 points call that module.
 
 Scripts follow the same boundary for runtime data operations. Host-specific
-script work lives in bash entry points under `scripts/platform/<target>/`; the
-Makefile and CI choose the target from `DEPLOY_TARGET`. The JavaScript logic
-those entry points call is host-free and receives its data through files or
-stdin. Deployment configuration and its generators, including
+script work enters through bash entry points under `scripts/platform/<target>/`.
+Makefile and CI choose the target from `DEPLOY_TARGET`. Host-specific readers
+open connections and handle files or subprocesses.
+The application logic they call is host-free and receives supplied snapshots and
+execution facilities. Deployment configuration and its generators, including
 `scripts/wrangler-config.mjs` and `scripts/wrangler-routes.mjs`, are outside
 this rule.
 

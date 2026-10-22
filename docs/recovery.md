@@ -15,6 +15,9 @@ a non-empty destination and validates the complete document before asking the
 supplied `facility(request)` function to build logical writes in memory.
 `existing` must be a boolean; the optional `existingReason` preserves a
 facility's refusal detail, such as the non-empty directory's path.
+`recordLayerDescriptors` lives in `src/services/recovery/records.ts`.
+`scripts/recovery-records.mjs` remains a command entrance that supplies snapshots
+to that service; it exports no compatibility interface.
 `scripts/recovery-plan.mjs` retains stream handling and mode dispatch.
 `runRecoveryAdapter({ exportFn, importFn })` owns both adapters' stdin and
 stdout: an object with a required boolean `existing`, plus `document` for
@@ -68,6 +71,10 @@ in `src/lib/key-pattern.ts`, shared by recovery, the register schema, generator
 and consumer checker. The command modules use
 `scripts/run-cli.mjs` for main-module detection and failure reporting, including
 when invoked through a renamed file or a filesystem alias.
+
+See the implementation record for [retention and fingerprint policies](implementation/0018-relayering.md#retention-and-fingerprints).
+
+See the implementation record for [the remaining B13 read-path effect](implementation/0018-relayering.md#read-path-status-b13).
 
 ## The intermediate format
 
