@@ -93,8 +93,6 @@ Temporary imports remain during the later steps of ADR 0018's plan:
 
 - Step 16 removes the injected handler forward at
   `src/integrations/activitypub/routes/federated.ts` when framework wiring moves.
-- Step 12 moves `lib/recovery.ts` into services and redirects
-  `scripts/recovery-sql.mjs`, ending their direct model imports.
 - Step 13 redirects `scripts/promote.mjs`, `scripts/comments-store.mjs`, and
   `scripts/promote-filter.mjs` through operation interfaces. It also replaces
   `scripts/unpromote.mjs`'s direct persistence import of `sqlValue`.

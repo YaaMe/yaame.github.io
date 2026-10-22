@@ -12,9 +12,9 @@ import { migrate } from "../src/services/interactions/schema.ts";
 import { LATEST_MIGRATION } from "./fixtures/databases.mjs";
 import { comments, reactions } from "../src/config/data.config.generated.mjs";
 import registerData from "../src/config/data.config.json" with { type: "json" };
-import { InMemoryRecoveryFacility, exportRecovery, importRecovery, registerForLayerKinds } from "../src/lib/recovery.ts";
-import { d1StatementText } from "../scripts/platform/cloudflare/d1.mjs";
-import { sqlInsertStatements, sqlSnapshotStatements } from "../scripts/recovery-sql.mjs";
+import { InMemoryRecoveryFacility, exportRecovery, importRecovery, registerForLayerKinds } from "../src/services/recovery/index.ts";
+import { d1StatementText } from "../src/platform/cloudflare/recovery.ts";
+import { sqlInsertStatements, sqlSnapshotStatements } from "../src/services/recovery/sql.ts";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
 const register = registerForLayerKinds(registerData, ["sql"]);

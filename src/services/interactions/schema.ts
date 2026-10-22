@@ -1,1 +1,1 @@
-export { schemaBootstrapStatements, migrate } from "../../migrations/index.ts";
+export { schemaBootstrapStatements, migrationLedgerStatement, migrate } from "../../migrations/index.ts";

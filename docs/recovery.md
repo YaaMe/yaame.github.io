@@ -1,20 +1,21 @@
 # Recovery export and git-base restore
 
 This repository's portable recovery contract is implemented in
-[`src/lib/recovery.ts`](../src/lib/recovery.ts). It is host-neutral code: a
+[`src/services/recovery/index.ts`](../src/services/recovery/index.ts). It is host-neutral code: a
 facility author supplies access to a store, while the contract supplies the
 format, register selection, and validation. Host bindings and credentials stay
 in the facility's deployment tooling.
 
-The node records pair and the SQLite/D1 pairs keep their host-free adapters in
-[`scripts/recovery-records.mjs`](../scripts/recovery-records.mjs) and
-[`scripts/recovery-sql.mjs`](../scripts/recovery-sql.mjs). Both use
-[`scripts/recovery-plan.mjs`](../scripts/recovery-plan.mjs):
+The node records pair and the SQLite/D1 pairs call host-neutral services in
+[`src/services/recovery/records.ts`](../src/services/recovery/records.ts) and
+[`src/services/recovery/sql.ts`](../src/services/recovery/sql.ts). Both use
+[`src/services/recovery/plan.ts`](../src/services/recovery/plan.ts):
 `planRecoveryImport({ register, document, kind, facility, existing, existingReason? })` refuses
 a non-empty destination and validates the complete document before asking the
 supplied `facility(request)` function to build logical writes in memory.
 `existing` must be a boolean; the optional `existingReason` preserves a
 facility's refusal detail, such as the non-empty directory's path.
+`scripts/recovery-plan.mjs` retains stream handling and mode dispatch.
 `runRecoveryAdapter({ exportFn, importFn })` owns both adapters' stdin and
 stdout: an object with a required boolean `existing`, plus `document` for
 import, produces one JSON result or a failure.
@@ -44,14 +45,25 @@ and import still validates and prints its preview plan (or applies it when
 requested). The command then exits non-zero with the leftover directory named
 on stderr. A failed read stops before any export-file or destination write.
 
-`scripts/recovery-sql.mjs` builds the SQLite SELECT, INSERT, clearing and
-user-schema queries as SQL plus bound parameters. It owns logical aliases,
-column order and boolean conversion; targets execute those statements and
-own connections and transactions. `sqlUserSchemaStatement` accepts excluded
-prefixes and exact names, so each target can recognise its internal schema.
-`validateSqlPlan` checks the complete logical plan for both SQL readers;
-SQLite adds its in-memory constraint and round-trip checks. SQL identifier
-quoting lives in `src/lib/recovery.ts`. Record-key placeholder grammar lives
+`src/services/recovery/sql.ts` selects and orders recovery work. It delegates
+SQL descriptors, aliases, bindings and boolean conversion to
+`src/persistence/interactions/recovery-sql.ts`. The service decides the restore
+unit and order; the host adapters execute it. `sqlUserSchemaStatement` accepts
+excluded prefixes and exact names, so each target can recognise its internal schema.
+`validateSqlPlan` checks the complete logical plan for both SQL readers.
+
+Node's `src/platform/node/recovery.ts` validates SQLite constraints and round trips
+in memory, then restores through one transaction. Its sibling `recovery-records.ts`
+validates physical file collisions; the record service restores the complete plan
+through an injected directory replacement. Cloudflare's `src/platform/cloudflare/recovery.ts`
+validates D1 bindings and acknowledgements, then restores through one import file.
+The scripts retain connections, subprocesses, file staging, permissions and cleanup.
+
+SQL identifier quoting lives in `src/persistence/interactions/sql-text.ts`.
+The generator reaches it through `src/services/recovery/sql-text.ts`, which maps
+validation errors to `RecoveryError` from `src/services/recovery/errors.ts`.
+That entry imports neither generated register output nor recovery orchestration.
+Record-key placeholder grammar lives
 in `src/lib/key-pattern.ts`, shared by recovery, the register schema, generator
 and consumer checker. The command modules use
 `scripts/run-cli.mjs` for main-module detection and failure reporting, including
@@ -181,7 +193,7 @@ the selected entry names, and every declared layer remain required.
 
 ## Facility interface
 
-Implement both methods on `RecoveryFacility` in `src/lib/recovery.ts`:
+Implement both methods on `RecoveryFacility` in `src/services/recovery/index.ts`:
 
 ```ts
 interface RecoveryFacility {
@@ -286,7 +298,7 @@ confused.
    ```
 
    Inspect that the output starts with `"format":"blogu-recovery"`, has
-   a `"version"` equal to `RECOVERY_FORMAT_VERSION` in `src/lib/recovery.ts`,
+   a `"version"` equal to `RECOVERY_FORMAT_VERSION` in `src/services/recovery/index.ts`,
    contains no credential, and names the expected record keys.
 4. If the owner wants the command itself to write the document, repeat the
    export with an explicit state flag and output file. Both forms print the
@@ -378,7 +390,7 @@ first; that pair refuses any directory entry, including a SQLite database.
    ```
 
    Inspect `format: "blogu-recovery"`, a `version` equal to
-   `RECOVERY_FORMAT_VERSION` in `src/lib/recovery.ts`, the expected selected
+   `RECOVERY_FORMAT_VERSION` in `src/services/recovery/index.ts`, the expected selected
    entries and logical column names. The document contains stored data and
    must have the same access protection as the source. Keep it outside the
    source and destination database paths.
@@ -510,12 +522,15 @@ no per-row remote writes, merge, table clearing or partial-batch retries. The
 generated SQL contains no `BEGIN`, `COMMIT` or `SAVEPOINT`; D1 rejects them.
 
 The bootstrap and migration interfaces are exposed through
-`src/services/interactions/schema.ts`. Both operational host adapters call that
-service, which imports `src/migrations/index.ts` without a runtime platform alias.
+`src/services/interactions/schema.ts`, without a runtime platform alias.
+`migrationLedgerStatement()` names the ledger DDL. Recovery calls it before
+`schemaBootstrapStatements({ includeLedger: false })`, so no caller finds the
+ledger statement by position. One insert builder preserves the runner's `INSERT`
+and bootstrap's `INSERT OR IGNORE` forms.
 Cross-row recovery checks live in
-`src/services/recovery/interaction-references.ts`; both `src/lib/recovery.ts`
-and `scripts/recovery-sql.mjs` call it. Step 12 relocates the remaining recovery
-rules. Row validation lives in `src/models/interactions/records.ts`.
+`src/services/recovery/interaction-references.ts`; both `src/services/recovery/index.ts`
+and `src/services/recovery/sql.ts` call it. Row validation lives in
+`src/models/interactions/records.ts`.
 
 The guarantee is weaker than node SQLite in two ways. Preview validates the
 entire document and logical plan but cannot rehearse D1's constraints or
@@ -566,7 +581,7 @@ the repository in an access-controlled directory.
    ```
 
    Inspect `format: "blogu-recovery"`, a `version` equal to
-   `RECOVERY_FORMAT_VERSION` in `src/lib/recovery.ts`, the selected entries,
+   `RECOVERY_FORMAT_VERSION` in `src/services/recovery/index.ts`, the selected entries,
    logical columns and owner-held names. Currently the SQL entries are
    followers, deliveries, reactions, migrations, comments and visitor
    identities. The document contains stored data;

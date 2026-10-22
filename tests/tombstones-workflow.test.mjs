@@ -14,7 +14,7 @@ const workflow = readFileSync(join(root, workflowPath), "utf8");
 function fixture(t, paths) {
   const directory = mkdtempSync(join(root, ".tmp-tombstones-"));
   t.after(() => rmSync(directory, { recursive: true, force: true }));
-  for (const path of [...paths, ...interactionRecordFiles, "src/services/recovery/interaction-references.ts"]) {
+  for (const path of [...paths, ...interactionRecordFiles]) {
     const target = join(directory, path);
     mkdirSync(dirname(target), { recursive: true });
     copyFileSync(join(root, path), target);
@@ -33,7 +33,7 @@ function osFixture(paths) {
 }
 
 test("the data generator validates the register and emits resolved values", (t) => {
-  const cwd = fixture(t, ["scripts/data-config.mjs", "src/config/data.config.ts", "src/config/data.config.json", "src/lib/key-pattern.ts", "src/lib/recovery.ts", "src/config/following.json"]);
+  const cwd = fixture(t, ["scripts/data-config.mjs", "src/config/data.config.ts", "src/config/data.config.json", "src/lib/key-pattern.ts", "src/services/recovery/sql-text.ts", "src/services/recovery/errors.ts", "src/persistence/interactions/sql-text.ts", "src/config/following.json"]);
   const registerPath = join(cwd, "src/config/data.config.json");
   const register = JSON.parse(readFileSync(registerPath, "utf8"));
   register["promoted-comments"].layers[0].git = "archive/promoted comments/{posts,notes}/*.json";
@@ -64,7 +64,7 @@ test("the data generator validates the register and emits resolved values", (t) 
 });
 
 test("generated follow intent resolves from the module directory and generation is repeatable", (context) => {
-  const cwd = fixture(context, ["scripts/data-config.mjs", "src/config/data.config.ts", "src/config/data.config.json", "src/lib/key-pattern.ts", "src/lib/recovery.ts"]);
+  const cwd = fixture(context, ["scripts/data-config.mjs", "src/config/data.config.ts", "src/config/data.config.json", "src/lib/key-pattern.ts", "src/services/recovery/sql-text.ts", "src/services/recovery/errors.ts", "src/persistence/interactions/sql-text.ts"]);
   const registerPath = join(cwd, "src/config/data.config.json");
   const register = JSON.parse(readFileSync(registerPath, "utf8"));
   for (const location of ["src/config/following.json", "owner choices/following.json"]) {
@@ -97,7 +97,7 @@ test("the tombstone workflow scopes both Git operations to the relocated registe
     "src/config/data.config.ts",
     "src/config/data.config.json",
     "src/lib/key-pattern.ts",
-    "src/lib/recovery.ts",
+    "src/services/recovery/sql-text.ts", "src/services/recovery/errors.ts", "src/persistence/interactions/sql-text.ts",
     "src/config/following.json",
   ]);
   const registerPath = join(cwd, "src/config/data.config.json");

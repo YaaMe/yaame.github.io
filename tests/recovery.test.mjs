@@ -1,3 +1,4 @@
+import { quoteSqlIdentifier } from "../src/services/recovery/sql-text.ts";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { storedComment } from "./fixtures/interactions.mjs";
@@ -7,11 +8,10 @@ import {
   RECOVERY_FORMAT_VERSION,
   InMemoryRecoveryFacility,
   exportRecovery,
-  quoteSqlIdentifier,
   importRecovery,
   registerForLayerKinds,
   selectRecovery,
-} from "../src/lib/recovery.ts";
+} from "../src/services/recovery/index.ts";
 
 test("SQL identifiers preserve literal names and reject names SQLite cannot quote", () => {
   assert.equal(quoteSqlIdentifier('a "quoted" table'), '"a ""quoted"" table"');

@@ -3,7 +3,7 @@ import { dirname, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { dataConfigSchema } from "../src/config/data.config.ts";
 import { isRecordKeyPattern, recordKeyPlaceholders } from "../src/lib/key-pattern.ts";
-import { quoteSqlIdentifier } from "../src/lib/recovery.ts";
+import { quoteSqlIdentifier } from "../src/services/recovery/sql-text.ts";
 
 const registerPath = new URL("../src/config/data.config.json", import.meta.url);
 const modulePath = new URL("../src/config/data.config.generated.mjs", import.meta.url);

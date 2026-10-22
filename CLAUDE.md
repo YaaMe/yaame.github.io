@@ -41,8 +41,7 @@ path, with only loaders and registration. Content persistence uses `virtual:astr
 the site binds it to `src/astro.binding.ts`, and the consumer to
 `worker/astro.stub.ts`. The stub throws on a read or render, while imports succeed.
 Posts, notes and promoted-comment selectors reach content through persistence.
-`src/lib/` holds neutral logic. Its remaining recovery imports of models and a
-service close in ADR 0018's step 12.
+`src/lib/` holds neutral logic.
 
 Post filename grammar belongs to `src/models/content/post-filename.ts`; its
 matches and calendar facts leave acceptance, tags and fallbacks to each caller.
@@ -108,6 +107,10 @@ different schedule.
 `virtual:platform` directly; `worker/tsconfig.json` maps it to the Cloudflare
 target, because Wrangler's own alias table does not accept an extensionless
 path.
+
+Under ADR 0018 and O8, each host's recovery module in `src/platform/<target>/`
+uses host-neutral rules in `src/services/recovery/`, and the host's script entry
+points call that module.
 
 Scripts follow the same boundary for runtime data operations. Host-specific
 script work lives in bash entry points under `scripts/platform/<target>/`; the

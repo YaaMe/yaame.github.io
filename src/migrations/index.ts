@@ -5,18 +5,26 @@ import { migrations as migrationsLocation } from "../config/data.config.generate
 
 const migrationsColumns = migrationsLocation;
 
+export function migrationLedgerStatement(): string {
+  return `CREATE TABLE IF NOT EXISTS ${migrationsLocation.table} (${migrationsColumns.quotedColumns.version} INTEGER PRIMARY KEY, ${migrationsColumns.quotedColumns.appliedAt} TEXT NOT NULL)`;
+}
+
+function migrationLedgerInsertStatement(version: number, appliedAt: string, ifAbsent = false): string {
+  return `INSERT${ifAbsent ? " OR IGNORE" : ""} INTO ${migrationsLocation.table} (${migrationsColumns.quotedColumns.version}, ${migrationsColumns.quotedColumns.appliedAt}) VALUES (${version}, '${appliedAt}')`;
+}
+
 /**
  * Requires an empty application schema: every migration must accept empty tables.
  * Record all versions so migrate() cannot replay non-idempotent migrations.
  * Recovery may preload exported version rows to preserve their timestamps.
  */
-export function schemaBootstrapStatements(): string[] {
+export function schemaBootstrapStatements({ includeLedger = true } = {}): string[] {
   const appliedAt = new Date().toISOString();
   return [
-    `CREATE TABLE IF NOT EXISTS ${migrationsLocation.table} (${migrationsColumns.quotedColumns.version} INTEGER PRIMARY KEY, ${migrationsColumns.quotedColumns.appliedAt} TEXT NOT NULL)`,
+    ...(includeLedger ? [migrationLedgerStatement()] : []),
     ...MIGRATIONS.flat(),
     ...MIGRATIONS.map((_migration, version) =>
-      `INSERT OR IGNORE INTO ${migrationsLocation.table} (${migrationsColumns.quotedColumns.version}, ${migrationsColumns.quotedColumns.appliedAt}) VALUES (${version}, '${appliedAt}')`,
+      migrationLedgerInsertStatement(version, appliedAt, true),
     ),
   ];
 }
@@ -31,7 +39,7 @@ export function schemaBootstrapStatements(): string[] {
  * Idempotent, and one read when there is nothing to do.
  */
 export async function migrate(db: Database): Promise<number> {
-  await db.run(sql.raw(schemaBootstrapStatements()[0]));
+  await db.run(sql.raw(migrationLedgerStatement()));
 
   const rows = await db.all<{ version: number | null }>(
     sql.raw(
@@ -44,7 +52,7 @@ export async function migrate(db: Database): Promise<number> {
   for (let version = applied + 1; version < MIGRATIONS.length; version++) {
     try {
       await db.atomic([
-        `INSERT INTO ${migrationsLocation.table} (${migrationsColumns.quotedColumns.version}, ${migrationsColumns.quotedColumns.appliedAt}) VALUES (${version}, '${new Date().toISOString()}')`,
+        migrationLedgerInsertStatement(version, new Date().toISOString()),
         ...[MIGRATIONS[version]].flat(),
       ]);
       count++;

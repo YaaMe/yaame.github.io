@@ -72,9 +72,10 @@ the default is `AP_DATA_DIR/interactions.sqlite`. Its reader is
 `scripts/recovery-sql.mjs`. Export exchanges `{ existing, sql: [{ kind, layer, rows }] }`;
 import exchanges `{ document, existing }` and a plan of
 `{ action: "insert", kind, layer, rows }` writes. All rows use logical register
-columns. Both facility adapters use `scripts/recovery-plan.mjs` for complete
+columns. Both facility adapters call `src/services/recovery/plan.ts` for complete
 document validation, refusal of non-empty stores, and in-memory planning.
-Its shared `runRecoveryAdapter({ exportFn, importFn })` requires an object and
+The shared `scripts/recovery-plan.mjs` keeps the command transport.
+Its `runRecoveryAdapter({ exportFn, importFn })` requires an object and
 a boolean `existing` for either operation, and `document` for import; omission
 never implies an empty destination. Its sibling
 `runRecoveryReader({ label, snapshot, prepare, apply })` owns reader mode
@@ -85,15 +86,22 @@ are shared. The records reader reports the path and reason when the
 destination is non-empty.
 
 `sqlSnapshotStatements`, `sqlInsertStatements`, `sqlClearStatements` and
-`sqlUserSchemaStatement` in `scripts/recovery-sql.mjs` emit `{ sql, parameters }`
+`sqlUserSchemaStatement` in `src/services/recovery/sql.ts` expose `{ sql, parameters }`
 (with `kind` and `layer` for registered data). The node reader executes them;
 other SQLite facilities can reuse the same aliases, bindings and conversions.
-`src/lib/recovery.ts` owns identifier quoting. `scripts/run-cli.mjs` owns main
+`src/persistence/interactions/recovery-sql.ts` constructs the statements.
+`src/persistence/interactions/sql-text.ts` owns identifier quoting; the generator
+reaches it through the quote-only `src/services/recovery/sql-text.ts` entry.
+`scripts/run-cli.mjs` owns main
 module detection and the shared stack-to-stderr / exit-code-1 failure contract.
 
 `sqlUserSchemaStatement` accepts excluded prefixes and exact names. Node ignores
 `sqlite_*`; D1 also ignores `_cf_*` and the exact `d1_migrations` name.
 `validateSqlPlan` supplies complete plan validation to both SQL readers.
+The service decides restore order. Node's `src/platform/node/recovery.ts` owns
+SQLite validation and transaction execution; `recovery-records.ts` owns record-file
+validation. Cloudflare's `src/platform/cloudflare/recovery.ts` owns D1
+validation and restore. Scripts supply connection, subprocess and file operations.
 
 SQLite export requires an existing database with every selected table. Import
 requires an absent or schema-less file and an existing parent; any user schema

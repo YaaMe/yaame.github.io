@@ -7,7 +7,7 @@ import { randomUUID } from "node:crypto";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import registerData from "../src/config/data.config.json" with { type: "json" };
-import { exportRecovery, registerForLayerKinds } from "../src/lib/recovery.ts";
+import { exportRecovery, registerForLayerKinds } from "../src/services/recovery/index.ts";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
 const runner = new URL("../scripts/run-cli.mjs", import.meta.url).href;
@@ -88,6 +88,32 @@ test("#58 recovery readers reject missing or conflicting modes before reading in
       assert.match(refused.stderr, /needs exactly one of --snapshot, --validate-plan or --apply-plan/);
       assert.equal(refused.stdout, "");
     }
+  }
+});
+
+test("the recovery reader reports the prepared plan only after apply resolves", (context) => {
+  const directory = fixture(context);
+  const entry = join(directory, "apply-reader.mjs");
+  const reader = new URL("../scripts/recovery-plan.mjs", import.meta.url).href;
+  const plan = { imported: ["fixture"], writes: [] };
+  for (const failing of [false, true]) {
+    writeFileSync(entry, `
+      import { runIfMain } from ${JSON.stringify(runner)};
+      import { runRecoveryReader } from ${JSON.stringify(reader)};
+      await runIfMain(import.meta.url, () => runRecoveryReader({
+        label: "fixture reader",
+        prepare: (plan) => plan,
+        async apply() {
+          await Promise.resolve();
+          ${failing ? 'throw new Error("fixture apply failed");' : ""}
+        },
+      }));
+    `);
+    const result = run([entry, "--apply-plan"], directory, JSON.stringify(plan));
+    assert.equal(result.status, failing ? 1 : 0, result.stderr);
+    assert.equal(result.stdout, failing ? "" : '{"imported":["fixture"],"writes":[],"applied":true}\n');
+    if (failing) assert.match(result.stderr, /Error: fixture apply failed/);
+    else assert.equal(result.stderr, "");
   }
 });
 

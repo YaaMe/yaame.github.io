@@ -11,9 +11,9 @@ import { seedComment, seedDelivery, seedFollower, seedReaction, storedComment } 
 import { migrate } from "../src/services/interactions/schema.ts";
 import { comments } from "../src/config/data.config.generated.mjs";
 import registerData from "../src/config/data.config.json" with { type: "json" };
-import { InMemoryRecoveryFacility, exportRecovery, importRecovery, registerForLayerKinds } from "../src/lib/recovery.ts";
-import { readSqlSnapshot, writeSqlPlan } from "../scripts/platform/node/sqlite.mjs";
-import { exportSqlRecovery, importSqlRecovery } from "../scripts/recovery-sql.mjs";
+import { InMemoryRecoveryFacility, exportRecovery, importRecovery, registerForLayerKinds } from "../src/services/recovery/index.ts";
+import { readSqlSnapshot, writeSqlPlan } from "../src/platform/node/recovery.ts";
+import { exportSqlRecovery, importSqlRecovery } from "../src/services/recovery/sql.ts";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
 const register = registerForLayerKinds(registerData, ["sql"]);
