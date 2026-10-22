@@ -91,14 +91,31 @@ reads the collection, including each root in `liveCommentsForMany`.
 
 Temporary imports remain during the later steps of ADR 0018's plan:
 
-- Step 10 splits the remaining delivery orchestration in
-  `integrations/activitypub/outbox.ts` and `delivery.ts`. Their direct model and
-  persistence imports remain until that split.
+- Step 11 redirects `worker/consumer.ts` from the
+  `src/integrations/activitypub/federation.ts` forward to services and shared
+  registration wiring.
+- Step 16 removes the injected handler forward at
+  `src/integrations/activitypub/routes/federated.ts` when framework wiring moves.
 - Step 12 moves `lib/recovery.ts` into services and redirects
   `scripts/recovery-sql.mjs`, ending their direct model imports.
 - Step 13 redirects `scripts/promote.mjs`, `scripts/comments-store.mjs`, and
   `scripts/promote-filter.mjs` through operation interfaces. It also replaces
   `scripts/unpromote.mjs`'s direct persistence import of `sqlValue`.
+
+ActivityPub publication and delivery now live in
+`src/services/activitypub/{publish,delivery}.ts`. Outbound calls and shared object
+constructors live in `src/gateways/activitypub/`. Actor and content announcements,
+plus departure diagnostics, live in `src/signals/activitypub/`.
+The actor and outbox entrances still await them in the same order. Digests are
+written before announcements; first-run delivery marks the archive without sending.
+Delivery marking failures retain the process-local suppression set.
+
+`updateFollowing` in `src/services/activitypub/following.ts` handles accepted
+following additions and all removals. The resolved follow-intent ledger remains
+a separate record. The five AP record modules bind registered locations through
+`recordAt`; departure records retain their cap of 50. This split changes neither
+GET triggers nor request-time schema initialization. B1, B2, B3 and B13 remain
+separate behavior changes.
 
 Comment visibility, run labels and text, and link/date preparation live in
 `src/selectors/interactions/{comment-view,comment-runs,comment-display}.ts`.

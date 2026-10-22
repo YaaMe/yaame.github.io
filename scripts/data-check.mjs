@@ -189,18 +189,22 @@ const tags = requires("scripts/tags.mjs", 'from "../src/config/data.config.gener
 requires("scripts/tags.mjs", "posts.gitRoot");
 requires("scripts/tags.mjs", "komorebi.gitRoot");
 requires("scripts/tags.mjs", 'readFileSync(tags.file, "utf8")');
-const federation = requires("src/integrations/activitypub/federation.ts", 'from "../../config/data.config.generated.mjs"');
-requires("src/integrations/activitypub/federation.ts", "followIntent");
-for (const name of ["actorDigest", "departures", "followLedger", "following"]) {
-  requires("src/integrations/activitypub/federation.ts", name);
-}
-if (federation.includes("readFollowIntent") || federation.includes("await followIntent")) {
-  console.error("  data register consumer src/integrations/activitypub/federation.ts: follow intent must be a static value");
+const followingService = requires("src/services/activitypub/following.ts", 'from "../../config/data.config.generated.mjs"');
+requires("src/services/activitypub/following.ts", "followIntent");
+if (followingService.includes("readFollowIntent") || followingService.includes("await followIntent")) {
+  console.error("  data register consumer src/services/activitypub/following.ts: follow intent must be a static value");
   process.exitCode = 1;
 }
-
-const outbox = requires("src/integrations/activitypub/outbox.ts", 'from "../../config/data.config.generated.mjs"');
-requires("src/integrations/activitypub/outbox.ts", "noteDigests");
+const apRecords = [
+  ["actor-digest", "actorDigest"], ["note-digests", "noteDigests"],
+  ["following", "following"], ["follow-ledger", "followLedger"], ["departures", "departures"],
+].map(([kind, name]) => {
+  const path = `src/persistence/records/${kind}.ts`;
+  const source = requires(path, 'from "../../config/data.config.generated.mjs"');
+  requires(path, `${name}.key`);
+  requires(path, "recordAt<");
+  return [path, source];
+});
 const session = requires("src/persistence/records/sessions.ts", 'from "../../config/data.config.generated.mjs"');
 requires("src/persistence/records/sessions.ts", "sessions.key");
 const worker = requires("worker/consumer.ts", 'from "../src/config/data.config.generated.mjs"');
@@ -258,8 +262,8 @@ const pathConsumers = [
   ["scripts/pin.mjs", pin],
   ["scripts/follow.mjs", follow],
   ["scripts/tags.mjs", tags],
-  ["src/integrations/activitypub/federation.ts", federation],
-  ["src/integrations/activitypub/outbox.ts", outbox],
+  ["src/services/activitypub/following.ts", followingService],
+  ...apRecords,
   ["src/persistence/records/sessions.ts", session],
   ["worker/consumer.ts", worker],
   [".github/workflows/tombstones.yml", workflow],
@@ -376,7 +380,7 @@ const directLocationCopies = [
   ["scripts/tags.mjs", /\bconst dir of \[\s*["'`]/],
   ["scripts/note.mjs", /\bconst (?:asPost|comments)\s*=\s*(?:join\(\s*["'`]|["'`])/],
   ["scripts/promote.mjs", /\bconst NOTES\s*=\s*["'`]/],
-  ["src/integrations/activitypub/federation.ts", /(?:from|import\()\s*["'`][^"'`]*following\.json/],
+  ["src/services/activitypub/following.ts", /(?:from|import\()\s*["'`][^"'`]*following\.json/],
 ];
 for (const [path, pattern] of directLocationCopies) {
   const source = sourceWithoutComments.find(([candidate]) => candidate === path)?.[1];

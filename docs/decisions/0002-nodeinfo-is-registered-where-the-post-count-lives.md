@@ -3,6 +3,11 @@
 Status: accepted
 Date: 2026-09-19
 
+ADR 0018's step 10 relocates the content-backed registrations to
+`src/routes/activitypub/site.ts`. The published window lives in
+`src/selectors/activitypub/outbox.ts`; both the outbox and NodeInfo call `publishedItems()`.
+The module names below describe the original decision's context.
+
 ## Context
 
 `/.well-known/nodeinfo` advertises a link to a NodeInfo document, and the

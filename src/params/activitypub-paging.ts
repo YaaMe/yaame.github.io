@@ -13,13 +13,8 @@ export const PAGE_SIZE = 20;
 /** The cursor of the first page. Everything starts at offset zero. */
 export const FIRST = () => "0";
 
-export function page<T>(items: T[], cursor: string | null): { items: T[]; nextCursor: string | null } {
-  // A dispatcher is only called with a cursor once paging is on, but a bad one
-  // can arrive from anywhere — a stale link, a hand-typed URL. Anything that is
-  // not a number starts at the beginning rather than throwing.
+export function parseCursor(cursor: string | null): number {
+  // Invalid cursors start at the beginning, including stale or hand-typed URLs.
   const offset = Number.parseInt(cursor ?? "0", 10);
-  const from = Number.isFinite(offset) && offset > 0 ? offset : 0;
-  const slice = items.slice(from, from + PAGE_SIZE);
-  const next = from + PAGE_SIZE;
-  return { items: slice, nextCursor: next < items.length ? String(next) : null };
+  return Number.isFinite(offset) && offset > 0 ? offset : 0;
 }

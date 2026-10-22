@@ -31,12 +31,31 @@ design layer — replaceable as a whole
   src/layouts/  src/components/  src/pages/  src/styles/
 ```
 
-Neither list covers the remaining ActivityPub backend under `src/integrations/`
-or `src/platform/`, the host boundary. Auth handlers live in `src/routes/auth/`;
+Neither list covers the backend features or `src/platform/`, the host boundary.
+ActivityPub registrations live in `src/routes/activitypub/`; its use cases,
+reads, reactions and protocol calls live in services, selectors, signals and gateways.
+Auth handlers live in `src/routes/auth/`;
 the temporary login page lives in `src/pages-extra/auth/`. Auth also spans edges,
 services, record persistence and a GitHub gateway; [interactions](interactions.md#the-write-entry-point)
 describes their roles. The second architectural rule in `CLAUDE.md` governs
 `src/platform/`.
+
+ActivityPub has one runtime per process. Both entrances install the registrations
+in `src/routes/activitypub/shared.ts`; the site also installs `site.ts`, which reads
+content. The consumer graph contains no content loader. The HTTP handler in
+`src/routes/activitypub/federated.ts` owns negotiation.
+
+The object-id model in `src/models/activitypub/object-id.ts` uses the neutral
+`src/lib/path-template.ts` codec. `src/selectors/activitypub/objects.ts` exposes
+the scheme and constructors under ADR 0018's strict traversal rule (O1).
+Configuration uses the narrower `object-id.ts` selector so it does not load Fedify
+constructors (O2). The integration maps `{identifier}` to Astro's `[user]` and
+`{slug}` to `[slug]`. Constructors receive content URLs from the post/note selectors;
+they import under plain Node without a platform or content alias.
+
+`src/params/activitypub-paging.ts` owns AP cursor decoding, page size and the first
+cursor. Dispatchers combine it with `src/lib/page.ts`, which takes an explicit
+offset and size. Followers return the full list for unpaged delivery fan-out.
 
 ## The rule
 

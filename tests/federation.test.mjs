@@ -5,7 +5,7 @@ import {
   handleCommentDelete,
   handleFollow,
   handleUndoFollow,
-} from "../src/integrations/activitypub/inbox-handlers.ts";
+} from "../src/services/activitypub/inbox-follow.ts";
 import { visibleComments } from "../src/selectors/interactions/comment-view.ts";
 import { storedComment } from "./fixtures/interactions.mjs";
 import { SOURCES, commentId, identityId } from "../src/models/interactions/key-scheme.ts";

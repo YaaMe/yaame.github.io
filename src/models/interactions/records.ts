@@ -1,3 +1,4 @@
+import { AP } from "../../config/activitypub.ts";
 import { z } from "zod";
 import { contentIdentifier, contentIdentifierOf } from "../activitypub/object-id.ts";
 import { CHANNELS, SOURCES, type Source, commentId, deliveryId, identityId, normalizedIdentifier, reactionId, sameOrigin } from "./key-scheme.ts";
@@ -63,7 +64,7 @@ export const storedCommentSchema = z.object({
         throw new Error("a federated comment requires activityId, objectId and inReplyTo, and no submissionId");
       }
       if (!sameOrigin(comment.identifier, comment.activityId, comment.objectId)) throw new Error("federated attributes must share the signing actor's origin");
-      if (comment.replyTo === null && comment.root !== contentIdentifierOf(comment.inReplyTo)) {
+      if (comment.replyTo === null && comment.root !== contentIdentifierOf(comment.inReplyTo, AP.actorHost, AP.user)) {
         throw new Error("a reply to the site's content must have that content as its root");
       }
     } else if (comment.activityId !== null || comment.objectId !== null || comment.inReplyTo !== null || comment.submissionId === null) {
@@ -91,7 +92,7 @@ export const storedReactionSchema = z.object({
   try {
     if (reaction.id !== reactionId(reaction)) throw new Error("reaction inputs do not compute its id");
     if (!sameOrigin(reaction.identifier, reaction.activityId)) throw new Error("a reaction's activity must share the signing actor's origin");
-    if (reaction.target !== contentIdentifierOf(reaction.objectId)) throw new Error("a reaction's target must be the content its object URL names");
+    if (reaction.target !== contentIdentifierOf(reaction.objectId, AP.actorHost, AP.user)) throw new Error("a reaction's target must be the content its object URL names");
   } catch (error) {
     context.addIssue({ code: "custom", message: error instanceof Error ? error.message : String(error) });
   }
