@@ -89,10 +89,7 @@ Astro's collection query; the consumer stub refuses it when called. Flattening,
 root filtering, ordering and visibility stay in the public reader. Each call still
 reads the collection, including each root in `liveCommentsForMany`.
 
-Temporary imports remain during the later steps of ADR 0018's plan:
-
-- Step 16 removes the injected handler forward at
-  `src/integrations/activitypub/routes/federated.ts` when framework wiring moves.
+`astro.config.mjs` injects `src/routes/activitypub/federated.ts` directly.
 
 Comment commands use `src/services/interactions/{promote,tombstone,unpromote}.ts`
 for validation, selection and plans. `promote-text.ts` converts typed runs, and

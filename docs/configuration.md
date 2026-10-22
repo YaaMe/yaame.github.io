@@ -179,7 +179,7 @@ server.
 | `BUILD_PROFILE=static` | `activitypub` and `auth` are off. The build produces no Worker. `CF_KV_ID`, `CF_D1_ID` and `DEPLOY_TARGET` do not affect the output |
 | `BUILD_PROFILE=full` without `CF_KV_ID` or `CF_D1_ID` | `make deploy` fails. `make check` still runs |
 | `BUILD_PROFILE=full` with a wrong `CF_KV_ID` | `make deploy` succeeds. The Worker reads another namespace. **Nothing reports it** |
-| `activitypub=true` but a route is not injected | the actor advertises an endpoint that answers 404. The registrations in `src/routes/activitypub/{shared,site}.ts` and `PATHS` in `src/integrations/activitypub/index.ts` must match. Object and reply paths share the model's template through a selector |
+| `activitypub=true` but a route is not injected | the actor advertises an endpoint that answers 404. The registrations in `src/routes/activitypub/{shared,site}.ts` and `PATHS` in `astro.config.mjs` must match. Object and reply paths share the model's template through a selector |
 | `platform.queue === false` | delivery is sent synchronously, and a failed delivery is not retried. This happens on Cloudflare when the `AP_QUEUE` binding is absent, and always under `DEPLOY_TARGET=node` |
 | `DEPLOY_TARGET=node` | the build uses `src/platform/node/index.ts` and the Node adapter. No make target or CI job builds it |
 

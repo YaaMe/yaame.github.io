@@ -14,7 +14,7 @@ const ACTOR = /^\/users\/[^/]+$/;
 /**
  * One handler behind every federated path. Fedify resolves the request against
  * its own router — actor, inboxes, collections, WebFinger, NodeInfo — so the
- * paths are declared once, in the integration, rather than implied by files.
+ * paths are declared once, in `astro.config.mjs`, rather than implied by files.
  *
  * Everything here answers activity+json, so a browser is always asking for a
  * representation that does not exist. Two different things are right depending

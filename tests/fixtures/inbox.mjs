@@ -14,7 +14,7 @@ export async function inboxHarness(context, { databaseUrl = ":memory:", openStor
   const built = await build({
     stdin: {
       contents: `
-        ${site ? 'export { GET, POST } from "./src/integrations/activitypub/routes/federated.ts";' : ""}
+        ${site ? 'export { GET, POST } from "./src/routes/activitypub/federated.ts";' : ""}
         ${consumer ? 'export { default as consumer } from "./worker/consumer.ts";' : ""}
         ${site ? 'export { installSite } from "./src/routes/activitypub/site.ts";' : ""}
         ${reload && site ? 'export { installSite as reinstallSite } from "./src/routes/activitypub/site.ts?reload";' : ""}

@@ -62,10 +62,14 @@ content. The consumer graph contains no content loader. The HTTP handler in
 The object-id model in `src/models/activitypub/object-id.ts` uses the neutral
 `src/lib/path-template.ts` codec. `src/selectors/activitypub/objects.ts` exposes
 the scheme and constructors under ADR 0018's strict traversal rule (O1).
-Configuration uses the narrower `object-id.ts` selector so it does not load Fedify
+`astro.config.mjs` uses the narrower `object-id.ts` selector so it does not load Fedify
 constructors (O2). The integration maps `{identifier}` to Astro's `[user]` and
 `{slug}` to `[slug]`. Constructors receive content URLs from the post/note selectors;
 they import under plain Node without a platform or content alias.
+
+The ActivityPub and auth integration factories and dynamic-route manifest hook
+live in `astro.config.mjs`. Features control which routes it injects. The manifest
+uses Astro's resolved route table, including the framework's island routes.
 
 `src/params/activitypub-paging.ts` owns AP cursor decoding, page size and the first
 cursor. Dispatchers combine it with `src/lib/page.ts`, which takes an explicit
