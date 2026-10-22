@@ -1,14 +1,12 @@
 ---
-import { allNotes } from "../../selectors/notes";
 import Comments from "../Comments.astro";
-import { liveCommentsForMany } from "../../selectors/interactions/comments-live";
+import { liveNoteCommentsForYear } from "../../selectors/interactions/comments-live";
 
 interface Props { year: string }
 Astro.response.headers.set("Cache-Control", "private, no-store");
 const { year } = Astro.props;
-const notes = (await allNotes()).filter((note) => note.year === year);
-const comments = await liveCommentsForMany(notes.map((note) => note.id));
+const notes = await liveNoteCommentsForYear(year);
 ---
 {notes.map((note) => (
-  <Comments forId={note.id} comments={comments.get(note.id) ?? []} state="loaded" />
+  <Comments forId={note.id} comments={note.comments} state="loaded" />
 ))}

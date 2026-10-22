@@ -1,0 +1,39 @@
+---
+import Base from "../../layouts/Base.astro";
+import type { chapterPage } from "../../selectors/posts";
+interface Props { view: Awaited<ReturnType<typeof chapterPage>> }
+const { view } = Astro.props;
+const { Content } = view;
+---
+<Base title={view.title}>
+  <article class="story"><Content /></article>
+  <style>
+    /*
+     * The convention for Chinese fiction: serif, a two-character first-line
+     * indent, no space between paragraphs.
+     *
+     * The indent and the zero paragraph spacing are a pair. Without the
+     * indent, a new paragraph looks like a wrapped line. With spacing as well,
+     * every paragraph is marked twice.
+     *
+     * Narrower than the essay measure: lines full of short dialogue read
+     * faster when the eye returns sooner.
+     */
+    .story { font-family: var(--serif); line-height: 1.95;
+             max-width: 30em; margin-inline: auto; }
+    .story :global(p) { text-indent: 2em; margin: 0; }
+
+    /* Chapter numerals. The short rule above closes the previous chapter. */
+    .story :global(h2) {
+      text-align: center; font-size: 1.15em; font-weight: 600;
+      letter-spacing: .6em; text-indent: .6em;   /* letter-spacing adds a gap after the last character too */
+      color: var(--fg-secondary); margin-block: 2.6em 1.2em;
+    }
+    .story :global(h2)::before {
+      content: ""; display: block; width: 2.5em; height: 1px;
+      background: var(--border-subtle); margin: 0 auto 1.4em;
+    }
+    .story :global(h1) { font-family: var(--serif); text-align: center;
+                         letter-spacing: .14em; }
+  </style>
+</Base>

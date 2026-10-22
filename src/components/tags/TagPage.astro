@@ -1,0 +1,11 @@
+---
+import Base from "../../layouts/Base.astro";
+import PostList from "../PostList.astro";
+import type { tagPage } from "../../selectors/posts";
+interface Props { view: ReturnType<typeof tagPage> }
+const { view } = Astro.props;
+---
+<Base title={view.title}>
+  <h1>{view.heading}</h1>
+  <PostList posts={view.posts} page={view.page} total={view.total} base={view.base} />
+</Base>

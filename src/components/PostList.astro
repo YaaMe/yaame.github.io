@@ -1,24 +1,23 @@
 ---
-import { href, type Post } from "../selectors/posts";
+import { postList, type Post } from "../selectors/posts";
 interface Props { posts: Post[]; page: number; total: number; base: string }
 const { posts, page, total, base } = Astro.props;
-// `base` ends in a slash, e.g. "/tags/summaries/".
-const pageHref = (n: number) => (n === 1 ? base : `${base}page/${n}/`);
+const view = postList(posts, page, total, base);
 ---
 <ul>
-  {posts.map((p) => (
+  {view.posts.map((p) => (
     <li>
-      <a href={href(p)}>{p.data.title}</a>
-      <time datetime={p.data.date.iso}>{p.data.date.y}-{p.data.date.mo}-{p.data.date.d}</time>
-      {p.data.description && <p>{p.data.description}</p>}
+      <a href={p.href}>{p.title}</a>
+      <time datetime={p.datetime}>{p.date}</time>
+      {p.description && <p>{p.description}</p>}
     </li>
   ))}
 </ul>
-{total > 1 && (
+{view.pagination.visible && (
   <nav aria-label="分页">
-    {page > 1 && <a href={pageHref(page - 1)} rel="prev">← 上一页</a>}
-    <span>{page} / {total}</span>
-    {page < total && <a href={pageHref(page + 1)} rel="next">下一页 →</a>}
+    {view.pagination.previous && <a href={view.pagination.previous} rel="prev">← 上一页</a>}
+    <span>{view.pagination.label}</span>
+    {view.pagination.next && <a href={view.pagination.next} rel="next">下一页 →</a>}
   </nav>
 )}
 <style>

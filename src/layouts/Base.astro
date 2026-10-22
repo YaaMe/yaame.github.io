@@ -1,27 +1,21 @@
 ---
 import "../styles/tokens.css";
-import { site, nav, social, features, other } from "../config/site.config";
+import { siteShell } from "../selectors/site";
 import SessionBar from "virtual:session-bar";
 interface Props { title: string; description?: string }
 const { title, description } = Astro.props;
 
-// With a trailing slash is canonical. Both spellings resolve
-// (`trailingSlash: "ignore"`), so say which is meant, or one page counts as two.
-const canonical = new URL(
-  Astro.url.pathname.endsWith("/") ? Astro.url.pathname : Astro.url.pathname + "/",
-  site.url,
-);
-const fingerprint = site.fingerprint.match(/.{4}/g)?.join(" ") ?? site.fingerprint;
+const shell = siteShell(Astro.url.pathname, description);
 import Progress from "../components/Progress.astro";
 ---
 <!doctype html>
-<html lang={site.lang}>
+<html lang={shell.lang}>
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>{title}</title>
-    {(description ?? site.description) && <meta name="description" content={description ?? site.description} />}
-    <link rel="canonical" href={canonical.href} />
+    {shell.description && <meta name="description" content={shell.description} />}
+    <link rel="canonical" href={shell.canonical} />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="alternate" type="application/rss+xml" title="Blogu" href="/rss.xml" />
     <script is:inline>
@@ -38,7 +32,7 @@ import Progress from "../components/Progress.astro";
       <div class="bar">
       {/* The wordmark is drawn, not set: the b is a glyph of its own. A change
           to site.title does not reach it — it has to be redrawn. */}
-      <a class="brand" href="/" aria-label={site.title}>
+      <a class="brand" href="/" aria-label={shell.title}>
         <span class="word" aria-hidden="true"><svg class="b" viewBox="5 1.6 25.4 26.4">
           <g fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round">
             <path d="M7.5 3.5 V26.5" />
@@ -58,9 +52,9 @@ import Progress from "../components/Progress.astro";
         </svg>
       </a>
       <nav>
-        {nav.slice(1).map((n) => <a href={n.href}>{n.label}</a>)}
+        {shell.nav.map((n) => <a href={n.href}>{n.label}</a>)}
         <SessionBar />
-        {features.darkMode && <button id="theme" type="button" aria-label="切换明暗">◐</button>}
+        {shell.darkMode && <button id="theme" type="button" aria-label="切换明暗">◐</button>}
       </nav>
       </div>
     </header>
@@ -68,16 +62,16 @@ import Progress from "../components/Progress.astro";
     <Progress />
     <footer>
       <p>
-        {social.map((s) => <a href={s.href}>{s.label}</a>)}
+        {shell.social.map((s) => <a href={s.href}>{s.label}</a>)}
         <a href="/rss.xml">RSS</a>
       </p>
       <p class="muted fingerprint">
         <span>PGP 指纹</span>
-        <code>{fingerprint}</code>
+        <code>{shell.fingerprint}</code>
       </p>
       <p class="muted">
-        © {site.author}
-        <a href={other + Astro.url.pathname}>{new URL(other).host}</a>
+        © {shell.author}
+        <a href={shell.other.href}>{shell.other.label}</a>
       </p>
     </footer>
     <script is:inline>

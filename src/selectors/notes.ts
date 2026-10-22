@@ -1,6 +1,7 @@
 import { readNotes } from "../persistence/content/notes";
 import { marked } from "marked";
-import { calendarDate } from "../models/content/fields";
+import { calendarDate, calendarDateLabel } from "../models/content/fields";
+import { site } from "../config/site.config";
 
 /**
  * Notes, archived a file per year and read back as one stream.
@@ -62,4 +63,39 @@ export function noteHref(n: Note) {
  */
 export function noteHtml(n: Note): string {
   return marked.parse(n.content, { async: false }) as string;
+}
+
+export function noteYearHref(year: string) {
+  return `/notes/${year}/`;
+}
+
+export function notesForYear(notes: Note[], year: string): Note[] {
+  return notes.filter((note) => note.year === year);
+}
+
+export function noteDisplay(note: Note) {
+  return {
+    id: note.id,
+    href: noteHref(note),
+    published: note.published,
+    date: calendarDateLabel(note.date),
+    html: noteHtml(note),
+  };
+}
+
+export function noteYearPage(notes: Note[], year: string) {
+  return { title: `notes ${year}`, year, notes: notesForYear(notes, year), backHref: "/notes/" };
+}
+
+export async function latestNotesPage() {
+  const notes = await allNotes();
+  const years = await noteYears();
+  const shown = notes.slice(0, 20);
+  return {
+    title: `notes · ${site.title}`,
+    notes: shown,
+    empty: notes.length === 0,
+    archived: years.length > 1 || notes.length > shown.length,
+    years: years.map((year) => ({ label: year, href: noteYearHref(year) })),
+  };
 }

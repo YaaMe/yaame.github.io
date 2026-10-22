@@ -1,5 +1,6 @@
 import { commentsFor, type Comment } from "./promoted";
 import { withdrawn, withdrawnMany } from "./comments";
+import { allNotes, notesForYear } from "../notes";
 
 /** Read the promoted view after applying withdrawals received by the inbox. */
 export async function liveCommentsFor(contentId: string): Promise<Comment[]> {
@@ -19,4 +20,10 @@ export async function liveCommentsForMany(
       ] as const),
     ),
   );
+}
+
+export async function liveNoteCommentsForYear(year: string) {
+  const notes = notesForYear(await allNotes(), year);
+  const comments = await liveCommentsForMany(notes.map((note) => note.id));
+  return notes.map((note) => ({ id: note.id, comments: comments.get(note.id) ?? [] }));
 }

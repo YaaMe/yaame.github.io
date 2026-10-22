@@ -1,0 +1,17 @@
+---
+import Base from "../../layouts/Base.astro";
+import type { notFoundPage } from "../../selectors/site";
+interface Props { view: ReturnType<typeof notFoundPage> }
+const { view } = Astro.props;
+---
+<Base title={view.title}>
+  <h1>404</h1>
+  <p>这里没有东西。可能是链接旧了，也可能是那篇还没写。</p>
+  <nav>
+    {view.nav.map((item) => <a href={item.href}>{item.label}</a>)}
+  </nav>
+</Base>
+
+<style>
+  nav { display: flex; gap: 1.25rem; margin-top: 2rem; }
+</style>

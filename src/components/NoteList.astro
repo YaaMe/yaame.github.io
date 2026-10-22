@@ -1,5 +1,5 @@
 ---
-import { noteHref, noteHtml, type Note } from "../selectors/notes";
+import { noteDisplay, type Note } from "../selectors/notes";
 import type { Comment } from "../selectors/interactions/promoted";
 import Comments from "./Comments.astro";
 
@@ -13,14 +13,15 @@ interface Props {
   commentSlots?: boolean;
 }
 const { notes, anchors = false, comments = new Map(), commentSlots = false } = Astro.props;
+const entries = notes.map(noteDisplay);
 ---
 <ul>
-  {notes.map((n) => (
+  {entries.map((n) => (
     <li id={anchors ? n.id : undefined}>
-      <a class="stamp" href={noteHref(n)}>
-        <time datetime={n.published}>{n.date.y}-{n.date.mo}-{n.date.d}</time>
+      <a class="stamp" href={n.href}>
+        <time datetime={n.published}>{n.date}</time>
       </a>
-      <div class="body" set:html={noteHtml(n)} />
+      <div class="body" set:html={n.html} />
       {commentSlots ? (
         <div
           class="comments-slot"

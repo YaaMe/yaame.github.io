@@ -17,6 +17,10 @@ export function calendarDate(date: Date): { y: string; mo: string; d: string } {
   return { y, mo, d };
 }
 
+export function calendarDateLabel(date: { y: string; mo: string; d: string }): string {
+  return `${date.y}-${date.mo}-${date.d}`;
+}
+
 // Tags must come from the registry in src/config/tags.ts. A typo fails the build
 // rather than producing a /tags/xxx/ page nobody will visit.
 const tags = z

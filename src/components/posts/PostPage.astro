@@ -1,0 +1,24 @@
+---
+import Base from "../../layouts/Base.astro";
+import { features } from "../../config/site.config";
+import CommentsSection from "virtual:comments-section";
+import type { postPage } from "../../selectors/posts";
+interface Props { view: Awaited<ReturnType<typeof postPage>> }
+const { view } = Astro.props;
+const { Content } = view;
+---
+<Base title={view.title} description={view.description}>
+  <article>
+    <h1>{view.title}</h1>
+    <p class="meta">
+      <time datetime={view.datetime}>{view.date}</time>
+      {view.tags.map((tag) => <a href={tag.href}>{tag.label}</a>)}
+    </p>
+    <Content />
+  </article>
+  {features.comments && <CommentsSection slug={view.id} />}
+  <style>
+    .meta { display: flex; gap: 1em; color: var(--fg-secondary); font-size: .9em; margin-block: -.5em 2em; }
+    .meta a { color: var(--fg-secondary); text-decoration: none; }
+  </style>
+</Base>

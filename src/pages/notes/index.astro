@@ -1,40 +1,7 @@
 ---
-import Base from "../../layouts/Base.astro";
-import NoteList from "../../components/NoteList.astro";
-import { allNotes, noteYears } from "../../selectors/notes";
-import { site } from "../../config/site.config";
+import LatestPage from "../../components/notes/LatestPage.astro";
+import { latestNotesPage } from "../../selectors/notes";
 
-const LATEST = 20;
-
-const notes = await allNotes();
-const years = await noteYears();
-const shown = notes.slice(0, LATEST);
-
-// No anchors here, and no pagination. The permalink a note publishes points
-// into its year archive, so this page is free to change shape without
-// stranding an address that is already in someone else's database.
-const archived = years.length > 1 || notes.length > shown.length;
+const view = await latestNotesPage();
 ---
-<Base title={`notes · ${site.title}`}>
-  <h1>notes</h1>
-
-  {notes.length === 0
-    ? <p class="empty">还没有。</p>
-    : <NoteList notes={shown} />}
-
-  {archived && (
-    <nav class="years" aria-label="归档">
-      {years.map((y) => <a href={`/notes/${y}/`}>{y}</a>)}
-    </nav>
-  )}
-
-  <style>
-    h1 { margin: 0 0 1.5em; font-size: 1.8em; }
-    .empty { color: var(--fg-secondary); }
-    .years { display: flex; flex-wrap: wrap; gap: 1.2em; margin-block-start: 2.5em;
-             font-variant-numeric: tabular-nums; }
-    .years a { color: var(--fg-secondary); text-decoration: none;
-               border-bottom: 1px solid var(--border-subtle); }
-    .years a:hover { color: var(--active); border-color: var(--active); }
-  </style>
-</Base>
+<LatestPage view={view} />
