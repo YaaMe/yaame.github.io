@@ -8,14 +8,48 @@ Chinese content, Astro 7, no theme.
 Two, and they are the same shape: put what changes behind one door, so the rest
 of the tree does not have to know it changed.
 
-**One — the design layer reaches application data through the middle band.**
-A view takes data as props or calls services and selectors. Selectors prepare
-what a view prints. A page parses, delegates and renders; its template only passes
-data to a view. Route paths and `getStaticPaths` stay in pages. Page markup and
-styles live in feature directories under `src/components/`, even for one page.
+**One — entrances and views reach data only through the middle band.** Application
+routes live in `src/pages/`, `src/pages-extra/` or `src/routes/`. Astro routes
+`src/pages/` by file. Integrations in `astro.config.mjs` inject pages for the
+full profile from `src/pages-extra/` and enabled handlers from `src/routes/`.
+Routes call the middle band
+(`src/services/`, `src/selectors/`) and hand the result to views. The design
+layer — `src/components/`, `src/layouts/`, `src/styles/` — is views. A view
+takes data as props, or calls the middle band itself. What a view prints, a
+selector prepares (URLs, handles, labels).
+A route's template only passes data to a layout or component; markup lives in
+views, so a redesign rewrites views and never a route.
+Route paths and `getStaticPaths` stay in pages. Page markup and styles live in
+feature directories under `src/components/`, even for one page.
 
-Views import result types through selectors,
-never models or the framework binding, and never `astro:content`, including types.
+A server island is a view, and its component lives in `src/components/`. Astro
+serves every island through one route that the framework owns, so an island
+has no route file in this tree. An island reads request-time data through the middle band
+and renders views: `src/components/session/server.astro` calls `current()`
+from `src/services/auth/session.ts`.
+
+A view may call a service, writes included. If a write needs uniform
+handling — authentication, CSRF, a transaction, logging — it enters through a
+route, so the handling is in one place.
+
+A request is a public endpoint, props are internal; open a request only for data
+that exists only at request time. Inside a request,
+everything else is internal: who is signed in is read through `src/services/`
+by the island or route that renders it, and passed on as props. It needs no
+endpoint of its own.
+
+Neither an entrance nor a view imports `src/persistence/`, `src/models/`,
+`src/migrations/`, `src/gateways/`, `virtual:platform`, `virtual:astro` or
+`astro:content`, not even for types; a view takes result types through selectors. Any
+layer may import `src/config/` and `src/lib/`. One exception: the queue
+consumer takes its own queue transport (ack, retry) from `virtual:platform`;
+every state change it makes goes through `src/services/`.
+
+Imports point downward, one layer at a time: a layer reaches only the layer
+directly below it. Entrances and views reach the middle band, the middle
+reaches the bottom, and the bottom reaches the boundary. Entrances also render
+views. A type declaration file (`.d.ts`) belongs to no layer: any layer may
+import its types. From top to bottom:
 
 Keep server islands, full/static wrappers, component aliases and note-slot placement
 in components. Each post or year archive has one comments island in the full
@@ -24,23 +58,67 @@ neither personal identity nor live comments. `Base.astro` may compose
 `virtual:session-bar`. Session resolution belongs to the renderer that needs it.
 
 ```
-data layer — untouched by a redesign
-  src/content/            Markdown and JSON
-  src/content.config.ts   collection registration
-  src/models/content/    field definitions, tag validation
-  src/persistence/content/  collection reads and Astro renders
-  src/astro.binding.ts    framework content access, through virtual:astro
-  src/config/tags.ts      the tag registry
-  src/config/site.config.ts  identity, navigation, links
-  src/selectors/posts.ts  posts, tags, the novel
-  src/selectors/notes.ts  notes, and the permalink they publish
-  src/selectors/interactions/  comment reads, visibility and display preparation
-  scripts/*.mjs           fill, check, create
-  Makefile
-
-design layer — replaceable wholesale
-  src/layouts/  src/components/  src/pages/  src/styles/
+entrances — routes
+  src/pages/              pages and endpoints routed by file
+  src/pages-extra/        pages injected for the full profile
+  src/routes/             injected API, ActivityPub and login handlers
+  worker/consumer.ts      queued messages
+  scripts/*.mjs  Makefile operations: the owner's commands, at the repository root
+edges of the entrances
+  src/params/             what comes in, validated
+  src/schemas/            what goes out
+framework declarations — what the application declares to Astro; directly above the middle
+  src/content.config.ts   collections, with schemas from the models through a selector (path fixed by Astro)
+views — the design layer, replaceable wholesale; rendered by routes; directly above the middle, as the entrances are
+  src/components/  src/layouts/  src/styles/   server islands included
+middle — untouched by a redesign, as is everything below
+  src/services/           writes, decisions, use cases
+  src/signals/            reactions to a change in data
+  src/selectors/          reads, shaped for the caller
+    posts.ts              posts, tags, the novel
+    notes.ts              notes, and the permalink they publish
+bottom
+  src/persistence/        data access: content/ (git), interactions/ (D1), records/ (KV)
+  src/models/             tables, row schemas, invariants of one row, keys
+  src/migrations/         migration history and migrate()
+  src/gateways/           external systems, both ways: the Fedify instance inbound routes hand requests to, and outbound calls (ActivityPub delivery and resolution, GitHub)
+boundary
+  src/platform/           the host (rule two), through virtual:platform
+  src/astro.binding.ts    the framework, through virtual:astro
+anywhere
+  src/config/             the owner's settings: site, tags, ActivityPub, login, follow intent, data register
+  src/lib/                abstract, neutral logic; imports none of the above
+  src/content/            the git database itself: Markdown and JSON
 ```
+
+A signal is a reaction to a change in data — an announcement after the actor or
+a post changed, a log after a follower left — whether or not an ORM hook fires
+it: the change succeeds even if the reaction does not run.
+
+Git content — posts, notes, promoted comments — is a database like the
+interaction database: `getCollection` is its query layer and
+`src/content.config.ts` registers its collections. `src/persistence/content/`
+reads it through `virtual:astro`, a build-time alias like `virtual:platform`,
+which resolves to `src/astro.binding.ts`. In the middle band and below, that
+file is the only module that imports `astro:*`; a new framework binding is added
+to it. Views may import rendering modules such as `astro:assets` and
+`astro:transitions`, never `astro:content`.
+`src/content.config.ts`, whose path Astro fixes, imports framework modules as a
+framework declaration. The queue consumer's build maps
+`virtual:astro` to a stub that refuses: git content exists only inside the
+Astro build, so the consumer may import the persistence layer but never read
+content.
+
+Scripts are operations: a user-facing entrance for another stream of
+events — the owner's commands — as routes are for requests and the queue consumer is for
+queued messages. They stay in `scripts/`, outside `src/`, and are not part of
+the application. They never re-implement an application rule — validation,
+ids, visibility — but import it from `src/`; the operation's own procedure
+(git and pull-request steps, prompts, CLI plumbing) stays in `scripts/`.
+
+`src/lib/` is a library in the ordinary sense: no protocol, no storage, no
+host, no `astro:content`; any layer may use it. Placement of backend code
+follows the `backend-layering` skill.
 
 See `docs/architecture.md` for the first, `docs/configuration.md` for every
 switch and how they interact. When adding data a page needs, add it to

@@ -57,7 +57,10 @@ One known boundary violation remains: SQL-backed selector reads reach
 `src/persistence/interactions/database.ts`, where `store()` calls `migrate(db)`
 on first access. B13 owns removing schema initialization from requests. A removal
 alone would break first-access behavior, so step 17 records this violation without
-changing it. The audit found no other boundary violation in its inspected scope.
+changing it. Two middle-band modules also import the `Database` type from
+`src/platform/types.ts`, a source module rather than a `.d.ts`; moving those
+types into a declaration file is #101. The audit found no other boundary
+violation in its inspected scope.
 It does not claim complete read purity or prove that no application-rule copy
 exists elsewhere.
 

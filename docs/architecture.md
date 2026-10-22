@@ -3,46 +3,85 @@
 The site's central constraint: **you can throw away the whole design layer and
 rewrite it, and the data does not change.**
 
-## The two layers
+## The layers
+
+Imports point downward, one layer at a time: a layer reaches only the layer
+directly below it. Entrances and views both sit directly above the middle band
+and reach it; the middle reaches the bottom; the bottom reaches the boundary.
+Entrances also render views. A type declaration file (`.d.ts`) belongs to no
+layer: any layer may import its types.
 
 ```
-data layer — no line changes in a redesign
-  src/content/            Markdown and JSON. Data only
-  src/content.config.ts   collection registration
-  src/models/content/    field definitions and tag validation
-  src/selectors/content/collections.ts  collection schema interface
-  src/persistence/content/  collection reads and Astro renders
-  src/astro.binding.ts    framework content access, through virtual:astro
-  src/config/tags.ts      the tag registry (the single source)
-  src/config/site.config.ts  site identity, navigation, social links
-  src/selectors/posts.ts  posts, tags, the novel
-  src/selectors/notes.ts  notes, and the permalink they publish
-  src/selectors/interactions/promoted.ts promoted comments
-  src/selectors/interactions/comment-view.ts withdrawal and tombstone visibility
-  src/selectors/interactions/comment-runs.ts typed run labels and text
-  src/selectors/interactions/comment-display.ts safe links and date labels
-  src/selectors/interactions/comments-live.ts full-profile withdrawal view
-  src/selectors/interactions/comment-archive.ts archive snapshot reads and placement
-  src/services/interactions/{promote,tombstone,unpromote}.ts comment operation plans
-  src/services/interactions/promote-text.ts typed-content conversion
-  src/persistence/interactions/comment-operation-sql.ts comment operation SQL
-  src/services/recovery/ portable recovery contract, selection and plans
-  src/persistence/interactions/recovery-sql.ts recovery SQL construction
-  scripts/*.mjs           the commands the Makefile runs
+entrances — routes
+  src/pages/              pages and endpoints routed by file
+  src/pages-extra/        pages injected for the full profile
+  src/routes/             injected API, ActivityPub and login handlers
+  worker/consumer.ts      queued messages
+  scripts/*.mjs           operations: the commands the Makefile runs, at the repository root
   Makefile                the entry point for every operation
-
-design layer — replaceable as a whole
-  src/layouts/  src/components/  src/pages/  src/styles/
+edges of the entrances
+  src/params/             what comes in, validated
+  src/schemas/            what goes out
+framework declarations — what the application declares to Astro; directly above the middle
+  src/content.config.ts   collections, with schemas from the models through a selector (path fixed by Astro)
+views — the design layer, replaceable as a whole; rendered by routes; directly above the middle, as the entrances are
+  src/components/  src/layouts/  src/styles/   server islands included
+middle — no line changes in a redesign, nor anywhere below
+  src/services/           writes, decisions, use cases
+  src/signals/            reactions to a change in data
+  src/selectors/          reads, shaped for the caller
+bottom
+  src/persistence/        data access: content/ (git), interactions/ (D1), records/ (KV)
+  src/models/             tables, row schemas, invariants of one row, keys
+  src/migrations/         migration history and migrate()
+  src/gateways/           external systems, both ways: the Fedify instance inbound routes hand requests to, and outbound calls (ActivityPub delivery and resolution, GitHub)
+boundary
+  src/platform/           the host (the second rule in CLAUDE.md), through virtual:platform
+  src/astro.binding.ts    the framework, through virtual:astro
+anywhere
+  src/config/             the owner's settings: site, tags, ActivityPub, login, follow intent, data register
+  src/lib/                abstract, neutral logic; imports none of the above
+  src/content/            the git database itself: Markdown and JSON
 ```
 
-Neither list covers the backend features or `src/platform/`, the host boundary.
-ActivityPub registrations live in `src/routes/activitypub/`; its use cases,
-reads, reactions and protocol calls live in services, selectors, signals and gateways.
-Auth handlers live in `src/routes/auth/`;
-the temporary login page lives in `src/pages-extra/auth/`. Auth also spans edges,
-services, record persistence and a GitHub gateway; [interactions](interactions.md#the-write-entry-point)
-describes their roles. The second architectural rule in `CLAUDE.md` governs
-`src/platform/`.
+Git content (posts, notes, promoted comments) is a database like the
+interaction database: `getCollection` is its query layer and
+`src/content.config.ts` registers its collections. `src/persistence/content/`
+reads it through `virtual:astro`, which resolves to `src/astro.binding.ts`.
+In the middle band and below, only that file imports `astro:*`; views may
+import rendering modules such as `astro:assets` and `astro:transitions`. `src/content.config.ts`
+(whose path Astro fixes) imports framework modules as a framework declaration.
+
+A request enters through a route, a page or a handler, and the route hands
+what it reads to views. Views are components and layouts. A view takes data as
+props, or calls the middle band itself. A request is a public endpoint and
+props are internal, so a request is opened only for data that exists only at
+request time. Within it, who is signed in is read through `src/services/` by
+the island or route that renders it, and passed on as props.
+A page's template only passes data to a layout or component, so a redesign
+rewrites views and leaves every route as it is.
+
+A server island is a view and lives in `src/components/`. Astro serves every
+island through one route it owns, `/_server-islands/[name]`. It encrypts the
+page's props into the page, and the deferred component renders in that
+request. So an island has no route file in this tree. It works like a React
+Server Component: it reads request-time data through the middle band and
+renders views. `src/components/session/server.astro` calls `current()` from
+`src/services/auth/session.ts`.
+
+A view may call a service, writes included. If a write needs uniform
+handling — authentication, CSRF, a transaction, logging — it enters through a
+route, so the handling is in one place.
+`src/lib/` is a library in the ordinary sense — no protocol, no storage, no
+host, no `astro:content` — so any layer may use it, and it imports none of
+them. `src/services/` and `src/selectors/` are the middle band: services hold the
+writes and decisions the entrances and views call, and may call selectors to load what
+they decide on; selectors never call services. Below them, placement follows the
+`backend-layering` skill.
+
+Auth handlers live in `src/routes/auth/`, and the temporary login page in
+`src/pages-extra/auth/`; [interactions](interactions.md#the-write-entry-point)
+describes the roles of the auth edges, services, records and gateway.
 
 Under ADR 0018 and O8, each host's recovery module in `src/platform/<target>/`
 uses host-neutral rules in `src/services/recovery/`, and the host's script entry
@@ -77,9 +116,13 @@ offset and size. Followers return the full list for unpaged delivery fan-out.
 
 ## The rule
 
-**Views reach application data through the middle band: services and selectors.**
-They receive data as props or call that band directly. Selectors prepare what views
-print. Pages keep route paths and `getStaticPaths`; their templates pass values to
+**Entrances and views reach data only through the middle band.** A route or a
+view calls `src/services/` and `src/selectors/`. A route passes the result to
+views, as props or in a response. Neither imports `src/persistence/`,
+`src/models/`, `src/migrations/`, `src/gateways/`, `virtual:platform`,
+`virtual:astro` or `astro:content`. What a view prints, a selector has prepared.
+
+Pages keep route paths and `getStaticPaths`; their templates pass values to
 feature components. Those components own markup and styles, including when only one
 page uses them. Home, posts, notes, tags, the novel and the not-found view each have
 a feature directory under `src/components/`.
@@ -90,9 +133,9 @@ Deferred responses use `private, no-store`; prerendered pages contain no persona
 identity or live comment text. The shell composes `virtual:session-bar`, whose
 renderer resolves its own session through the middle band.
 
-They import result types through selectors, never models or the binding.
-They never import `astro:content`, including types. Configuration and neutral
-`src/lib/` helpers remain available across the tree. See [ADR 0018](decisions/0018-src-is-layered-by-role.md).
+Views import result types through selectors, never models or the binding, and
+never `astro:content`, including types. Configuration and neutral `src/lib/`
+helpers remain available across the tree. See [ADR 0018](decisions/0018-src-is-layered-by-role.md).
 
 The selector export inventory below covers every module under `src/selectors/`,
 including result types and forwards. Paths are relative to that directory.
@@ -167,6 +210,9 @@ See the implementation record for [the remaining B13 read-path effect](implement
 See the implementation record for [GET-trigger policy under O15](implementation/0018-relayering.md#get-triggers-o15).
 It also records the audit's limits, [retention and fingerprint policies](implementation/0018-relayering.md#retention-and-fingerprints), and validation.
 
+To give a page new data, add a selector here first; the page passes it on, or
+the view calls it.
+
 The interaction key scheme lives in `src/models/interactions/key-scheme.ts`.
 It owns the namespace, source names and input normalisation. Federated comment
 ids use the signing actor URL and Note object id.
@@ -235,11 +281,12 @@ content rule. So `chapterCount()` counts chapters, and no page does.
 ## What this constraint gives you
 
 ```
-new design        rewrite layouts / components / pages / styles only
+new design        rewrite components / layouts / styles only
 add a CSS framework
                   a design-layer change. The data layer does not see it
-replace Astro     adapt src/astro.binding.ts and src/content.config.ts
-                  while preserving the persistence and collection contracts
+replace Astro     adapt framework bindings, declarations, routes and views,
+                  including Astro commands in the Makefile
+                  preserve content and application data rules
 ```
 
 ## Exception: URL shapes
