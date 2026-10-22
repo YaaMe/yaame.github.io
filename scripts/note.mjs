@@ -26,6 +26,7 @@ import { join } from "node:path";
 import { append, newId } from "./notes-store.mjs";
 import { postArchivePath } from "./comments-store.mjs";
 import { apConfig, notes, posts } from "../src/config/data.config.generated.mjs";
+import { noteSource, parseNoteDraft, checkNoteConversion, prepareNote } from "../src/services/authoring/notes.ts";
 
 const APPLY = process.env.APPLY === "1";
 const FORCE = process.env.FORCE === "1";
@@ -46,85 +47,40 @@ if (!source && !text) {
   fail('  用法：make po 正文    /    make po T="正文"    /    make po F=draft.md');
 }
 
-/**
- * A note from a file.
- *
- * Returns what to write and what is being given up, and refuses rather than
- * strand an address: a file that is already a published post has an
- * ActivityPub id in the followers' databases, and a note gets a new random one.
- * The old address would 404 with remote servers still pointing at it, and the
- * content would arrive again as something new. The protocol's answer is a
- * `Delete`, which needs the signing key, which is deliberately not here.
- */
 async function fromFile(path) {
   // A path if one exists, a slug otherwise. The draft this is for usually lives
   // wherever it was convenient to write it, not in the content directory.
   const asPost = join(postsRoot, `${path}.md`);
-  const file = existsSync(path) ? path : asPost;
+  const { file, slug } = noteSource(path, asPost, existsSync(path));
   if (!existsSync(file)) fail(`  没有这个文件：${path}`, `  也不是 ${asPost}`);
-
-  // Only a file that is already a post can have been federated, and only then
-  // is there an id to strand.
-  const slug = file === asPost ? path : null;
-
-  const raw = readFileSync(file, "utf8");
-  let head = "";
-  let body = raw.trim();
-  if (raw.startsWith("---\n")) {
-    const end = raw.indexOf("\n---", 4);
-    if (end < 0) fail(`  ${file} 的 frontmatter 没有收尾`);
-    head = raw.slice(4, end);
-    body = raw.slice(end + 4).trim();
-  }
-  if (!body) fail(`  ${file} 没有正文`);
-
-  const value = (n) => head.match(new RegExp(`^${n}\\s*:\\s*(.+)$`, "m"))?.[1]?.trim();
-
-  /** `tags: [a, b]` and a `- ` list under `tags:` are both in use. */
-  const tags = (() => {
-    const inline = value("tags");
-    if (inline?.startsWith("[")) return inline.slice(1, -1).split(",").map((t) => t.trim());
-    const block = head.match(/^tags\s*:\s*\n((?:\s*-\s*.+\n?)+)/m);
-    return block ? block[1].trim().split("\n").map((l) => l.replace(/^\s*-\s*/, "")) : [];
-  })();
-
-  const written = value("date")?.replace(/^["']|["']$/g, "");
-  const when = written ? new Date(written) : new Date();
-  if (Number.isNaN(when.getTime())) fail(`  date 读不成时间：${written}`);
+  const draft = parseNoteDraft(readFileSync(file, "utf8"), () => new Date());
+  if (draft.status === "open-frontmatter") fail(`  ${file} 的 frontmatter 没有收尾`);
+  if (draft.status === "empty") fail(`  ${file} 没有正文`);
+  if (draft.status === "invalid-date") fail(`  date 读不成时间：${draft.written}`);
 
   if (slug) {
-    // Promoted comments hang off the post's ActivityPub id. Converting would
-    // leave them describing a conversation under an object that no longer
-    // answers, and nothing would report it.
     const comments = postArchivePath(slug);
-    if (existsSync(comments)) {
+    const result = await checkNoteConversion(slug, FORCE, {
+      hasComments: () => existsSync(comments),
+      configuration: () => readFileSync(apConfig.file, "utf8"),
+      request: fetch,
+    });
+    if (result.status === "comments") {
       fail(
         `\n  ✗ ${comments} 存在：有评论挂在这篇的 AP id 上`,
         "    转换会让它们指向一个不再应答的对象。先决定那些评论怎么办。",
       );
     }
 
-    // Read out of the source rather than imported: activitypub.ts is TypeScript,
-    // and this script runs without a compiler.
-    const config = readFileSync(apConfig.file, "utf8");
-    const field = (n) => config.match(new RegExp(`${n}:\\s*"([^"]+)"`))?.[1];
-    const host = field("actorHost");
-    const user = field("user");
-    if (!host || !user) fail(`  读不出 actorHost / user —— ${apConfig.file} 的形状变了，先看一眼再跑`);
-
-    const address = `https://${host}/users/${user}/notes/${slug}`;
-    let live = false;
-    try {
-      live = (await fetch(address, { headers: { accept: "application/activity+json" } })).status === 200;
-    } catch {
-      // Unreachable is not "not published", and treating it as one is the
-      // single thing that must not happen here.
+    if (result.status === "configuration") fail(`  读不出 actorHost / user —— ${apConfig.file} 的形状变了，先看一眼再跑`);
+    const address = result.address;
+    if (result.status === "unreachable") {
       fail(
         `\n  ✗ 查不到 ${address} 是否已发布（网络问题？）`,
         "    这一步查不出来就该失败，而不是当作没发布过。",
       );
     }
-    if (live && !FORCE) {
+    if (result.status === "published") {
       fail(
         `\n  ✗ 这篇已经联邦化了：${address}`,
         "    它的 id 在关注者的数据库里。转成短文会换成新 id，旧地址变 404，",
@@ -132,23 +88,16 @@ async function fromFile(path) {
         "\n    真要转：FORCE=1，代价如上。",
       );
     }
-    if (live) console.error("\n  ⚠ FORCE=1：旧 id 会变成 404，远端引用悬空。");
+    if (result.live) console.error("\n  ⚠ FORCE=1：旧 id 会变成 404，远端引用悬空。");
   }
 
-  return { file, body, when, dated: Boolean(written), title: value("title"), tags, pinned: Boolean(value("pinned")) };
+  return { file, ...draft };
 }
 
 const from = source ? await fromFile(source) : { body: text, when: new Date(), dated: true };
 
-// Normalised to UTC, because the site orders notes by comparing these strings,
-// and a mix of `Z` and `+08:00` does not compare: 09:00+08:00 sorts after
-// 02:00Z while being an hour earlier. The outbox is an OrderedCollection, so a
-// wrong order breaks the specification, not just the page.
-const published = from.when.toISOString().replace(/\.\d{3}Z$/, "Z");
-// UTC, deliberately not the site's timezone: this number becomes the note's
-// permanent address, and it must not depend on a setting that can be edited.
-const year = from.when.getUTCFullYear();
-const id = newId();
+const { year, note } = prepareNote(from.body, from.when, newId);
+const { id, published } = note;
 
 if (source) {
   console.log(`  ${from.file}`);
@@ -166,7 +115,7 @@ if (source) {
   }
 }
 
-const out = append({ id, published, content: from.body }, year);
+const out = append(note, year);
 
 if (source) {
   rmSync(from.file);

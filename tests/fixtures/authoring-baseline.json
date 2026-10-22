@@ -1,0 +1,511 @@
+{
+  "post defaults and local timestamps": {
+    "results": [
+      {
+        "status": 0,
+        "stdout": "  src/content/posts/2025-12.md   （month，标签 summaries month）\n  写完正文后跑 make fix 补 description\n",
+        "stderr": ""
+      },
+      {
+        "status": 0,
+        "stdout": "  src/content/posts/2025-year.md   （year，标签 summaries year）\n  写完正文后跑 make fix 补 description\n",
+        "stderr": ""
+      },
+      {
+        "status": 0,
+        "stdout": "  src/content/posts/2024-02-29.md   （post，标签待填）\n  写完正文后跑 make fix 补 description\n",
+        "stderr": ""
+      },
+      {
+        "status": 1,
+        "stdout": "",
+        "stderr": "  src/content/posts/2025-year.md 已存在 —— 不覆盖\n"
+      }
+    ],
+    "files": {
+      "src/content/posts/2024-02-29.md": "---\ntitle: \"2024-02-29\"\ndate: 2026-01-01 08:30:40+08:00\ntags:\n  # 从 owner choices/tags.ts 的常量池里选；不在池子里的会让构建失败\n---\n\n",
+      "src/content/posts/2025-12.md": "---\ntitle: \"2025-12\"\ndate: 2026-01-01 08:30:40+08:00\ntags:\n  - summaries\n  - month\n---\n\n",
+      "src/content/posts/2025-year.md": "---\ntitle: \"2025-year\"\ndate: 2026-01-01 08:30:40+08:00\ntags:\n  - summaries\n  - year\n---\n\n",
+      "owner choices/activitypub.ts": "export const AP = { actorHost: \"probe.test\", user: \"writer\" } as const;\n",
+      "owner choices/tags.ts": "export const TAGS = {\n  reading: \"读书\",\n} as const;\n",
+      "src/config/following.json": "{\"extra\":true,\"follow\":[]}\n"
+    }
+  },
+  "post calendar and argument refusals": {
+    "results": [
+      {
+        "status": 2,
+        "stdout": "",
+        "stderr": "  认不出 \"2025-02-29\"。可用形式：2026-year / 2026-09 / 2026-09-15\n"
+      },
+      {
+        "status": 2,
+        "stdout": "",
+        "stderr": "  认不出 \"2025-99\"。可用形式：2026-year / 2026-09 / 2026-09-15\n"
+      },
+      {
+        "status": 2,
+        "stdout": "",
+        "stderr": "  认不出 \"0099-01-01\"。可用形式：2026-year / 2026-09 / 2026-09-15\n"
+      },
+      {
+        "status": 2,
+        "stdout": "",
+        "stderr": "  --title 后面要跟一个标题\n"
+      },
+      {
+        "status": 2,
+        "stdout": "",
+        "stderr": "  未知参数 --unknown\n\n  用法：node scripts/newpost.mjs [日期] [选项]\n\n    （不带参数）      上一个月的月结\n    2026-09           指定月结\n    2026-year         年结\n    2026-09-15        单篇随笔\n\n    --title <标题>    指定标题，默认用日期\n    --no-interactive  跳过标签选择\n    --pick            强制进入选择器（不依赖 TTY）\n    -h, --help        显示这段\n"
+      },
+      {
+        "status": 2,
+        "stdout": "",
+        "stderr": "  只接受一个日期参数，收到 2 个：2025-01 extra\n"
+      }
+    ],
+    "files": {
+      "owner choices/activitypub.ts": "export const AP = { actorHost: \"probe.test\", user: \"writer\" } as const;\n",
+      "owner choices/tags.ts": "export const TAGS = {\n  reading: \"读书\",\n} as const;\n",
+      "src/config/following.json": "{\"extra\":true,\"follow\":[]}\n"
+    }
+  },
+  "dedicated tags and usage": {
+    "results": [
+      {
+        "status": 0,
+        "stdout": "  已加入 owner choices/tags.ts：travel → 旅行\n  现在可以在 frontmatter 里用它了；make tags 看全部\n",
+        "stderr": ""
+      },
+      {
+        "status": 1,
+        "stdout": "",
+        "stderr": "  \"travel\" 已在池子里 —— 用 make tags 看现有的\n"
+      },
+      {
+        "status": 2,
+        "stdout": "",
+        "stderr": "  slug \"9Upper_tag\" 不合法：小写字母开头，只能含小写字母、数字、下划线\n"
+      },
+      {
+        "status": 2,
+        "stdout": "",
+        "stderr": "  slug \"bad-slug\" 不合法：小写字母开头，只能含小写字母、数字、下划线\n"
+      },
+      {
+        "status": 2,
+        "stdout": "",
+        "stderr": "  用法: make newtag SLUG=<英文标识> LABEL=<显示名>\n"
+      },
+      {
+        "status": 0,
+        "stdout": "  slug              显示名         用量\n  reading           读书           1\n  travel            旅行           0   ← 未使用\n\n  ★ 不在池子里（构建会失败）：orphan\n",
+        "stderr": ""
+      }
+    ],
+    "files": {
+      "src/content/posts/2025-01.md": "---\ntags:\n  - reading\n  - orphan\nother:\n  - travel\n---\n",
+      "owner choices/activitypub.ts": "export const AP = { actorHost: \"probe.test\", user: \"writer\" } as const;\n",
+      "owner choices/tags.ts": "export const TAGS = {\n  reading: \"读书\",\n  travel: \"旅行\",\n} as const;\n",
+      "src/config/following.json": "{\"extra\":true,\"follow\":[]}\n"
+    }
+  },
+  "frontmatter dry run and check": {
+    "results": [
+      {
+        "status": 0,
+        "stdout": "  会改 2025-01.md\n  ? essay.md 缺 tags，文件名认不出类型 —— 需要人工\n  会改 essay.md\n\n  2 个文件需要补全，1 个需要人工处理\n",
+        "stderr": "  跳过 bare.md：没有 frontmatter\n"
+      },
+      {
+        "status": 1,
+        "stdout": "  会改 2025-01.md\n  ? essay.md 缺 tags，文件名认不出类型 —— 需要人工\n  会改 essay.md\n\n  2 个文件需要补全，1 个需要人工处理\n",
+        "stderr": "  跳过 bare.md：没有 frontmatter\n  --check：有未补全的 frontmatter\n"
+      }
+    ],
+    "files": {
+      "src/content/posts/2025-01.md": "---\ntitle: \"A title\"\ndate: 2025-01-01T00:30:00+08:00\ntags: [reading, travel]\npinned: false\n---\nA body.\n",
+      "src/content/posts/bare.md": "Body",
+      "src/content/posts/essay.md": "---\ntitle: Essay\n---\n# Heading\n\nBody text.\n",
+      "owner choices/activitypub.ts": "export const AP = { actorHost: \"probe.test\", user: \"writer\" } as const;\n",
+      "owner choices/tags.ts": "export const TAGS = {\n  reading: \"读书\",\n} as const;\n",
+      "src/config/following.json": "{\"extra\":true,\"follow\":[]}\n"
+    }
+  },
+  "frontmatter fill and preserve metadata": {
+    "results": [
+      {
+        "status": 0,
+        "stdout": "  已改 2025-01.md\n  已改 2025-99.md\n\n  2 个文件需要补全，0 个需要人工处理\n",
+        "stderr": ""
+      },
+      {
+        "status": 0,
+        "stdout": "\n  0 个文件需要补全，0 个需要人工处理\n",
+        "stderr": ""
+      }
+    ],
+    "files": {
+      "src/content/posts/2025-01.md": "---\ntitle: \"A title\"\ndate: 2025-01-01T00:30:00+08:00\ntags: [reading, travel]\npinned: false\ndescription: \"A body.\"\n---\nA body.\n",
+      "src/content/posts/2025-99.md": "---\ntitle: Odd month\ndescription:\ntags:\n  - summaries\n  - month\n---\n正文足够长。后面一句。\n",
+      "src/content/posts/2025-year.md": "---\ntitle: \"Written\"\ndescription: \"Keep\"\ntags:\n  - travel\n---\nChanged body\n",
+      "owner choices/activitypub.ts": "export const AP = { actorHost: \"probe.test\", user: \"writer\" } as const;\n",
+      "owner choices/tags.ts": "export const TAGS = {\n  reading: \"读书\",\n} as const;\n",
+      "src/config/following.json": "{\"extra\":true,\"follow\":[]}\n"
+    }
+  },
+  "frontmatter force": {
+    "results": [
+      {
+        "status": 0,
+        "stdout": "  已改 2025-01.md\n\n  1 个文件需要补全，0 个需要人工处理\n",
+        "stderr": ""
+      }
+    ],
+    "files": {
+      "src/content/posts/2025-01.md": "---\ntitle: \"A title\"\ndate: 2025-01-01T00:30:00+08:00\ntags: [reading, travel]\npinned: false\ndescription: \"A body.\"\n---\nA body.\n",
+      "owner choices/activitypub.ts": "export const AP = { actorHost: \"probe.test\", user: \"writer\" } as const;\n",
+      "owner choices/tags.ts": "export const TAGS = {\n  reading: \"读书\",\n} as const;\n",
+      "src/config/following.json": "{\"extra\":true,\"follow\":[]}\n"
+    }
+  },
+  "pin edits": {
+    "results": [
+      {
+        "status": 0,
+        "stdout": "  置顶：2025-01\n\n  提交并部署之后，别人搜到这个账号就能看到它。\n",
+        "stderr": ""
+      },
+      {
+        "status": 0,
+        "stdout": "  置顶：2025-01\n\n  提交并部署之后，别人搜到这个账号就能看到它。\n",
+        "stderr": ""
+      },
+      {
+        "status": 0,
+        "stdout": "  取消置顶：2025-01\n\n  提交并部署之后，别人搜到这个账号就能看到它。\n",
+        "stderr": ""
+      },
+      {
+        "status": 0,
+        "stdout": "  本来就没置顶：2025-01\n",
+        "stderr": ""
+      },
+      {
+        "status": 1,
+        "stdout": "",
+        "stderr": "  没有这篇：src/content/posts/missing.md\n"
+      },
+      {
+        "status": 1,
+        "stdout": "",
+        "stderr": "  用法：make pin <slug>   /   make unpin <slug>\n"
+      }
+    ],
+    "files": {
+      "src/content/posts/2025-01.md": "---\ntitle: \"A title\"\ndate: 2025-01-01T00:30:00+08:00\ntags: [reading, travel]\n---\nA body.\n",
+      "owner choices/activitypub.ts": "export const AP = { actorHost: \"probe.test\", user: \"writer\" } as const;\n",
+      "owner choices/tags.ts": "export const TAGS = {\n  reading: \"读书\",\n} as const;\n",
+      "src/config/following.json": "{\"extra\":true,\"follow\":[]}\n"
+    }
+  },
+  "pin without title and malformed frontmatter": {
+    "results": [
+      {
+        "status": 0,
+        "stdout": "  置顶：2025-01\n\n  提交并部署之后，别人搜到这个账号就能看到它。\n",
+        "stderr": ""
+      },
+      {
+        "status": 1,
+        "stdout": "",
+        "stderr": "  src/content/posts/bare.md 没有 frontmatter\n"
+      }
+    ],
+    "files": {
+      "src/content/posts/2025-01.md": "---\ndate: 2025-01-01\npinned: true\n---\nBody\n",
+      "src/content/posts/bare.md": "Bare",
+      "owner choices/activitypub.ts": "export const AP = { actorHost: \"probe.test\", user: \"writer\" } as const;\n",
+      "owner choices/tags.ts": "export const TAGS = {\n  reading: \"读书\",\n} as const;\n",
+      "src/config/following.json": "{\"extra\":true,\"follow\":[]}\n"
+    }
+  },
+  "follow edits and refusals": {
+    "results": [
+      {
+        "status": 0,
+        "stdout": "  写入 src/config/following.json：z@remote.test\n\n  提交并部署之后运行时会对账，真正发出 Follow。\n",
+        "stderr": ""
+      },
+      {
+        "status": 0,
+        "stdout": "  写入 src/config/following.json：a@remote.test\n\n  提交并部署之后运行时会对账，真正发出 Follow。\n",
+        "stderr": ""
+      },
+      {
+        "status": 0,
+        "stdout": "  已经在名单里了：a@remote.test\n",
+        "stderr": ""
+      },
+      {
+        "status": 0,
+        "stdout": "  移出 src/config/following.json：z@remote.test\n\n  提交并部署之后运行时会对账，真正发出 Follow。\n",
+        "stderr": ""
+      },
+      {
+        "status": 0,
+        "stdout": "  本来就没关注 missing@remote.test\n",
+        "stderr": ""
+      },
+      {
+        "status": 1,
+        "stdout": "",
+        "stderr": "  不像一个 handle：bad\n"
+      },
+      {
+        "status": 1,
+        "stdout": "",
+        "stderr": "  用法：make follow @someone@example.com   /   make unfollow @someone@example.com\n"
+      }
+    ],
+    "files": {
+      "owner choices/activitypub.ts": "export const AP = { actorHost: \"probe.test\", user: \"writer\" } as const;\n",
+      "owner choices/tags.ts": "export const TAGS = {\n  reading: \"读书\",\n} as const;\n",
+      "src/config/following.json": "{\n  \"extra\": true,\n  \"follow\": [\n    \"a@remote.test\"\n  ]\n}\n"
+    }
+  },
+  "note inline and collision across archives": {
+    "results": [
+      {
+        "status": 0,
+        "stdout": "  src/content/notes/2026.json  bbbbbbbb\n  Hello world\n\n  提交并部署之后它会被投递给关注者。\n",
+        "stderr": ""
+      }
+    ],
+    "files": {
+      "src/content/notes/2001.json": "{\"notes\":[{\"id\":\"aaaaaaaa\",\"published\":\"2001-01-01T00:00:00Z\",\"content\":\"Keep\"}]}",
+      "src/content/notes/2026.json": "{\n  \"notes\": [\n    {\n      \"id\": \"bbbbbbbb\",\n      \"published\": \"2026-01-01T00:30:40Z\",\n      \"content\": \"Hello world\"\n    }\n  ]\n}\n",
+      "owner choices/activitypub.ts": "export const AP = { actorHost: \"probe.test\", user: \"writer\" } as const;\n",
+      "owner choices/tags.ts": "export const TAGS = {\n  reading: \"读书\",\n} as const;\n",
+      "src/config/following.json": "{\"extra\":true,\"follow\":[]}\n"
+    }
+  },
+  "note draft dry run UTC boundary": {
+    "results": [
+      {
+        "status": 0,
+        "stdout": "  draft.md\n    → src/content/notes/2024.json   id aaaaaaaa   2024-12-31T16:30:00Z\n\n  丢掉标题：A title\n  丢掉标签：reading、travel\n  丢掉置顶\n\n  正文（7 字）：\n    A body.\n\n  加 APPLY=1 才真的写，并删掉这个文件。\n",
+        "stderr": ""
+      }
+    ],
+    "files": {
+      "owner choices/activitypub.ts": "export const AP = { actorHost: \"probe.test\", user: \"writer\" } as const;\n",
+      "owner choices/tags.ts": "export const TAGS = {\n  reading: \"读书\",\n} as const;\n",
+      "src/config/following.json": "{\"extra\":true,\"follow\":[]}\n",
+      "draft.md": "---\ntitle: \"A title\"\ndate: 2025-01-01T00:30:00+08:00\ntags: [reading, travel]\npinned: false\n---\nA body.\n"
+    }
+  },
+  "note draft apply UTC boundary": {
+    "results": [
+      {
+        "status": 0,
+        "stdout": "  draft.md\n    → src/content/notes/2024.json   id aaaaaaaa   2024-12-31T16:30:00Z\n\n  丢掉标题：A title\n  丢掉标签：reading、travel\n  丢掉置顶\n\n  正文（7 字）：\n    A body.\n\n  写入 src/content/notes/2024.json\n  删除 draft.md\n\n  提交并部署之后它会被投递给关注者。\n",
+        "stderr": ""
+      }
+    ],
+    "files": {
+      "src/content/notes/2024.json": "{\n  \"extra\": true,\n  \"notes\": [\n    {\n      \"id\": \"aaaaaaaa\",\n      \"published\": \"2024-12-31T16:30:00Z\",\n      \"content\": \"A body.\"\n    },\n    {\n      \"id\": \"oldnote2\",\n      \"published\": \"2024-12-31T23:00:00Z\",\n      \"content\": \"Later\"\n    }\n  ]\n}\n",
+      "owner choices/activitypub.ts": "export const AP = { actorHost: \"probe.test\", user: \"writer\" } as const;\n",
+      "owner choices/tags.ts": "export const TAGS = {\n  reading: \"读书\",\n} as const;\n",
+      "src/config/following.json": "{\"extra\":true,\"follow\":[]}\n",
+      "draft.md": null
+    }
+  },
+  "note undated draft": {
+    "results": [
+      {
+        "status": 0,
+        "stdout": "  draft.md\n    → src/content/notes/2026.json   id aaaaaaaa   2026-01-01T00:30:40Z\n    （没有 date，用此刻）\n\n  正文（10 字）：\n    Plain body\n\n  加 APPLY=1 才真的写，并删掉这个文件。\n",
+        "stderr": ""
+      }
+    ],
+    "files": {
+      "owner choices/activitypub.ts": "export const AP = { actorHost: \"probe.test\", user: \"writer\" } as const;\n",
+      "owner choices/tags.ts": "export const TAGS = {\n  reading: \"读书\",\n} as const;\n",
+      "src/config/following.json": "{\"extra\":true,\"follow\":[]}\n",
+      "draft.md": "Plain body"
+    }
+  },
+  "note draft refusals": {
+    "results": [
+      {
+        "status": 1,
+        "stdout": "",
+        "stderr": "  open.md 的 frontmatter 没有收尾\n"
+      },
+      {
+        "status": 1,
+        "stdout": "",
+        "stderr": "  empty.md 没有正文\n"
+      },
+      {
+        "status": 1,
+        "stdout": "",
+        "stderr": "  date 读不成时间：impossible\n"
+      },
+      {
+        "status": 1,
+        "stdout": "",
+        "stderr": "  没有这个文件：missing\n  也不是 src/content/posts/missing.md\n"
+      },
+      {
+        "status": 1,
+        "stdout": "",
+        "stderr": "  用法：make po 正文    /    make po T=\"正文\"    /    make po F=draft.md\n"
+      }
+    ],
+    "files": {
+      "owner choices/activitypub.ts": "export const AP = { actorHost: \"probe.test\", user: \"writer\" } as const;\n",
+      "owner choices/tags.ts": "export const TAGS = {\n  reading: \"读书\",\n} as const;\n",
+      "src/config/following.json": "{\"extra\":true,\"follow\":[]}\n",
+      "open.md": "---\ntitle: x",
+      "empty.md": "---\ntitle: x\n---\n",
+      "bad.md": "---\ndate: impossible\n---\nBody"
+    }
+  },
+  "note slug unpublished": {
+    "results": [
+      {
+        "status": 0,
+        "stdout": "probe: https://probe.test/users/writer/notes/2025-01 application/activity+json\n  src/content/posts/2025-01.md\n    → src/content/notes/2024.json   id aaaaaaaa   2024-12-31T16:30:00Z\n\n  丢掉标题：A title\n  丢掉标签：reading、travel\n  丢掉置顶\n\n  正文（7 字）：\n    A body.\n\n  加 APPLY=1 才真的写，并删掉这个文件。\n",
+        "stderr": ""
+      }
+    ],
+    "files": {
+      "src/content/posts/2025-01.md": "---\ntitle: \"A title\"\ndate: 2025-01-01T00:30:00+08:00\ntags: [reading, travel]\npinned: false\n---\nA body.\n",
+      "owner choices/activitypub.ts": "export const AP = { actorHost: \"probe.test\", user: \"writer\" } as const;\n",
+      "owner choices/tags.ts": "export const TAGS = {\n  reading: \"读书\",\n} as const;\n",
+      "src/config/following.json": "{\"extra\":true,\"follow\":[]}\n"
+    }
+  },
+  "note slug published refusal": {
+    "results": [
+      {
+        "status": 1,
+        "stdout": "probe: https://probe.test/users/writer/notes/2025-01 application/activity+json\n",
+        "stderr": "\n  ✗ 这篇已经联邦化了：https://probe.test/users/writer/notes/2025-01\n    它的 id 在关注者的数据库里。转成短文会换成新 id，旧地址变 404，\n    而按协议该发的 Delete 这里发不出来（没有签名密钥，这是有意的）。\n\n    真要转：FORCE=1，代价如上。\n"
+      }
+    ],
+    "files": {
+      "src/content/posts/2025-01.md": "---\ntitle: \"A title\"\ndate: 2025-01-01T00:30:00+08:00\ntags: [reading, travel]\npinned: false\n---\nA body.\n",
+      "owner choices/activitypub.ts": "export const AP = { actorHost: \"probe.test\", user: \"writer\" } as const;\n",
+      "owner choices/tags.ts": "export const TAGS = {\n  reading: \"读书\",\n} as const;\n",
+      "src/config/following.json": "{\"extra\":true,\"follow\":[]}\n"
+    }
+  },
+  "note slug force published": {
+    "results": [
+      {
+        "status": 0,
+        "stdout": "probe: https://probe.test/users/writer/notes/2025-01 application/activity+json\n  src/content/posts/2025-01.md\n    → src/content/notes/2024.json   id aaaaaaaa   2024-12-31T16:30:00Z\n\n  丢掉标题：A title\n  丢掉标签：reading、travel\n  丢掉置顶\n\n  正文（7 字）：\n    A body.\n\n  写入 src/content/notes/2024.json\n  删除 src/content/posts/2025-01.md\n\n  提交并部署之后它会被投递给关注者。\n",
+        "stderr": "\n  ⚠ FORCE=1：旧 id 会变成 404，远端引用悬空。\n"
+      }
+    ],
+    "files": {
+      "src/content/notes/2024.json": "{\n  \"notes\": [\n    {\n      \"id\": \"aaaaaaaa\",\n      \"published\": \"2024-12-31T16:30:00Z\",\n      \"content\": \"A body.\"\n    }\n  ]\n}\n",
+      "owner choices/activitypub.ts": "export const AP = { actorHost: \"probe.test\", user: \"writer\" } as const;\n",
+      "owner choices/tags.ts": "export const TAGS = {\n  reading: \"读书\",\n} as const;\n",
+      "src/config/following.json": "{\"extra\":true,\"follow\":[]}\n"
+    }
+  },
+  "note network refusal even with force": {
+    "results": [
+      {
+        "status": 1,
+        "stdout": "probe: https://probe.test/users/writer/notes/2025-01 application/activity+json\n",
+        "stderr": "\n  ✗ 查不到 https://probe.test/users/writer/notes/2025-01 是否已发布（网络问题？）\n    这一步查不出来就该失败，而不是当作没发布过。\n"
+      }
+    ],
+    "files": {
+      "src/content/posts/2025-01.md": "---\ntitle: \"A title\"\ndate: 2025-01-01T00:30:00+08:00\ntags: [reading, travel]\npinned: false\n---\nA body.\n",
+      "owner choices/activitypub.ts": "export const AP = { actorHost: \"probe.test\", user: \"writer\" } as const;\n",
+      "owner choices/tags.ts": "export const TAGS = {\n  reading: \"读书\",\n} as const;\n",
+      "src/config/following.json": "{\"extra\":true,\"follow\":[]}\n"
+    }
+  },
+  "note comments refusal precedes probe": {
+    "results": [
+      {
+        "status": 1,
+        "stdout": "",
+        "stderr": "\n  ✗ src/content/comments/posts/2025-01.json 存在：有评论挂在这篇的 AP id 上\n    转换会让它们指向一个不再应答的对象。先决定那些评论怎么办。\n"
+      }
+    ],
+    "files": {
+      "src/content/comments/posts/2025-01.json": "{}",
+      "src/content/posts/2025-01.md": "---\ntitle: \"A title\"\ndate: 2025-01-01T00:30:00+08:00\ntags: [reading, travel]\npinned: false\n---\nA body.\n",
+      "owner choices/activitypub.ts": "export const AP = { actorHost: \"probe.test\", user: \"writer\" } as const;\n",
+      "owner choices/tags.ts": "export const TAGS = {\n  reading: \"读书\",\n} as const;\n",
+      "src/config/following.json": "{\"extra\":true,\"follow\":[]}\n"
+    }
+  },
+  "note explicit path keeps B4 behavior": {
+    "results": [
+      {
+        "status": 0,
+        "stdout": "  src/content/posts/2025-01.md\n    → src/content/notes/2024.json   id aaaaaaaa   2024-12-31T16:30:00Z\n\n  丢掉标题：A title\n  丢掉标签：reading、travel\n  丢掉置顶\n\n  正文（7 字）：\n    A body.\n\n  写入 src/content/notes/2024.json\n  删除 src/content/posts/2025-01.md\n\n  提交并部署之后它会被投递给关注者。\n",
+        "stderr": ""
+      }
+    ],
+    "files": {
+      "src/content/notes/2024.json": "{\n  \"notes\": [\n    {\n      \"id\": \"aaaaaaaa\",\n      \"published\": \"2024-12-31T16:30:00Z\",\n      \"content\": \"A body.\"\n    }\n  ]\n}\n",
+      "owner choices/activitypub.ts": "export const AP = { actorHost: \"probe.test\", user: \"writer\" } as const;\n",
+      "owner choices/tags.ts": "export const TAGS = {\n  reading: \"读书\",\n} as const;\n",
+      "src/config/following.json": "{\"extra\":true,\"follow\":[]}\n"
+    }
+  },
+  "note unreadable configuration": {
+    "results": [
+      {
+        "status": 1,
+        "stdout": "",
+        "stderr": "  读不出 actorHost / user —— owner choices/activitypub.ts 的形状变了，先看一眼再跑\n"
+      }
+    ],
+    "files": {
+      "src/content/posts/2025-01.md": "---\ntitle: \"A title\"\ndate: 2025-01-01T00:30:00+08:00\ntags: [reading, travel]\npinned: false\n---\nA body.\n",
+      "owner choices/activitypub.ts": "export const AP = {};\n",
+      "owner choices/tags.ts": "export const TAGS = {\n  reading: \"读书\",\n} as const;\n",
+      "src/config/following.json": "{\"extra\":true,\"follow\":[]}\n"
+    }
+  },
+  "interactive entry requires tty": {
+    "results": [
+      {
+        "status": 2,
+        "stdout": "",
+        "stderr": "  make new 需要交互式终端。非交互场景用 make newpost / make newtag\n"
+      }
+    ],
+    "files": {
+      "owner choices/activitypub.ts": "export const AP = { actorHost: \"probe.test\", user: \"writer\" } as const;\n",
+      "owner choices/tags.ts": "export const TAGS = {\n  reading: \"读书\",\n} as const;\n",
+      "src/config/following.json": "{\"extra\":true,\"follow\":[]}\n"
+    }
+  },
+  "note malformed host refusal even with force": {
+    "results": [
+      {
+        "status": 1,
+        "stdout": "",
+        "stderr": "\n  ✗ 查不到 https://bad host/users/writer/notes/2025-01 是否已发布（网络问题？）\n    这一步查不出来就该失败，而不是当作没发布过。\n"
+      }
+    ],
+    "files": {
+      "src/content/posts/2025-01.md": "---\ntitle: \"A title\"\ndate: 2025-01-01T00:30:00+08:00\ntags: [reading, travel]\npinned: false\n---\nA body.\n",
+      "owner choices/activitypub.ts": "export const AP = { actorHost: \"bad host\", user: \"writer\" } as const;\n",
+      "owner choices/tags.ts": "export const TAGS = {\n  reading: \"读书\",\n} as const;\n",
+      "src/config/following.json": "{\"extra\":true,\"follow\":[]}\n"
+    }
+  }
+}

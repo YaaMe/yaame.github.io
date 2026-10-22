@@ -45,10 +45,11 @@ Posts, notes and promoted-comment selectors reach content through persistence.
 
 Post filename grammar belongs to `src/models/content/post-filename.ts`; its
 matches and calendar facts leave acceptance, tags and fallbacks to each caller.
-The post selector uses the model directly. Scripts reach the parser through
-`src/services/authoring/posts.ts`, which must import under
-plain Node without virtual aliases. Step 14 moves their authoring decisions
-behind that interface, preserving the commands' different acceptance rules.
+The post selector uses the model directly. Authoring commands reach services in
+`src/services/authoring/`, which must import under plain Node without virtual
+aliases. Keep their acceptance modes separate: post creation checks calendar
+validity, frontmatter infers tags by shape, and interactive tag creation has
+wider slug and duplicate rules than the dedicated command.
 
 `calendarDate()` in `src/models/content/fields.ts` owns the site-timezone calendar
 split used by post stamps and the notes selector. Note archive years still come

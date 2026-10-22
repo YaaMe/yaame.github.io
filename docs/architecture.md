@@ -139,10 +139,26 @@ The day check retains the UTC round-trip behavior, including rejection of years
 display uses shape, creation validates dates, and frontmatter infers tags by shape.
 Publication-date fallbacks remain in `src/selectors/posts.ts`.
 
-Scripts reach this model through the plain-Node forward at
-`src/services/authoring/posts.ts`. Step 14 adds authoring use cases there.
-The post selector imports the model directly. The interactive and dedicated tag
-commands keep their different slug validation until B6.
+Authoring commands call `src/services/authoring/posts.ts` for period defaults,
+post timestamps, missing frontmatter and pin edits. The post selector imports
+the filename model directly.
+
+`src/services/authoring/tags.ts` reads the registered tag source, prepares additions
+and counts usage. Interactive creation keeps its wider slug grammar and accepts
+duplicates; the dedicated command rejects duplicates. B6 owns any unification.
+`src/services/authoring/following.ts` prepares follow-intent document edits.
+
+`src/services/authoring/notes.ts` prepares identifiers, UTC archive years, note
+entries and conversion decisions. It takes configuration source and file snapshots
+from scripts. Its publication probe uses the object-id model and
+`src/gateways/activitypub/publication-probe.ts`, with an injected request function.
+Explicit-path conversion retains its existing behavior pending B4. Post timestamps
+retain local calendar fields with a fixed `+08:00` suffix pending B7.
+
+These services import under plain Node without virtual aliases. Scripts retain
+filesystem access, process execution, prompts, dry-run handling and Chinese output.
+`scripts/notes-store.mjs` reads and writes the archive files; its service prepares
+the documents.
 
 ## What belongs in the data layer
 
