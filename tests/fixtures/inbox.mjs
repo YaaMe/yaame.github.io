@@ -20,11 +20,14 @@ export async function inboxHarness(context, { databaseUrl = ":memory:", openStor
         ${reload && site ? 'export { installSite as reinstallSite } from "./src/routes/activitypub/site.ts?reload";' : ""}
         ${reload ? 'export { installShared as reinstallShared } from "./src/routes/activitypub/shared.ts?reload";' : ""}
         ${content ? 'export { collections, reads } from "./tests/fixtures/activitypub-content.mjs";' : ""}
-        export { installShared } from "./src/routes/activitypub/shared.ts";
+        import { installShared } from "./src/routes/activitypub/shared.ts";
+        installShared();
+        export { installShared };
         export { reconcileFollowing } from "./src/services/activitypub/following.ts";
         export { followIntent } from "./src/config/data.config.generated.mjs";
         export { AP } from "./src/config/activitypub.ts";
-        export { dropFollowersAt, federation } from "./src/integrations/activitypub/federation.ts";
+        export { dropFollowersAt } from "./src/services/activitypub/followers.ts";
+        export { federation } from "./src/services/activitypub/runtime.ts";
         export { platform } from "./src/platform/index.ts";
         export { record } from "./src/services/interactions/comments.ts";
         export { replies, replyCounts, withdrawnMany } from "./src/selectors/interactions/comments.ts";

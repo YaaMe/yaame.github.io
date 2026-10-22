@@ -9,7 +9,7 @@ import { acceptFollowing, updateFollowing } from "./following.ts";
 import { recordDeparture } from "../../signals/activitypub/departures.ts";
 import { sendAccept } from "../../gateways/activitypub/outbound.ts";
 
-import { handleFollow, handleUndoFollow, handleCommentDelete, type FollowerStore, type Follower, type FollowActivity } from "./inbox-follow.ts";
+import { handleFollow, handleUndoFollow, type FollowerStore, type Follower, type FollowActivity } from "./inbox-follow.ts";
 
 const followerStore: FollowerStore = {
   add: followerRows.follow,
@@ -41,7 +41,7 @@ export async function receiveDelete(actorId: string, objectId: string): Promise<
     return;
   }
   // The row survives withdrawal; a promoted copy is removed by its own operation.
-  await handleCommentDelete(objectId, actorId, remove);
+  await remove(objectId, actorId);
 }
 
 export async function receiveAccept(ownActorId: string, actorId: string, follow: FollowActivity): Promise<void> {
@@ -65,5 +65,5 @@ export async function receiveUndo(actorId: string, objectId: string | null, embe
   }
   const follow = await loadFollow();
   // Only the signer's row can be removed, whoever the embedded Follow names.
-  if (follow) await handleUndoFollow(actorId, follow.actorId, followerStore);
+  if (follow) await handleUndoFollow(actorId, followerStore);
 }

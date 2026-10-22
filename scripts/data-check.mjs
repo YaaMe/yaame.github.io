@@ -198,6 +198,7 @@ if (followingService.includes("readFollowIntent") || followingService.includes("
 const apRecords = [
   ["actor-digest", "actorDigest"], ["note-digests", "noteDigests"],
   ["following", "following"], ["follow-ledger", "followLedger"], ["departures", "departures"],
+  ["delivery-failures", "deliveryFailures"],
 ].map(([kind, name]) => {
   const path = `src/persistence/records/${kind}.ts`;
   const source = requires(path, 'from "../../config/data.config.generated.mjs"');
@@ -207,8 +208,12 @@ const apRecords = [
 });
 const session = requires("src/persistence/records/sessions.ts", 'from "../../config/data.config.generated.mjs"');
 requires("src/persistence/records/sessions.ts", "sessions.key");
-const worker = requires("worker/consumer.ts", 'from "../src/config/data.config.generated.mjs"');
-requires("worker/consumer.ts", "deliveryFailures.key");
+const worker = requires("worker/consumer.ts", 'from "virtual:platform"');
+requires("worker/consumer.ts", "platform.queue");
+if (/\bplatform\s*(?:\.\s*(?!queue\b)\w+|\[)/.test(withoutComments(worker))) {
+  console.error("  data register consumer worker/consumer.ts: direct platform access must use queue transport only");
+  process.exitCode = 1;
+}
 requires("Makefile", "build-consumer: data");
 requires("Makefile", "deploy-consumer: data");
 

@@ -45,18 +45,9 @@ export async function handleFollow(
 
 export async function handleUndoFollow(
   actorId: string,
-  _followActorId: string | null,
   store: FollowerStore,
 ): Promise<boolean> {
   const removed = await store.remove(actorId);
   if (removed) await store.departure?.(actorId);
   return removed;
-}
-
-export async function handleCommentDelete(
-  objectId: string,
-  actorId: string,
-  remove: (objectId: string, actorId: string) => Promise<boolean>,
-): Promise<boolean> {
-  return remove(objectId, actorId);
 }

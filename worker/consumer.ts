@@ -13,9 +13,12 @@
  * binding refuses collection reads and renders.
  */
 import type { WorkersMessageQueue } from "@fedify/cfworkers";
-import { dropFollowersAt, federation } from "../src/integrations/activitypub/federation";
+import { deliverQueuedTask, recordExhaustedFailure } from "../src/services/activitypub/queued-delivery.ts";
+import { dropFollowersAt } from "../src/services/activitypub/followers.ts";
+import { installShared } from "../src/routes/activitypub/shared.ts";
 import { platform } from "virtual:platform";
-import { deliveryFailures } from "../src/config/data.config.generated.mjs";
+
+installShared();
 
 /**
  * The retry curve, and where it stops.
@@ -36,15 +39,6 @@ import { deliveryFailures } from "../src/config/data.config.generated.mjs";
 const BACKOFF = [5, 15, 45, 300, 900, 2400];
 const MAX_ATTEMPTS = BACKOFF.length + 1;
 const backoff = (attempts: number) => BACKOFF[Math.min(attempts, BACKOFF.length) - 1];
-
-/**
- * Written-off deliveries, keyed by inbox.
- *
- * A set rather than a log: what is worth keeping is which inboxes are dead, not
- * how many times each one failed. Keying by inbox means a host that fails
- * repeatedly occupies one entry, and the record stays the size of the problem.
- */
-const FAILURES = deliveryFailures.key;
 
 export default {
   async queue(batch: MessageBatch) {
@@ -79,14 +73,6 @@ export default {
       };
     };
 
-    const writeOff = async (
-      what: { inbox?: string; reason: string; attempts: number; [key: string]: unknown },
-    ) => {
-      const set = (await platform.get<Record<string, unknown>>(FAILURES)) ?? {};
-      set[what.inbox ?? "(unknown)"] = { at: new Date().toISOString(), ...what };
-      await platform.put(FAILURES, set);
-    };
-
     for (const message of batch.messages) {
       // Hoisted so the failure paths can name the activity even when the throw
       // came from processMessage, before there was a result to describe.
@@ -106,12 +92,12 @@ export default {
             message.retry({ delaySeconds: backoff(message.attempts) });
             continue;
           }
-          await writeOff({ ...what, reason: "never ready", attempts: message.attempts });
+          await recordExhaustedFailure({ ...what, reason: "never ready", attempts: message.attempts });
           message.ack();
           continue;
         }
 
-        await federation.processQueuedTask(undefined, result.message);
+        await deliverQueuedTask(result.message);
         console.log("delivered", what);
         message.ack();
       } catch (error) {
@@ -126,7 +112,7 @@ export default {
           continue;
         }
 
-        await writeOff({ ...what, reason: String(error), attempts: message.attempts });
+        await recordExhaustedFailure({ ...what, reason: String(error), attempts: message.attempts });
         // The address is settled as unreachable, so stop addressing it. Recording
         // the failure without this leaves the follower on the list and spends
         // another hour of retries on the next thing we publish.

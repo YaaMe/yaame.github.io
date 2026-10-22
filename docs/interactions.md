@@ -91,9 +91,6 @@ reads the collection, including each root in `liveCommentsForMany`.
 
 Temporary imports remain during the later steps of ADR 0018's plan:
 
-- Step 11 redirects `worker/consumer.ts` from the
-  `src/integrations/activitypub/federation.ts` forward to services and shared
-  registration wiring.
 - Step 16 removes the injected handler forward at
   `src/integrations/activitypub/routes/federated.ts` when framework wiring moves.
 - Step 12 moves `lib/recovery.ts` into services and redirects
@@ -109,6 +106,15 @@ plus departure diagnostics, live in `src/signals/activitypub/`.
 The actor and outbox entrances still await them in the same order. Digests are
 written before announcements; first-run delivery marks the archive without sending.
 Delivery marking failures retain the process-local suppression set.
+
+`worker/consumer.ts` installs the shared registrations directly. It owns queue
+decoding, readiness, retries and acknowledgements. Queued delivery and exhausted
+failure recording enter `src/services/activitypub/queued-delivery.ts`; pruning
+enters the follower service. Failure records use
+`src/persistence/records/delivery-failures.ts` and the registered key. An exhausted
+delivery records its failure before pruning and acknowledging. Never-ready
+exhaustion records and acknowledges without pruning, unless recording that
+failure throws; the delivery-failure path then runs, pruning included.
 
 `updateFollowing` in `src/services/activitypub/following.ts` handles accepted
 following additions and all removals. The resolved follow-intent ledger remains

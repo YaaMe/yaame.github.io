@@ -2,7 +2,6 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { Create, Delete, Note } from "@fedify/fedify/vocab";
 import {
-  handleCommentDelete,
   handleFollow,
   handleUndoFollow,
 } from "../src/services/activitypub/inbox-follow.ts";
@@ -191,6 +190,7 @@ test("Create comments keep HTTP(S) identifiers and the signed actor", async (t) 
     assert.equal(deleted.content, "");
     assert.equal(deleted.identifier, friend);
     assert.equal(deleted.id, comment.id);
+    assert.deepEqual(visibleComments([deleted]), []);
   });
 
   await t.test("Delete matches the computed Note id after URL normalization", async () => {
@@ -294,7 +294,7 @@ test("a Follow for another actor records nothing and sends no Accept", async () 
 test("Undo{Follow} removes the matching follower", async () => {
   const state = followerStore([firstFollower]);
 
-  assert.equal(await handleUndoFollow(firstFollower.actorUrl, firstFollower.actorUrl, state.store), true);
+  assert.equal(await handleUndoFollow(firstFollower.actorUrl, state.store), true);
 
   assert.deepEqual(state.read(), []);
   assert.deepEqual(state.departures, [firstFollower.actorUrl]);
@@ -303,7 +303,7 @@ test("Undo{Follow} removes the matching follower", async () => {
 test("an Undo{Follow} from someone not following records no departure", async () => {
   const state = followerStore([firstFollower]);
 
-  assert.equal(await handleUndoFollow("https://remote.example/users/two", null, state.store), false);
+  assert.equal(await handleUndoFollow("https://remote.example/users/two", state.store), false);
 
   assert.deepEqual(state.read(), [firstFollower]);
   assert.deepEqual(state.departures, []);
@@ -325,26 +325,4 @@ test("a Follow the store refuses sends no Accept", async () => {
 
 test("Undo from a different actor than the Follow does not remove a follower", {
   todo: "the embedded Follow actor and object are not checked against Undo.actor and our actor",
-});
-
-test("Delete marks a stored reply withdrawn and the comment view drops it", async () => {
-  const reply = {
-    id: storedComment("reply").id,
-    objectId: "https://remote.example/notes/reply",
-    actorId: firstFollower.actorUrl,
-    replyTo: null,
-    content: "a reply",
-    deletedAt: null,
-  };
-
-  const removed = await handleCommentDelete(reply.objectId, reply.actorId, async (objectId, actorId) => {
-    if (objectId !== reply.objectId || actorId !== reply.actorId) return false;
-    reply.content = undefined;
-    reply.deletedAt = "2026-10-11T00:00:00Z";
-    return true;
-  });
-
-  assert.equal(removed, true);
-  assert.equal(reply.deletedAt, "2026-10-11T00:00:00Z");
-  assert.deepEqual(visibleComments([reply]), []);
 });
