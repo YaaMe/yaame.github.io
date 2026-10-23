@@ -77,6 +77,7 @@ export default {
       // Hoisted so the failure paths can name the activity even when the throw
       // came from processMessage, before there was a result to describe.
       let what = describe(message.body);
+      let writingOffNeverReady = false;
       try {
         const result = await queue.processMessage(message.body);
         what = describe(result.message);
@@ -92,6 +93,7 @@ export default {
             message.retry({ delaySeconds: backoff(message.attempts) });
             continue;
           }
+          writingOffNeverReady = true;
           await recordExhaustedFailure({ ...what, reason: "never ready", attempts: message.attempts });
           message.ack();
           continue;
@@ -101,6 +103,7 @@ export default {
         console.log("delivered", what);
         message.ack();
       } catch (error) {
+        if (writingOffNeverReady) throw error;
         // Retrying is right up to a point, and acking before it would turn a
         // failed delivery into a silent one — which is what the queue exists to
         // avoid. Past the ceiling the reverse is true: the failure is settled,

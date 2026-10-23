@@ -125,8 +125,8 @@ failure recording enter `src/services/activitypub/queued-delivery.ts`; pruning
 enters the follower service. Failure records use
 `src/persistence/records/delivery-failures.ts` and the registered key. An exhausted
 delivery records its failure before pruning and acknowledging. Never-ready
-exhaustion records and acknowledges without pruning, unless recording that
-failure throws; the delivery-failure path then runs, pruning included.
+exhaustion records and acknowledges without pruning. If that record fails, the
+error aborts the batch. Unacknowledged messages remain eligible for queue retry.
 
 `updateFollowing` in `src/services/activitypub/following.ts` handles accepted
 following additions and all removals. The resolved follow-intent ledger remains

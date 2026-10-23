@@ -166,14 +166,20 @@ test("the consumer preserves transport retries, failure records and acknowledgem
     assert.deepEqual(failure(), expectedFailure("Error: delivery failed", 7));
   });
 
-  await t.test("a failed never-ready checkpoint enters the existing delivery-failure catch", async () => {
+  await t.test("a failed never-ready checkpoint preserves followers and leaves the batch unacknowledged (#98)", async () => {
     await reset();
     ready = false;
     failedWrites = 1;
-    await run(7);
-    assert.deepEqual(events, ["process", `get:${deliveryFailures.key}`, `put:${deliveryFailures.key}`,
-      `get:${deliveryFailures.key}`, `put:${deliveryFailures.key}`, "prune", `get:${departures.key}`, `put:${departures.key}`, "ack"]);
-    assert.deepEqual(failure(), expectedFailure("Error: record failed", 7));
+    await assert.rejects(app.consumer.queue({ messages: [message(7), message(1)] }), /record failed/);
+    assert.deepEqual(events, ["process", `get:${deliveryFailures.key}`, `put:${deliveryFailures.key}`]);
+    assert.deepEqual(await remaining(), [actor, "https://example.test/users/neighbour"]);
+    assert.equal(records.get(deliveryFailures.key)[inbox], undefined);
+
+    events.length = 0;
+    await run(8);
+    assert.deepEqual(events, ["process", `get:${deliveryFailures.key}`, `put:${deliveryFailures.key}`, "ack"]);
+    assert.deepEqual(failure(), expectedFailure("never ready", 8));
+    assert.deepEqual(await remaining(), [actor, "https://example.test/users/neighbour"]);
   });
 
   await t.test("a retry leaves later messages in the batch eligible for processing", async () => {
