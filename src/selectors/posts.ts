@@ -87,13 +87,13 @@ export async function allTags(): Promise<Tag[]> {
 }
 
 
-export async function komorebi() {
+export async function novelEntries() {
   return readKomorebi();
 }
 
 /** The novel itself, excluding its index page. */
 export async function novel(): Promise<Chapter | undefined> {
-  return (await komorebi()).find((e) => e.id !== "index");
+  return (await novelEntries()).find((e) => e.id !== "index");
 }
 
 /** Chapter count, from the Han-numeral headings. The design layer should not know this rule. */

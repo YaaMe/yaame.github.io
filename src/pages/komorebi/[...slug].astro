@@ -1,9 +1,9 @@
 ---
-import { komorebi, chapterPage } from "../../selectors/posts";
-import ChapterPage from "../../components/komorebi/ChapterPage.astro";
+import { novelEntries, chapterPage } from "../../selectors/posts";
+import ChapterPage from "../../components/novel/ChapterPage.astro";
 
 export async function getStaticPaths() {
-  const entries = await komorebi();
+  const entries = await novelEntries();
   return entries.map((entry) => ({
     params: { slug: entry.id === "index" ? undefined : entry.id },
     props: { entry },

@@ -31,7 +31,7 @@ test("the consumer graph imports, but content reads and renders fail explicitly"
   assert.equal(posts.href({ id: "2023-07" }), "/posts/2023-07/");
   assert.equal(notes.noteHref({ year: "2026", id: "8nicubmr" }), "/notes/2026/#8nicubmr");
   for (const read of [
-    posts.allPosts, posts.allTags, posts.komorebi, posts.novel, posts.chapterCount,
+    posts.allPosts, posts.allTags, posts.novelEntries, posts.novel, posts.chapterCount,
     notes.allNotes, notes.noteYears, () => comments.commentsFor("2023-07"),
   ]) {
     await assert.rejects(read, { message: "Astro content reads are unavailable in the queue consumer" });
@@ -161,7 +161,7 @@ test("content selectors preserve ordering, dates, URLs, render results and read 
   assert.deepEqual((await posts.allPosts()).map((entry) => entry.id), ["2023-07"]);
   assert.deepEqual(state.reads, ["posts", "posts", "posts"]);
 
-  assert.deepEqual((await posts.komorebi()).map((entry) => entry.id), ["index", "novel"]);
+  assert.deepEqual((await posts.novelEntries()).map((entry) => entry.id), ["index", "novel"]);
   const chapter = await posts.novel();
   assert.equal(chapter.id, "novel");
   assert.equal(await posts.chapterCount(), 2);
@@ -187,7 +187,7 @@ test("content selectors preserve ordering, dates, URLs, render results and read 
   assert.deepEqual(state.reads.slice(8), Array(4).fill("notes"));
 
   state.error = new Error("Content unavailable");
-  for (const read of [posts.allPosts, posts.komorebi, notes.allNotes, notes.noteYears]) {
+  for (const read of [posts.allPosts, posts.novelEntries, notes.allNotes, notes.noteYears]) {
     await assert.rejects(read, (error) => error === state.error);
   }
   await assert.rejects(() => posts.content(entries[0]), (error) => error === state.error);

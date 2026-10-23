@@ -148,7 +148,7 @@ including result types and forwards. Paths are relative to that directory.
 | | `period(post)` | the period the post covers, as a printed label and a machine-readable value |
 | | `allTags()` | the tags in use |
 | | `PAGE_SIZE` / `pages(n)` / `slice(posts, n)` | pagination |
-| | `komorebi()` / `novel()` / `chapterCount()` | the novel |
+| | `novelEntries()` / `novel()` / `chapterCount()` | the novel |
 | | `content(entry)` | rendering |
 | | `Post` / `Chapter` | result types for posts and novel entries |
 | | `tagHref()` / `pageHref()` | tag and pagination URLs |
