@@ -78,8 +78,10 @@ export default {
       // came from processMessage, before there was a result to describe.
       let what = describe(message.body);
       let writingOffNeverReady = false;
+      let release: (() => Promise<void>) | undefined;
       try {
         const result = await queue.processMessage(message.body);
+        release = result.release;
         what = describe(result.message);
 
         // An ordering-key lock is still held by another message, so this one is
@@ -123,6 +125,12 @@ export default {
         console.error("giving up after", message.attempts, "attempts", what,
           dropped.length > 0 ? `— dropped ${dropped.join(", ")}` : "");
         message.ack();
+      } finally {
+        try {
+          await release?.();
+        } catch {
+          console.error("ordering lock release failed");
+        }
       }
     }
   },

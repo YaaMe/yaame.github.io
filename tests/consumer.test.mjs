@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { inboxHarness } from "./fixtures/inbox.mjs";
 import { seedFollower } from "./fixtures/interactions.mjs";
 import { deliveryFailures, departures } from "../src/config/data.config.generated.mjs";
+import { WorkersMessageQueue } from "@fedify/cfworkers";
 
 test("the consumer preserves transport retries, failure records and acknowledgements", async (t) => {
   const app = await inboxHarness(t, { consumer: true });
@@ -23,6 +24,7 @@ test("the consumer preserves transport retries, failure records and acknowledgem
   let deliveryError = false;
   let failedWrites = 0;
   let pruneError = false;
+  let expectedDelivery = prepared;
   const queue = { async processMessage(value) {
     events.push("process");
     if (processError) throw new Error("prepare failed");
@@ -31,7 +33,7 @@ test("the consumer preserves transport retries, failure records and acknowledgem
   app.platform.queue = queue;
   t.mock.method(app.federation, "processQueuedTask", async (data, value) => {
     assert.equal(data, undefined);
-    assert.equal(value, prepared);
+    assert.equal(value, expectedDelivery);
     events.push("deliver");
     if (deliveryError) throw new Error("delivery failed");
   });
@@ -58,6 +60,7 @@ test("the consumer preserves transport retries, failure records and acknowledgem
     ready = true;
     processError = deliveryError = pruneError = false;
     failedWrites = 0;
+    expectedDelivery = prepared;
     await app.database.delete(app.followers);
     seedFollower(app.database.$client, "dead");
     seedFollower(app.database.$client, "neighbour", { inbox });
@@ -187,5 +190,102 @@ test("the consumer preserves transport retries, failure records and acknowledgem
     ready = false;
     await app.consumer.queue({ messages: [message(1), message(2)] });
     assert.deepEqual(events, ["process", "retry:5", "process", "retry:15"]);
+  });
+
+  await t.test("#103: a rejected lock delete preserves settlement, later messages and the original error", async () => {
+    const locks = new Map();
+    app.platform.queue = new WorkersMessageQueue({}, { orderingKv: {
+      get: async (key) => locks.get(key) ?? null,
+      put: async (key, value) => locks.set(key, value),
+      delete: async () => { events.push("release"); throw new Error("private release credential"); },
+    } });
+    const wrapped = (key) => ({ __fedify_ordering_key__: key, __fedify_payload__: prepared });
+    const deliver = app.federation.processQueuedTask;
+    app.federation.processQueuedTask = async (...args) => {
+      try { return await deliver(...args); }
+      finally { deliveryError = false; }
+    };
+    try {
+      for (const outcome of ["delivered", "retry", "written off", "record failed", "prune failed"]) {
+        await reset();
+        locks.clear();
+        console.error.mock.resetCalls();
+        deliveryError = outcome !== "delivered";
+        failedWrites = outcome === "record failed" ? 1 : 0;
+        pruneError = outcome === "prune failed";
+        const pending = app.consumer.queue({ messages: [
+          message(outcome === "retry" ? 1 : 7, wrapped("first")), message(1, wrapped("next")),
+        ] });
+        if (outcome.endsWith("failed")) {
+          await assert.rejects(pending, new RegExp(outcome));
+          assert.equal(events.filter((event) => event === "deliver").length, 1);
+          assert.ok(!events.includes("ack"));
+        } else {
+          await pending;
+          assert.deepEqual(events.slice(-4), ["release", "deliver", "ack", "release"]);
+          assert.equal(events.filter((event) => event === "ack").length, outcome === "retry" ? 1 : 2);
+          if (outcome === "retry") assert.ok(events.includes("retry:5"));
+        }
+        const errors = console.error.mock.calls.map(({ arguments: args }) => args)
+          .filter(([line]) => line === "ordering lock release failed");
+        assert.deepEqual(errors, Array.from({ length: outcome.endsWith("failed") ? 1 : 2 }, () => ["ordering lock release failed"]));
+        assert.doesNotMatch(JSON.stringify(console.error.mock.calls), /private release credential/);
+      }
+    } finally {
+      app.platform.queue = queue;
+      app.federation.processQueuedTask = deliver;
+    }
+  });
+
+  await t.test("#103: a settled message releases its key before the next message, without KV expiry", async () => {
+    await reset();
+    const locks = new Map();
+    const released = [];
+    app.platform.queue = new WorkersMessageQueue({}, { orderingKv: {
+      get: async (key) => locks.get(key) ?? null,
+      put: async (key, value) => locks.set(key, value),
+      delete: async (key) => { released.push(key); locks.delete(key); events.push("release"); },
+    } });
+    const wrapped = { __fedify_ordering_key__: "same-inbox", __fedify_payload__: prepared };
+    for (const outcome of ["delivered", "retry", "written off", "record failed", "prune failed"]) {
+      await reset();
+      deliveryError = outcome !== "delivered";
+      failedWrites = outcome === "record failed" ? 1 : 0;
+      pruneError = outcome === "prune failed";
+      const attempt = outcome === "retry" ? 1 : 7;
+      let settle;
+      let started;
+      const handling = new Promise((resolve) => { settle = resolve; });
+      const entered = new Promise((resolve) => { started = resolve; });
+      const deliver = app.federation.processQueuedTask;
+      app.federation.processQueuedTask = async (...args) => {
+        started();
+        await handling;
+        return deliver(...args);
+      };
+      const pending = run(attempt, wrapped);
+      await entered;
+      assert.equal(locks.size, 1, "the lock stays held while delivery is pending");
+      const count = released.length;
+      if (outcome === "delivered") {
+        await run(1, wrapped);
+        assert.equal(events.at(-1), "retry:5", "a concurrent message waits for the owner");
+        assert.equal(locks.size, 1);
+        assert.equal(released.length, count, "a waiting message cannot release another message's lock");
+      }
+      settle();
+      if (outcome.endsWith("failed")) await assert.rejects(pending, new RegExp(outcome));
+      else await pending;
+      app.federation.processQueuedTask = deliver;
+      assert.equal(locks.size, 0, outcome);
+      assert.equal(released.length, count + 1, "release exactly once after settlement");
+      assert.equal(events.at(-1), "release", "release follows retry, record, prune and acknowledgement");
+      deliveryError = pruneError = false;
+      expectedDelivery = { ...prepared, activity: { id: "https://yaame.dev/activities/next" } };
+      events.length = 0;
+      await run(1, { ...wrapped, __fedify_payload__: expectedDelivery });
+      assert.deepEqual(events, ["deliver", "ack", "release"], "the next message delivers without retry or expiry");
+    }
+    app.platform.queue = queue;
   });
 });
