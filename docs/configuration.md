@@ -57,8 +57,7 @@ It decides two things in `astro.config.mjs`: which file under `src/platform/`
 
 The implementation that is not selected **never enters the module graph**. So
 its host-only imports (`cloudflare:workers`, `node:*`) do not have to exist on
-the other host. This is how the second architectural rule in `CLAUDE.md` is
-implemented.
+the other host. This is how the host boundary is implemented.
 
 Both implementations exist:
 

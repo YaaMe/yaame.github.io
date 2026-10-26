@@ -36,7 +36,7 @@ bottom
   src/migrations/         migration history and migrate()
   src/gateways/           external systems, both ways: the Fedify instance inbound routes hand requests to, and outbound calls (ActivityPub delivery and resolution, GitHub)
 boundary
-  src/platform/           the host (the second rule in CLAUDE.md), through virtual:platform
+  src/platform/           the host boundary, through virtual:platform
   src/astro.binding.ts    the framework, through virtual:astro
 anywhere
   src/config/             the owner's settings: site, tags, ActivityPub, login, follow intent, data register
@@ -260,6 +260,12 @@ from scripts. Its publication probe uses the object-id model and
 `src/gateways/activitypub/publication-probe.ts`, with an injected request function.
 Explicit-path conversion retains its existing behavior pending B4. Post timestamps
 retain local calendar fields with a fixed `+08:00` suffix pending B7.
+
+`src/services/interactions/promote-text.ts`, the typed-content converter, keeps its
+own URL predicate (`URL.canParse` plus HTTP(S)) rather than the model's `httpUrl`
+pending B12. Archive rewriting in `src/services/interactions/tombstone.ts` keeps its
+timestamp precedence rather than the live withdrawal view's pending B5. Unifying
+either changes which inputs are accepted or which comments are shown.
 
 These services import under plain Node without virtual aliases. Scripts retain
 filesystem access, process execution, prompts, dry-run handling and Chinese output.
