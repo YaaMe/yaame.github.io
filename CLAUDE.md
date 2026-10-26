@@ -338,16 +338,20 @@ and read `git diff --cached --stat` before committing.
 
 ## Branching and merging
 
-Work lands on `main` directly — commit, `make check`, push. No pull request is
-needed; the review loop still runs before the work lands.
-
-When a change is large enough to want its own branch, merge it locally:
+**While no workflow runs `make check` on `pull_request`**, a pull request here
+would land without CI, so work lands without one: commit to `main`, `make check`,
+push. A change large enough to want its own branch is merged locally:
 
 ```
 git switch main && git pull --ff-only
 git merge --no-ff --gpg-sign -m "[Domain]: ..." <branch>
 git push origin main
 ```
+
+**Once one does**, land a branch through a pull request with "Create a merge
+commit" instead.
+
+Either way, the review loop runs before the work lands.
 
 **Never land a branch through GitHub's "Rebase and merge".** PR #16 went in
 with nine signed commits and left nine unsigned ones on `main`.

@@ -55,10 +55,10 @@ Inspect `git diff --cached --stat` before committing. `docs/identity.md` and
 `komorebi-notes.md` are deliberately gitignored and may be absent in a fresh
 checkout. Never stage them.
 
-Work normally lands directly on `main`; a pull request is optional. When landing
-a feature branch, update `main` with `git pull --ff-only`, then merge locally with
-`git merge --no-ff --gpg-sign`. Never force-push `main` or use GitHub's
-"Rebase and merge".
+While no workflow in `.github/workflows/` runs `make check` on `pull_request`,
+land locally: update `main` with `git pull --ff-only`, then merge with
+`git merge --no-ff --gpg-sign`. Once a workflow does, land through a pull request
+using "Create a merge commit". Never force-push `main` or use "Rebase and merge".
 
 Run commands from the repository root. [Makefile](Makefile) owns the operations;
 `make help` lists them. CI uses Node 24.22.1; `make install` runs `npm ci`.
