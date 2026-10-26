@@ -338,8 +338,8 @@ and read `git diff --cached --stat` before committing.
 
 ## Branching and merging
 
-Work lands on `main` directly — commit, `make check`, push. Nothing here
-requires review, and a pull request adds a step without adding a reader.
+Work lands on `main` directly — commit, `make check`, push. No pull request is
+needed; the review loop still runs before the work lands.
 
 When a change is large enough to want its own branch, merge it locally:
 
