@@ -1,5 +1,5 @@
 {
-  "name": "yaame-ap-consumer",
+  "name": "{{consumerWorker}}",
   "main": "./consumer.ts",
   "compatibility_date": "2026-09-01",
   "compatibility_flags": ["nodejs_compat"],
@@ -23,7 +23,7 @@
   // Followers, comments, short posts and reactions. SQLite dialect, so the same statements
   // run against node:sqlite when DEPLOY_TARGET=node — see docs/interactions.md.
   "d1_databases": [
-    { "binding": "AP_DB", "database_name": "yaame-ap-interactions", "database_id": "${CF_D1_ID}" }
+    { "binding": "AP_DB", "database_name": "{{database}}", "database_id": "${CF_D1_ID}" }
   ],
 
   "kv_namespaces": [{ "binding": "AP_KV", "id": "${CF_KV_ID}" }],
@@ -31,11 +31,11 @@
   // Bound as a producer too — WorkersMessageQueue needs the binding to take the
   // ordering lock, even on the consuming side.
   "queues": {
-    "producers": [{ "queue": "yaame-ap-delivery", "binding": "AP_QUEUE" }],
+    "producers": [{ "queue": "{{deliveryQueue}}", "binding": "AP_QUEUE" }],
     // max_retries sits above the consumer's own ceiling on purpose: the consumer
     // stops at seven attempts and records why, and a lower limit here would end
     // the retries first, silently.
-    "consumers": [{ "queue": "yaame-ap-delivery", "max_batch_size": 10, "max_retries": 10 }]
+    "consumers": [{ "queue": "{{deliveryQueue}}", "max_batch_size": 10, "max_retries": 10 }]
   },
 
   "tsconfig": "./tsconfig.json"

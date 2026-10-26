@@ -40,9 +40,10 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         run: |
           test -n "$AP_KEY_JWK" || { echo "AP_KEY_JWK is not set"; exit 1; }
-          for worker in yaame-blogu yaame-ap-consumer; do
+          worker_names=$(node scripts/resource-names.mjs siteWorker consumerWorker)
+          while IFS= read -r worker; do
             printf '%s' "$AP_KEY_JWK" | npx wrangler secret put AP_KEY_JWK --name "$worker"
-          done
+          done <<< "$worker_names"
 
       # Names only — `wrangler secret list` never returns values, which is the
       # property the whole arrangement rests on.
@@ -51,7 +52,8 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         run: |
-          for worker in yaame-blogu yaame-ap-consumer; do
+          worker_names=$(node scripts/resource-names.mjs siteWorker consumerWorker)
+          while IFS= read -r worker; do
             echo "$worker:"
             npx wrangler secret list --name "$worker"
-          done
+          done <<< "$worker_names"

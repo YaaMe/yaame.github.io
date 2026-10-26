@@ -1,5 +1,5 @@
 {
-  "name": "yaame-blogu",
+  "name": "{{siteWorker}}",
   "main": "@astrojs/cloudflare/entrypoints/server",
   "compatibility_date": "2026-09-01",
   "compatibility_flags": ["nodejs_compat"],
@@ -20,7 +20,7 @@
 
   // Producer only. The adapter's server entry exports `fetch` and nothing else,
   // so the consumer is a separate Worker with its own configuration.
-  "queues": { "producers": [{ "queue": "yaame-ap-delivery", "binding": "AP_QUEUE" }] },
+  "queues": { "producers": [{ "queue": "{{deliveryQueue}}", "binding": "AP_QUEUE" }] },
 
   // Followers, comments and reactions. SQLite dialect, so the same statements run against
   // node:sqlite when DEPLOY_TARGET=node — see docs/interactions.md.
@@ -28,7 +28,7 @@
   // The placeholders below are filled in by scripts/wrangler-config.mjs
   // before the build: the adapter reads the generated file at build time.
   "d1_databases": [
-    { "binding": "AP_DB", "database_name": "yaame-ap-interactions", "database_id": "${CF_D1_ID}" }
+    { "binding": "AP_DB", "database_name": "{{database}}", "database_id": "${CF_D1_ID}" }
   ],
 
   "kv_namespaces": [{ "binding": "AP_KV", "id": "${CF_KV_ID}" }],
