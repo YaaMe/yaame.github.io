@@ -131,11 +131,12 @@ The stub imports successfully and throws if asked to read or render content.
 
 ## `site.*`
 
-`title`, `lang` and `description` are plain information. These fields have
-constraints:
+`title`, `lang` and `description` describe the site. The remaining fields are:
 
-- **`author`** supplies the handle in [Cloudflare resource names](#cloudflare-resource-names).
-  Config generation requires a non-empty string.
+- **`author`** is the lowercase handle used in [Cloudflare resource names](#cloudflare-resource-names).
+  Config generation requires a non-empty string of lowercase letters, digits and inner hyphens.
+- **`authorDisplay`** is the name shown to readers in the footer.
+  Changing it leaves resource names unchanged.
 - **`url`** follows `BUILD_PROFILE`. It decides the canonical URL and the RSS
   links. The actor's link to the blog does not use it. That link is
   `AP.blogUrl`, which is fixed.

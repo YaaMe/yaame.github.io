@@ -38,6 +38,7 @@ export const other = PROFILE === "full" ? STATIC : FULL;
 interface Site {
   title: string;
   author: string;
+  authorDisplay: string;
   url: string;
   lang: string;
   /** IANA zone. Dates render here, not in the reader's zone or the builder's. */
@@ -50,6 +51,7 @@ interface Site {
 export const site = {
   title: "Blogu",
   author: "yaame",
+  authorDisplay: "yaame",
   // Each profile is canonical to itself.
   url: PROFILE === "full" ? FULL : STATIC,
   lang: "zh-Hans",
