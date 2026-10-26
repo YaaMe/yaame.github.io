@@ -224,7 +224,7 @@ const dataCheckInputs = [
   "src/persistence/records/following.ts",
   "src/persistence/records/follow-ledger.ts",
   "src/persistence/records/departures.ts",
-  "src/persistence/records/delivery-failures.ts",
+  "src/persistence/interactions/failure-rows.ts",
   "src/persistence/records/sessions.ts",
   "worker/consumer.ts",
   ".github/workflows/promotions.yml",
@@ -292,14 +292,14 @@ test("data-check rejects workflow path copies and unscoped Git commands", (t) =>
   assert.equal(invalidWrangler.status, 1);
   assert.match(invalidWrangler.stderr, /host-specific Wrangler reference/);
 
-  const failuresPath = join(cwd, "src/persistence/records/delivery-failures.ts");
+  const failuresPath = join(cwd, "src/persistence/interactions/failure-rows.ts");
   const failures = readFileSync(failuresPath, "utf8");
-  const changedFailures = failures.replace("deliveryFailures.key", "deliveryFailures.records");
-  assert.notEqual(changedFailures, failures, "the failure-record mutation must change the source");
+  const changedFailures = failures.replaceAll("location.quotedColumns", '{ at: \'"at"\', data: \'"data"\' }');
+  assert.notEqual(changedFailures, failures, "the failure-row mutation must change the source");
   writeFileSync(failuresPath, changedFailures);
   const invalidFailures = check();
   assert.equal(invalidFailures.status, 1);
-  assert.match(invalidFailures.stderr, /data register consumer src\/persistence\/records\/delivery-failures\.ts:/);
+  assert.match(invalidFailures.stderr, /data register consumer src\/persistence\/interactions\/failure-rows\.ts:/);
 });
 
 test("data-check rejects direct platform storage access in the consumer", (t) => {

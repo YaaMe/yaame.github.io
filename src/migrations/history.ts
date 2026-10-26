@@ -131,4 +131,14 @@ export const MIGRATIONS: readonly (string | readonly string[])[] = [
      )`,
     `CREATE INDEX deliveries_by_channel ON deliveries (channel, target)`,
   ],
+  [
+    `CREATE TABLE failures (
+       id TEXT PRIMARY KEY NOT NULL,
+       kind TEXT NOT NULL,
+       subject TEXT NOT NULL,
+       at TEXT NOT NULL,
+       data TEXT NOT NULL CHECK (json_valid(data) AND json_type(data) = 'object')
+     )`,
+    `CREATE UNIQUE INDEX failures_by_subject ON failures (kind, subject)`,
+  ],
 ];

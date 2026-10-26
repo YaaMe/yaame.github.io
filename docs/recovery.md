@@ -366,7 +366,9 @@ when omitted, both runtime and recovery use `interactions.sqlite` under
 
 The pair selects `registerForLayerKinds(register, ["sql"])` and retains only
 `recovery: keep` payloads. Currently these are followers, deliveries,
-reactions, migrations, comments and visitor identities; owner-held entries travel as names only. Table and physical column
+reactions, migrations, comments and visitor identities; owner-held entries travel as names only.
+The `failures` table is `recovery: reset`: it is not exported, and a restored
+database starts with it empty. Table and physical column
 names come from the register, while rows in the document use logical names.
 Rows are sorted by their canonical JSON representation for repeatable exports.
 Git, JSON records and owner-held values still need their own recovery steps.

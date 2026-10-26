@@ -142,18 +142,24 @@
     "purposes": ["federation"],
     "description": "Fingerprints of the notes last announced to followers."
   },
-  "delivery-failures": {
+  "failures": {
     "layers": [
       {
-        "records": "ap:delivery-failures",
-        "format": "json"
+        "sql": "failures",
+        "columns": {
+          "id": "id",
+          "kind": "kind",
+          "subject": "subject",
+          "at": "at",
+          "data": "data"
+        }
       }
     ],
     "writeBack": [],
     "origin": "owner",
     "recovery": "reset",
     "purposes": ["federation", "bookkeeping"],
-    "description": "Inbox delivery attempts written off after the retry ceiling."
+    "description": "Work written off after its retries, one row per kind and subject holding the latest observation; a delivery failure's subject is its sanitised inbox."
   },
   "departures": {
     "layers": [

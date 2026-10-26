@@ -60,8 +60,14 @@ export default {
     // made two Accepts — one for a follow since cancelled, one for the live
     // request — indistinguishable, and a success belonging to the first was
     // read as success for the second.
+    //
+    // An ordered message arrives wrapped; until processMessage unwraps it, the
+    // payload is the only place its inbox is named.
     const describe = (m: unknown) => {
-      const msg = m as { type?: string; inbox?: string; actorIds?: unknown; activity?: Record<string, unknown> };
+      const raw = (m ?? {}) as { __fedify_payload__?: unknown };
+      const msg = (raw.__fedify_payload__ ?? raw) as {
+        type?: string; inbox?: string; actorIds?: unknown; activity?: Record<string, unknown>;
+      };
       const object = msg.activity?.object as { id?: string } | string | undefined;
       return {
         type: msg.type,
@@ -82,10 +88,11 @@ export default {
       try {
         const result = await queue.processMessage(message.body);
         release = result.release;
-        what = describe(result.message);
 
         // An ordering-key lock is still held by another message, so this one is
         // not ready. Retrying is the only correct answer: acking would drop it.
+        // Fedify returns no message in this case, so the description stays the
+        // one taken from the body.
         if (!result.shouldProcess) {
           // Not an exception, so nothing would report it on its own — and a
           // message that is never ready would otherwise be retried until the
@@ -96,11 +103,12 @@ export default {
             continue;
           }
           writingOffNeverReady = true;
-          await recordExhaustedFailure({ ...what, reason: "never ready", attempts: message.attempts });
+          await recordExhaustedFailure(what, { reason: "never-ready", attempt: message.attempts });
           message.ack();
           continue;
         }
 
+        what = describe(result.message);
         await deliverQueuedTask(result.message);
         console.log("delivered", what);
         message.ack();
@@ -117,7 +125,9 @@ export default {
           continue;
         }
 
-        await recordExhaustedFailure({ ...what, reason: String(error), attempts: message.attempts });
+        // The error text stays in the log line above; the record carries only
+        // its category.
+        await recordExhaustedFailure(what, { reason: "delivery-exhausted", attempt: message.attempts });
         // The address is settled as unreachable, so stop addressing it. Recording
         // the failure without this leaves the follower on the list and spends
         // another hour of retries on the next thing we publish.

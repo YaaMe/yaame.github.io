@@ -32,7 +32,7 @@ export async function inboxHarness(context, { databaseUrl = ":memory:", openStor
         export { record } from "./src/services/interactions/comments.ts";
         export { replies, replyCounts, withdrawnMany } from "./src/selectors/interactions/comments.ts";
         export { store } from "./src/persistence/interactions/database.ts";
-        export { comments, followers, reactions, visitorIdentities, deliveries } from "./src/models/interactions/tables.ts";
+        export { comments, followers, reactions, visitorIdentities, deliveries, failures } from "./src/models/interactions/tables.ts";
         export { counts as reactionCounts } from "./src/selectors/interactions/reactions.ts";
         export { insertComment } from "./src/persistence/interactions/write-comment.ts";
       `,

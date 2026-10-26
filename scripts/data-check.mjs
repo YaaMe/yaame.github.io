@@ -25,7 +25,7 @@ const {
   actorDigest,
   deliveries,
   departures,
-  deliveryFailures,
+  failures,
   followLedger,
   followers,
   following,
@@ -56,6 +56,7 @@ const sqlLocations = [
   ["comments", comments],
   ["followers", followers],
   ["deliveries", deliveries],
+  ["failures", failures],
   ["reactions", reactions],
   ["migrations", migrations],
   ["visitor-identities", visitorIdentities],
@@ -135,6 +136,12 @@ requiresPattern("src/models/interactions/tables.ts", /sqliteTable\s*\(\s*deliver
 for (const field of Object.keys(deliveries.columns)) {
   requires("src/models/interactions/tables.ts", `deliveryColumns.${field}`);
 }
+requiresPattern("src/models/interactions/tables.ts", /sqliteTable\s*\(\s*failuresLocation\.sql/, "sqliteTable(failuresLocation.sql)");
+for (const field of Object.keys(failures.columns)) {
+  requires("src/models/interactions/tables.ts", `failureColumns.${field}`);
+}
+const failureRows = requires("src/persistence/interactions/failure-rows.ts", 'from "../../config/data.config.generated.mjs"');
+requires("src/persistence/interactions/failure-rows.ts", "location.quotedColumns");
 const migrationPath = "src/migrations/index.ts";
 const migrationSource = requires(migrationPath, 'from "../config/data.config.generated.mjs"');
 requires(migrationPath, 'from "./history.ts"');
@@ -203,7 +210,6 @@ if (followingService.includes("readFollowIntent") || followingService.includes("
 const apRecords = [
   ["actor-digest", "actorDigest"], ["note-digests", "noteDigests"],
   ["following", "following"], ["follow-ledger", "followLedger"], ["departures", "departures"],
-  ["delivery-failures", "deliveryFailures"],
 ].map(([kind, name]) => {
   const path = `src/persistence/records/${kind}.ts`;
   const source = requires(path, 'from "../../config/data.config.generated.mjs"');
@@ -265,6 +271,7 @@ const pathConsumers = [
   ["scripts/promote-filter.mjs", promoteFilter],
   ["src/persistence/interactions/comment-rows.ts", commentsRows],
   ["src/persistence/interactions/comment-operation-sql.ts", commentSql],
+  ["src/persistence/interactions/failure-rows.ts", failureRows],
   ["scripts/unpromote.mjs", unpromote],
   ["scripts/tombstone.mjs", tombstone],
   ["scripts/comments-store.mjs", commentsStore],
@@ -354,7 +361,6 @@ const sourceWithoutComments = pathConsumers
 const recordLocations = [
   ["actorDigest", actorDigest],
   ["departures", departures],
-  ["deliveryFailures", deliveryFailures],
   ["followLedger", followLedger],
   ["following", following],
   ["noteDigests", noteDigests],

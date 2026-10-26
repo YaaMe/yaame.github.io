@@ -120,13 +120,30 @@ First-run delivery marks the archive without sending.
 Delivery marking failures retain the process-local suppression set.
 
 `worker/consumer.ts` installs the shared registrations directly. It owns queue
-decoding, readiness, retries and acknowledgements. Queued delivery and exhausted
-failure recording enter `src/services/activitypub/queued-delivery.ts`; pruning
-enters the follower service. Failure records use
-`src/persistence/records/delivery-failures.ts` and the registered key. An exhausted
-delivery records its failure before pruning and acknowledging. Never-ready
-exhaustion records and acknowledges without pruning. If that record fails, the
-error aborts the batch. Unacknowledged messages remain eligible for queue retry.
+decoding, readiness, retries and acknowledgements. Queued delivery enters
+`src/services/activitypub/queued-delivery.ts`; pruning enters the follower
+service. A message blocked by its ordering lock is not ready: it is retried with
+backoff and, past the ceiling, written off as never ready.
+
+A written-off delivery enters `recordExhaustedFailure` in the same service. It
+writes one row of the generic failure table, `failures` in the interactions
+database, through `src/persistence/interactions/failure-rows.ts`. A row has a
+UUID v5 id computed from its kind and subject, a `kind`, a `subject` (unique
+within the kind), the time `at`, and a `data` JSON object. The kind's model in
+`src/models/interactions/failures.ts` defines `data`, and the row is checked
+against it before every write and after every read.
+
+For a delivery the subject is the inbox without URL credentials, query or
+fragment, or `(unknown)`. `data` holds that inbox, the activity id stripped the
+same way, the attempt and a reason category (`delivery-exhausted` or
+`never-ready`). It holds no error text; that stays in the Worker log.
+
+The write is one upsert on (kind, subject) that replaces the held row only when
+the new `at` is later, so writes for one inbox keep the latest observation in
+any order and nothing is read and written back. An exhausted delivery is pruned
+and acknowledged only after the write succeeds. Never-ready exhaustion writes
+and acknowledges without pruning. If the write fails, the error aborts the
+batch, and unacknowledged messages remain eligible for queue retry.
 
 `updateFollowing` in `src/services/activitypub/following.ts` handles accepted
 following additions and all removals. The resolved follow-intent ledger remains
