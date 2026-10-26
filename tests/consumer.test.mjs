@@ -86,7 +86,7 @@ test("the consumer preserves transport retries, failure records and acknowledgem
     ack: () => events.push("ack"),
     retry: ({ delaySeconds }) => events.push(`retry:${delaySeconds}`),
   });
-  const batch = (...messages) => ({ queue: "yaame-ap-delivery", messages });
+  const batch = (...messages) => ({ queue: "test-ap-delivery", messages });
   const run = (attempts, value = body) => app.consumer.queue(batch(message(attempts, value)));
   const remaining = async () => (await app.database.select().from(app.followers)).map((row) => row.identifier).sort();
   const expectedFailure = (reason, attempt, activity = prepared.activity) => ({

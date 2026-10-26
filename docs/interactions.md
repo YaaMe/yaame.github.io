@@ -393,7 +393,7 @@ drop after another attempt commits. Failure rolls back the marker and DDL.
 The reactions migration, appended after it, works the same way.
 
 On October 19, 2026, the owner approved dropping one withdrawn comment read
-from D1 `yaame-ap-interactions`. The migration accepts an empty comments table
+from the D1 database bound as `AP_DB`. The migration accepts an empty comments table
 or exactly one row matching all five approved values:
 
 | Column | Approved value |
@@ -524,7 +524,7 @@ case, which may dereference a bare URL.
 ### The appended reactions migration
 
 On October 19, 2026, the owner approved dropping two undone test reactions read
-from D1 `yaame-ap-interactions`. The migration accepts an empty reactions table
+from the D1 database bound as `AP_DB`. The migration accepts an empty reactions table
 or exactly these two rows, matching every stored column:
 
 | `kind` | `activity_id` | `received_at` | `undone_at` |

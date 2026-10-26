@@ -4,7 +4,7 @@ export function siteShell(pathname: string, description?: string) {
   return {
     title: site.title,
     lang: site.lang,
-    author: site.author,
+    author: site.authorDisplay,
     description: description ?? site.description,
     canonical: new URL(pathname.endsWith("/") ? pathname : pathname + "/", site.url).href,
     fingerprint: site.fingerprint.match(/.{4}/g)?.join(" ") ?? site.fingerprint,

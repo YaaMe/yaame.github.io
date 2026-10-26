@@ -16,6 +16,7 @@ meaning of one setting is easy to guess. The meaning of a combination is not.
 | `CF_KV_ID` / `CF_D1_ID` | environment variable → `wrangler.jsonc` | before the build, at deploy | CI repository variables |
 | `features.*` | `src/config/site.config.ts`, derived from `BUILD_PROFILE` | at build time | the author (by changing the derivation) |
 | `site.*` | `src/config/site.config.ts` | at build time | the author |
+| Cloudflare resource names | `site.author` in `src/config/site.config.ts` | config generation and operations | the author |
 | `AP.*` | `src/config/activitypub.ts` | at build time | the author |
 | `AUTH.*` | `src/config/auth.ts` | at build time | the author |
 | `TAGS` | `src/config/tags.ts` | at build time | the author / tag commands |
@@ -130,9 +131,12 @@ The stub imports successfully and throws if asked to read or render content.
 
 ## `site.*`
 
-`title`, `author`, `lang` and `description` are plain information. Three fields
-have constraints:
+`title`, `lang` and `description` describe the site. The remaining fields are:
 
+- **`author`** is the lowercase handle used in [Cloudflare resource names](#cloudflare-resource-names).
+  Config generation requires a non-empty string of lowercase letters, digits and inner hyphens.
+- **`authorDisplay`** is the name shown to readers in the footer.
+  Changing it leaves resource names unchanged.
 - **`url`** follows `BUILD_PROFILE`. It decides the canonical URL and the RSS
   links. The actor's link to the blog does not use it. That link is
   `AP.blogUrl`, which is fixed.
@@ -167,6 +171,38 @@ When `handleHost` and the actor are on different domains, the static WebFinger
 document on `id.yaa.me` must match the one Fedify generates. Mastodon checks a
 second time. If the two do not match, the account is invisible on the other
 server.
+
+## Cloudflare resource names
+
+`scripts/resource-names.mjs` imports `site.author` from
+`src/config/site.config.ts` under plain Node and derives these names:
+
+| Resource | Name |
+|---|---|
+| Site Worker | `<author>-blogu` |
+| Consumer Worker | `<author>-ap-consumer` |
+| Delivery queue | `<author>-ap-delivery` |
+| D1 database | `<author>-ap-interactions` |
+
+`scripts/wrangler-config.mjs` fills `{{siteWorker}}`, `{{consumerWorker}}`,
+`{{deliveryQueue}}` and `{{database}}` from that script. It generates
+`wrangler.jsonc` from `wrangler.jsonc.template`, and
+`worker/wrangler.generated.jsonc` from `worker/wrangler.jsonc`.
+An author that is missing, or is not lowercase letters, digits and inner hyphens,
+fails generation, and so does one long enough to make a generated name exceed 63
+characters (`author` may have at most 47). `author` must stay the handle the live
+Workers and queue were created with: a different value generates Worker and queue
+names that do not exist, and the next deploy targets them. The D1 database is
+selected by `CF_D1_ID`, so its name does not choose which database is used.
+`${VAR}` placeholders still read the environment and fail when unset or empty.
+Resource names need no environment variables.
+
+The Actor key workflow reads both Worker names from the same script.
+Cloudflare comment commands read the database name from it too.
+Changing `author` changes the generated names; it does not rename live resources.
+To give one resource another name, edit its entry in `scripts/resource-names.mjs`;
+the generated configs, the key workflow and the comment commands all follow it.
+KV namespaces remain bound by id.
 
 ## `wrangler.jsonc.template`
 

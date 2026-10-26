@@ -1,7 +1,3 @@
-# The binding name belongs to the Cloudflare entry point, not to the
-# host-free reconciliation modules.
-DB_NAME="yaame-ap-interactions"
-
 source "$(dirname -- "${BASH_SOURCE[0]}")/../flags.sh"
 
 require_d1() {
@@ -10,6 +6,7 @@ require_d1() {
     return 1
   fi
   node scripts/wrangler-config.mjs >/dev/null
+  DB_NAME=$(node scripts/resource-names.mjs database)
 }
 
 d1_json() {
