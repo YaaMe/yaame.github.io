@@ -189,9 +189,11 @@ server.
 `wrangler.jsonc` from `wrangler.jsonc.template`, and
 `worker/wrangler.generated.jsonc` from `worker/wrangler.jsonc`.
 An author that is missing, or is not lowercase letters, digits and inner hyphens,
-fails generation. `author` must stay the handle the live resources were created
-with: a different value generates names that do not exist, and the next deploy
-targets them.
+fails generation, and so does one long enough to make a generated name exceed 63
+characters (`author` may have at most 47). `author` must stay the handle the live
+Workers and queue were created with: a different value generates Worker and queue
+names that do not exist, and the next deploy targets them. The D1 database is
+selected by `CF_D1_ID`, so its name does not choose which database is used.
 `${VAR}` placeholders still read the environment and fail when unset or empty.
 Resource names need no environment variables.
 

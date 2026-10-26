@@ -16,6 +16,15 @@ export const resourceNames = {
   database: `${author}-ap-interactions`,
 };
 
+// Every generated name is held to 63 characters: Cloudflare's cap on queue names,
+// and on Worker names served from workers.dev. The database suffix is the
+// longest, so it decides how long author may be.
+for (const name of Object.values(resourceNames)) {
+  if (name.length > 63) {
+    throw new Error(`src/config/site.config.ts: site.author is too long; ${name} exceeds 63 characters`);
+  }
+}
+
 if (import.meta.main) {
   const names = process.argv.slice(2).map((key) => {
     if (!Object.hasOwn(resourceNames, key)) throw new Error(`Unknown resource name: ${key}`);

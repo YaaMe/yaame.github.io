@@ -100,6 +100,21 @@ test("missing and empty environment variables fail without replacing output", (t
   assert.equal(readFileSync(join(app.cwd, "custom.jsonc"), "utf8"), "value value 0");
 });
 
+test("an author may be as long as the longest generated name allows, and no longer", (t) => {
+  const app = fixture(t);
+  const [template, output] = templates[1];
+  app.setAuthor("a".repeat(47));
+  const accepted = app.run(["scripts/wrangler-config.mjs", template, output]);
+  assert.equal(accepted.status, 0, accepted.stderr);
+  assert.equal(app.readConfig(output).d1_databases[0].database_name.length, 63);
+  app.setAuthor("a".repeat(48));
+  writeFileSync(join(app.cwd, output), "keep existing output");
+  const refused = app.run(["scripts/wrangler-config.mjs", template, output]);
+  assert.notEqual(refused.status, 0);
+  assert.match(refused.stderr, /site\.author is too long; a{48}-ap-interactions exceeds 63 characters/);
+  assert.equal(readFileSync(join(app.cwd, output), "utf8"), "keep existing output");
+});
+
 test("a missing, empty, non-string or non-slug author fails before output or key operations", (t) => {
   const app = fixture(t);
   assert.equal(keySteps.length, 2);
