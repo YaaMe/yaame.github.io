@@ -7,7 +7,7 @@ import {
   authConfig,
   deliveries,
   departures,
-  deliveryFailures,
+  failures,
   followLedger,
   followers,
   following,
@@ -139,8 +139,8 @@ test("the register resolves runtime keys, tables and patterns", () => {
   const keyedEntries = recordEntries.filter(([, entry]) =>
     typeof entry.layers.find((candidate) => Object.hasOwn(candidate, "records")).records === "string",
   );
-  assert.equal(recordEntries.length, 8);
-  assert.equal(keyedEntries.length, 7);
+  assert.equal(recordEntries.length, 7);
+  assert.equal(keyedEntries.length, 6);
   for (const [kind, entry] of keyedEntries) {
     const layer = entry.layers.find((candidate) => Object.hasOwn(candidate, "records"));
     assert.ok(layer.records, kind);
@@ -159,12 +159,14 @@ test("the register resolves runtime keys, tables and patterns", () => {
   assert.equal(register.deliveries.layers[0].sql, "deliveries");
   assert.equal(deliveries.table, '"deliveries"');
   assert.equal(Object.hasOwn(deliveries, "key"), false);
+  assert.equal(register.failures.layers[0].sql, "failures");
+  assert.equal(failures.table, '"failures"');
+  assert.equal(Object.hasOwn(failures, "key"), false);
 
   const generatedKeys = [
     following,
     followLedger,
     noteDigests,
-    deliveryFailures,
     departures,
     actorDigest,
     sessions,
@@ -198,7 +200,7 @@ test("the register pins the ownership and recovery policy for every kind", () =>
       "follow-ledger": ["owner", "keep"],
       deliveries: ["owner", "keep"],
       "note-digests": ["owner", "keep"],
-      "delivery-failures": ["owner", "reset"],
+      failures: ["owner", "reset"],
       departures: ["others", "reset"],
       "actor-digest": ["owner", "rebuild"],
       sessions: ["owner", "ephemeral"],

@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { inboxHarness } from "./fixtures/inbox.mjs";
 import { seedFollower } from "./fixtures/interactions.mjs";
-import { deliveryFailures, departures } from "../src/config/data.config.generated.mjs";
+import { departures } from "../src/config/data.config.generated.mjs";
 import { WorkersMessageQueue } from "@fedify/cfworkers";
 
 test("the consumer preserves transport retries, failure records and acknowledgements", async (t) => {
@@ -22,13 +22,14 @@ test("the consumer preserves transport retries, failure records and acknowledgem
   let ready = true;
   let processError = false;
   let deliveryError = false;
-  let failedWrites = 0;
+  let failedRecords = 0;
   let pruneError = false;
   let expectedDelivery = prepared;
   const queue = { async processMessage(value) {
     events.push("process");
     if (processError) throw new Error("prepare failed");
-    return { message: value === body ? prepared : value, shouldProcess: ready };
+    // Fedify's WorkersMessageQueue returns no message while the ordering lock is held.
+    return ready ? { message: value === body ? prepared : value, shouldProcess: true } : { shouldProcess: false };
   } };
   app.platform.queue = queue;
   t.mock.method(app.federation, "processQueuedTask", async (data, value) => {
@@ -44,8 +45,15 @@ test("the consumer preserves transport retries, failure records and acknowledgem
   t.mock.method(app.platform, "put", async (key, value) => {
     await Promise.resolve();
     events.push(`put:${key}`);
-    if (key === deliveryFailures.key && failedWrites-- > 0) throw new Error("record failed");
     records.set(key, structuredClone(value));
+  });
+  const insert = app.database.insert.bind(app.database);
+  t.mock.method(app.database, "insert", (table) => {
+    if (table === app.failures) {
+      events.push("record");
+      if (failedRecords-- > 0) throw new Error("record failed");
+    }
+    return insert(table);
   });
   const remove = app.database.delete.bind(app.database);
   t.mock.method(app.database, "delete", (table) => {
@@ -56,16 +64,21 @@ test("the consumer preserves transport retries, failure records and acknowledgem
     return remove(table);
   });
   for (const level of ["log", "warn", "error"]) t.mock.method(console, level, () => {});
+  const neighbour = {
+    id: "00000000-0000-5000-8000-000000000000", kind: "delivery", subject: "https://elsewhere.test/inbox",
+    at: "2026-10-01T00:00:00.000Z", data: JSON.stringify({ retained: true }),
+  };
   const reset = async () => {
     ready = true;
     processError = deliveryError = pruneError = false;
-    failedWrites = 0;
+    failedRecords = 0;
     expectedDelivery = prepared;
     await app.database.delete(app.followers);
     seedFollower(app.database.$client, "dead");
     seedFollower(app.database.$client, "neighbour", { inbox });
     records.clear();
-    records.set(deliveryFailures.key, { "https://elsewhere.test/inbox": { retained: true } });
+    await app.database.delete(app.failures);
+    await app.database.insert(app.failures).values(neighbour);
     events.length = 0;
   };
   const message = (attempts, value = body) => ({
@@ -73,18 +86,23 @@ test("the consumer preserves transport retries, failure records and acknowledgem
     ack: () => events.push("ack"),
     retry: ({ delaySeconds }) => events.push(`retry:${delaySeconds}`),
   });
-  const run = (attempts, value = body) => app.consumer.queue({ messages: [message(attempts, value)] });
+  const batch = (...messages) => ({ queue: "yaame-ap-delivery", messages });
+  const run = (attempts, value = body) => app.consumer.queue(batch(message(attempts, value)));
   const remaining = async () => (await app.database.select().from(app.followers)).map((row) => row.identifier).sort();
-  const expectedFailure = (reason, attempts, activity = prepared.activity) => ({
-    type: "outbox", inbox, actorIds: [actor], activity: activity.id,
-    object: typeof activity.object === "string" ? activity.object : activity.object.id,
-    reason, attempts,
+  const expectedFailure = (reason, attempt, activity = prepared.activity) => ({
+    version: 1, inbox, activityId: activity.id, attempt, reason,
   });
-  const failure = () => {
-    const { at, ...value } = records.get(deliveryFailures.key)[inbox];
-    assert.equal(new Date(at).toISOString(), at);
-    assert.deepEqual(records.get(deliveryFailures.key)["https://elsewhere.test/inbox"], { retained: true });
-    return value;
+  const stored = async () => (await app.database.select().from(app.failures))
+    .filter(({ id }) => id !== neighbour.id)
+    .map((row) => ({ ...row, data: JSON.parse(row.data) }));
+  const failure = async () => {
+    const rows = await stored();
+    assert.equal(rows.length, 1);
+    assert.equal(rows[0].kind, "delivery");
+    assert.equal(new Date(rows[0].at).toISOString(), rows[0].at);
+    assert.deepEqual((await app.database.select().from(app.failures)).find(({ id }) => id === neighbour.id), neighbour,
+      "a write leaves other failure rows as they were");
+    return rows[0].data;
   };
 
   await t.test("successful delivery uses the prepared message and acknowledges afterwards", async () => {
@@ -112,9 +130,9 @@ test("the consumer preserves transport retries, failure records and acknowledgem
       await reset();
       deliveryError = true;
       await run(attempts);
-      assert.deepEqual(events, ["process", "deliver", `get:${deliveryFailures.key}`, `put:${deliveryFailures.key}`,
+      assert.deepEqual(events, ["process", "deliver", "record",
         "prune", `get:${departures.key}`, `put:${departures.key}`, "ack"]);
-      assert.deepEqual(failure(), expectedFailure("Error: delivery failed", attempts));
+      assert.deepEqual(await failure(), expectedFailure("delivery-exhausted", attempts));
       assert.deepEqual(await remaining(), ["https://example.test/users/neighbour"]);
     });
   }
@@ -123,8 +141,8 @@ test("the consumer preserves transport retries, failure records and acknowledgem
     await reset();
     ready = false;
     await run(7);
-    assert.deepEqual(events, ["process", `get:${deliveryFailures.key}`, `put:${deliveryFailures.key}`, "ack"]);
-    assert.deepEqual(failure(), expectedFailure("never ready", 7));
+    assert.deepEqual(events, ["process", "record", "ack"]);
+    assert.deepEqual(await failure(), expectedFailure("never-ready", 7, body.activity));
     assert.equal((await remaining()).length, 2);
   });
 
@@ -135,60 +153,88 @@ test("the consumer preserves transport retries, failure records and acknowledgem
     assert.deepEqual(events, ["process", "retry:5"]);
     events.length = 0;
     await run(7);
-    assert.deepEqual(failure(), expectedFailure("Error: prepare failed", 7, body.activity));
+    assert.deepEqual(await failure(), expectedFailure("delivery-exhausted", 7, body.activity));
     assert.equal(events[0], "process");
     assert.equal(events.at(-1), "ack");
     assert.ok(!events.includes("deliver"));
   });
 
-  await t.test("a failure without an inbox uses the unknown key and does not prune", async () => {
+  await t.test("a failure without an inbox is recorded with a null inbox and does not prune", async () => {
     await reset();
     processError = true;
     await run(7, { type: "outbox", actorIds: "invalid", activity: {} });
-    assert.deepEqual(events, ["process", `get:${deliveryFailures.key}`, `put:${deliveryFailures.key}`, "ack"]);
-    const value = records.get(deliveryFailures.key)["(unknown)"];
-    assert.deepEqual(value.actorIds, []);
-    assert.equal(value.reason, "Error: prepare failed");
+    assert.deepEqual(events, ["process", "record", "ack"]);
+    assert.deepEqual(await failure(), { version: 1, inbox: null, activityId: null, attempt: 7, reason: "delivery-exhausted" });
     assert.equal((await remaining()).length, 2);
   });
 
-  await t.test("a failed checkpoint prevents pruning and acknowledgement and aborts the batch", async () => {
+  await t.test("the record strips URL credentials, query and fragment, and pruning still uses the stored inbox", async () => {
+    await reset();
+    const secretInbox = "https://user:pw@example.test/users/dead/inbox?token=private#frag";
+    await app.database.delete(app.followers);
+    seedFollower(app.database.$client, "dead", { inbox: secretInbox });
+    seedFollower(app.database.$client, "neighbour");
+    processError = true;
+    await run(7, { ...body, inbox: secretInbox });
+    assert.deepEqual(await failure(), expectedFailure("delivery-exhausted", 7, body.activity));
+    assert.doesNotMatch(JSON.stringify(await stored()), /pw|private|frag/);
+    assert.deepEqual(await remaining(), ["https://example.test/users/neighbour"]);
+  });
+
+  await t.test("a refused failure record prevents pruning and acknowledgement and aborts the batch", async () => {
     await reset();
     deliveryError = true;
-    failedWrites = 1;
-    await assert.rejects(app.consumer.queue({ messages: [message(7), message(1)] }), /record failed/);
-    assert.deepEqual(events, ["process", "deliver", `get:${deliveryFailures.key}`, `put:${deliveryFailures.key}`]);
+    failedRecords = 1;
+    await assert.rejects(app.consumer.queue(batch(message(7), message(1))), /record failed/);
+    assert.deepEqual(events, ["process", "deliver", "record"]);
     assert.equal((await remaining()).length, 2);
   });
 
-  await t.test("a pruning failure propagates after the checkpoint and leaves the message unacknowledged", async () => {
+  await t.test("a pruning failure propagates after the record and leaves the message unacknowledged", async () => {
     await reset();
     deliveryError = pruneError = true;
     await assert.rejects(run(7), /prune failed/);
-    assert.deepEqual(events, ["process", "deliver", `get:${deliveryFailures.key}`, `put:${deliveryFailures.key}`, "prune"]);
-    assert.deepEqual(failure(), expectedFailure("Error: delivery failed", 7));
+    assert.deepEqual(events, ["process", "deliver", "record", "prune"]);
+    assert.deepEqual(await failure(), expectedFailure("delivery-exhausted", 7));
   });
 
-  await t.test("a failed never-ready checkpoint preserves followers and leaves the batch unacknowledged (#98)", async () => {
+  await t.test("a refused never-ready record preserves followers and leaves the batch unacknowledged (#98)", async () => {
     await reset();
     ready = false;
-    failedWrites = 1;
-    await assert.rejects(app.consumer.queue({ messages: [message(7), message(1)] }), /record failed/);
-    assert.deepEqual(events, ["process", `get:${deliveryFailures.key}`, `put:${deliveryFailures.key}`]);
+    failedRecords = 1;
+    await assert.rejects(app.consumer.queue(batch(message(7), message(1))), /record failed/);
+    assert.deepEqual(events, ["process", "record"]);
     assert.deepEqual(await remaining(), [actor, "https://example.test/users/neighbour"]);
-    assert.equal(records.get(deliveryFailures.key)[inbox], undefined);
+    assert.deepEqual(await stored(), []);
 
     events.length = 0;
     await run(8);
-    assert.deepEqual(events, ["process", `get:${deliveryFailures.key}`, `put:${deliveryFailures.key}`, "ack"]);
-    assert.deepEqual(failure(), expectedFailure("never ready", 8));
+    assert.deepEqual(events, ["process", "record", "ack"]);
+    assert.deepEqual(await failure(), expectedFailure("never-ready", 8, body.activity));
     assert.deepEqual(await remaining(), [actor, "https://example.test/users/neighbour"]);
+  });
+
+  await t.test("#107: a message blocked by its ordering lock takes the not-ready path and names its inbox", async () => {
+    for (const value of [body, { __fedify_ordering_key__: "same-inbox", __fedify_payload__: body }]) {
+      await reset();
+      ready = false;
+      console.warn.mock.resetCalls();
+      console.error.mock.resetCalls();
+      await run(1, value);
+      assert.deepEqual(events, ["process", "retry:5"]);
+      const warnings = console.warn.mock.calls.map(({ arguments: args }) => args);
+      assert.equal(warnings.length, 1);
+      assert.equal(warnings[0][0], "not ready");
+      assert.equal(warnings[0][1].inbox, inbox);
+      assert.equal(warnings[0][1].activity, body.activity.id);
+      assert.equal(console.error.mock.calls.length, 0);
+    }
   });
 
   await t.test("a retry leaves later messages in the batch eligible for processing", async () => {
     await reset();
     ready = false;
-    await app.consumer.queue({ messages: [message(1), message(2)] });
+    await app.consumer.queue(batch(message(1), message(2)));
     assert.deepEqual(events, ["process", "retry:5", "process", "retry:15"]);
   });
 
@@ -211,11 +257,11 @@ test("the consumer preserves transport retries, failure records and acknowledgem
         locks.clear();
         console.error.mock.resetCalls();
         deliveryError = outcome !== "delivered";
-        failedWrites = outcome === "record failed" ? 1 : 0;
+        failedRecords = outcome === "record failed" ? 1 : 0;
         pruneError = outcome === "prune failed";
-        const pending = app.consumer.queue({ messages: [
+        const pending = app.consumer.queue(batch(
           message(outcome === "retry" ? 1 : 7, wrapped("first")), message(1, wrapped("next")),
-        ] });
+        ));
         if (outcome.endsWith("failed")) {
           await assert.rejects(pending, new RegExp(outcome));
           assert.equal(events.filter((event) => event === "deliver").length, 1);
@@ -250,7 +296,7 @@ test("the consumer preserves transport retries, failure records and acknowledgem
     for (const outcome of ["delivered", "retry", "written off", "record failed", "prune failed"]) {
       await reset();
       deliveryError = outcome !== "delivered";
-      failedWrites = outcome === "record failed" ? 1 : 0;
+      failedRecords = outcome === "record failed" ? 1 : 0;
       pruneError = outcome === "prune failed";
       const attempt = outcome === "retry" ? 1 : 7;
       let settle;

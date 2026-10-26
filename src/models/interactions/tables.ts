@@ -8,10 +8,11 @@
  * ISO string the same way, and a numeric epoch would have to be decoded by hand
  * wherever it is read.
  */
-import { index, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import { index, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 import {
   comments as commentsLocation,
   deliveries as deliveriesLocation,
+  failures as failuresLocation,
   followers as followersLocation,
   reactions as reactionsLocation,
   visitorIdentities as identitiesLocation,
@@ -22,6 +23,7 @@ const reactionsColumns = reactionsLocation.columns;
 const identityColumns = identitiesLocation.columns;
 const followerColumns = followersLocation.columns;
 const deliveryColumns = deliveriesLocation.columns;
+const failureColumns = failuresLocation.columns;
 
 export const visitorIdentities = sqliteTable(identitiesLocation.sql, {
   id: text(identityColumns.id).primaryKey(),
@@ -163,5 +165,29 @@ export const deliveries = sqliteTable(
     // Channel, then content, so one channel's marks read the index alone;
     // change it only with that query.
     index("deliveries_by_channel").on(t.channel, t.target),
+  ],
+);
+
+/**
+ * Work written off after its retries, of any kind: one row per kind and
+ * subject, holding the latest observation.
+ *
+ * `data` is a JSON object whose shape the kind's model defines; the database
+ * checks only that it is an object. Every write goes through an upsert that
+ * keeps the later `at`, so `at` must stay fixed-width ISO text: the comparison
+ * is on text.
+ */
+export const failures = sqliteTable(
+  failuresLocation.sql,
+  {
+    id: text(failureColumns.id).primaryKey(),
+    kind: text(failureColumns.kind).notNull(),
+    subject: text(failureColumns.subject).notNull(),
+    at: text(failureColumns.at).notNull(),
+    data: text(failureColumns.data).notNull(),
+  },
+  (t) => [
+    // The upsert's conflict target; removing it turns every write into an insert.
+    uniqueIndex("failures_by_subject").on(t.kind, t.subject),
   ],
 );

@@ -77,6 +77,15 @@ export function deliveryId(channel: Channel, target: string): string {
   return v5(["delivery", channel, target]);
 }
 
+/**
+ * A failure row's id. One row per kind and subject, so those are its inputs
+ * and the same failure observed again keeps its id.
+ */
+export function failureId(kind: string, subject: string): string {
+  if (kind.length === 0 || subject.length === 0) throw new Error("a failure requires its kind and subject");
+  return v5(["failure", kind, subject]);
+}
+
 export function sameOrigin(identifier: string, ...attributes: string[]): boolean {
   try {
     const origin = new URL(normalizedUrl(identifier)).origin;
