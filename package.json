@@ -12,21 +12,21 @@
   },
   "dependencies": {
     "@astrojs/rss": "^4.0.19",
-    "@fedify/cfworkers": "^2.4.1",
-    "@fedify/fedify": "^2.4.1",
+    "@fedify/cfworkers": "^2.4.5",
+    "@fedify/fedify": "^2.4.5",
     "@js-temporal/polyfill": "^0.5.1",
-    "@noble/hashes": "1.8.0",
-    "astro": "^7.3.6",
-    "drizzle-orm": "^1.0.0-rc.5-5935859",
-    "marked": "^18.1.0",
+    "@noble/hashes": "2.4.0",
+    "astro": "^7.4.4",
+    "drizzle-orm": "^1.0.0-rc.5",
+    "marked": "^18.1.2",
     "parse5": "^8.0.1",
     "zod": "^4.6.5"
   },
   "devDependencies": {
-    "@astrojs/check": "^0.9.10",
-    "@astrojs/cloudflare": "^14.3.4",
-    "@astrojs/node": "^11.1.7",
-    "@types/node": "^26.6.4",
+    "@astrojs/check": "^0.9.12",
+    "@astrojs/cloudflare": "^14.4.3",
+    "@astrojs/node": "^11.1.9",
+    "@types/node": "^26.6.6",
     "typescript": "^6.0.3"
   }
 }
